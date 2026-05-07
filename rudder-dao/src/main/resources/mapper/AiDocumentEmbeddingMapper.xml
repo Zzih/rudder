@@ -1,0 +1,32 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiDocumentEmbeddingMapper">
+
+    <select id="selectByDocument" resultType="io.github.zzih.rudder.dao.entity.AiDocumentEmbedding">
+        select * from t_r_ai_document_embedding
+        where document_id = #{documentId}
+        order by chunk_index asc
+    </select>
+
+    <select id="selectByPointIds" resultType="io.github.zzih.rudder.dao.entity.AiDocumentEmbedding">
+        select * from t_r_ai_document_embedding
+        where qdrant_point_id in
+        <foreach collection="pointIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+    </select>
+
+    <delete id="deleteByDocument">
+        delete from t_r_ai_document_embedding where document_id = #{documentId}
+    </delete>
+
+    <!--
+      孤儿 embedding 行:documentId 指向的 AiDocument 已被物理删除(事务回滚 / 手 truncate 等)。
+      正常 delete 路径已经同事务清了 embedding,这里只做兜底 sweep,把残留 vector 也清掉。
+    -->
+    <select id="selectOrphanEmbeddings" resultType="io.github.zzih.rudder.dao.entity.AiDocumentEmbedding">
+        select e.*
+        from t_r_ai_document_embedding e
+        left join t_r_ai_document d on d.id = e.document_id
+        where d.id is null
+        limit #{limit}
+    </select>
+
+</mapper>

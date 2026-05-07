@@ -1,0 +1,45 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-rerank</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-rerank-generic</artifactId>
+    <name>Rudder Rerank Generic (Cohere-style REST)</name>
+    <description>
+        Cohere 风格 rerank REST 客户端。一个实现适配多个 provider:
+        Cohere 官方 / 智谱 / DashScope 兼容接口 (qwen3-rerank) / Xinference / LocalAI / 任何 Cohere 兼容服务。
+        切换 provider 只改 endpoint + apiKey + model。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-rerank-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

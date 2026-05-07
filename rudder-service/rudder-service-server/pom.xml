@@ -1,0 +1,131 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-service</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-service-server</artifactId>
+    <name>Rudder Service: Server</name>
+    <description>
+        仅 Server 端（rudder-api）用的业务 service：ai / approval 发布 / config 同步 /
+        workflow 编排 / workspace 管理。依赖 shared 拿 ServiceRegistry / TaskInstance / Notification。
+    </description>
+
+    <dependencies>
+        <!-- Shared service (transitive brings common/dao/rpc/task-api/notification-api) -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-service-shared</artifactId>
+        </dependency>
+
+        <!-- Infrastructure -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-datasource</artifactId>
+        </dependency>
+
+        <!-- SwitchTask 用 nashorn-sandbox 跑用户 JS 表达式 -->
+        <dependency>
+            <groupId>org.javadelight</groupId>
+            <artifactId>delight-nashorn-sandbox</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.nashorn</groupId>
+            <artifactId>nashorn-core</artifactId>
+        </dependency>
+
+        <!-- SPI contracts -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-file-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-llm-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-embedding-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-vector-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-metadata-api</artifactId>
+        </dependency>
+
+        <!-- Caffeine: MetadataColumnTagResolver 本地缓存 -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-runtime-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-version-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-approval-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-approval-local</artifactId>
+        </dependency>
+
+        <!-- Third-party: Arion Dolphin client for workflow publishing -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>arion-dolphin-client</artifactId>
+        </dependency>
+
+        <!-- Spring -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Workspace: auth / JWT / LDAP -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.unboundid</groupId>
+            <artifactId>unboundid-ldapsdk</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

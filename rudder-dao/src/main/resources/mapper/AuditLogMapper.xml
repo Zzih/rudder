@@ -1,0 +1,33 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AuditLogMapper">
+
+    <sql id="baseSql">
+        id, user_id, username, module, action, resource_type, resource_code,
+        description, request_ip, request_method, request_uri, request_params,
+        status, error_message, duration_ms, created_at
+    </sql>
+
+    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.AuditLog">
+        select <include refid="baseSql"/>
+        from t_r_audit_log
+        <where>
+            <if test="module != null and module != ''">
+                and module = #{module}
+            </if>
+            <if test="action != null and action != ''">
+                and action = #{action}
+            </if>
+            <if test="username != null and username != ''">
+                and username like concat('%', #{username}, '%')
+            </if>
+            <if test="startTime != null and startTime != ''">
+                and created_at <![CDATA[ >= ]]> #{startTime}
+            </if>
+            <if test="endTime != null and endTime != ''">
+                and created_at <![CDATA[ <= ]]> #{endTime}
+            </if>
+        </where>
+        order by created_at desc
+    </select>
+
+</mapper>

@@ -1,0 +1,29 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiSkillMapper">
+
+    <sql id="baseSql">
+        id, name, display_name, description, category, definition,
+        input_schema, required_tools, model_override, enabled,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.AiSkill">
+        select <include refid="baseSql"/>
+        from t_r_ai_skill
+        order by name asc
+    </select>
+
+    <select id="queryByName" resultType="io.github.zzih.rudder.dao.entity.AiSkill">
+        select <include refid="baseSql"/>
+        from t_r_ai_skill
+        where name = #{name}
+        limit 1
+    </select>
+
+    <select id="selectPageOrdered" resultType="io.github.zzih.rudder.dao.entity.AiSkill">
+        select <include refid="baseSql"/>
+        from t_r_ai_skill
+        order by name asc
+    </select>
+
+</mapper>

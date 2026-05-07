@@ -1,0 +1,265 @@
+// ============================================================
+// Rudder — Theme System (CSS Custom Properties)
+// Light / Dark mode via html.dark class
+// ============================================================
+
+:root {
+  // Typography — shared between IDE and the rest of the app.
+  // 中文场景包含 PingFang / Hiragino / Microsoft YaHei 作为回退。
+  --r-font-ui: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+               'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB',
+               'Microsoft YaHei', sans-serif;
+  --r-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono',
+                 Menlo, Monaco, Consolas, 'Fira Code', monospace;
+  --r-font-editorial: 'Fraunces', 'Iowan Old Style', 'Apple Garamond',
+                      Baskerville, 'Times New Roman', serif;
+
+  // Type scale (pixel-stable across the app)
+  --r-font-xs: 11px;   // helper text, tag captions
+  --r-font-sm: 12px;   // secondary labels
+  --r-font-base: 13px; // body / form inputs
+  --r-font-md: 14px;   // default UI
+  --r-font-lg: 16px;   // section headings
+  --r-font-xl: 18px;   // page titles
+  --r-font-2xl: 24px;  // hero / login
+
+  // Font weights (shared across app)
+  --r-weight-regular: 400;
+  --r-weight-medium: 500;
+  --r-weight-semibold: 600;
+  --r-weight-bold: 700;
+
+  // Line heights
+  --r-leading-tight: 1.25;
+  --r-leading-snug: 1.4;
+  --r-leading-normal: 1.55;
+  --r-leading-loose: 1.7;
+
+  // Spacing scale (shared across app)
+  --r-space-1: 4px;
+  --r-space-2: 8px;
+  --r-space-3: 12px;
+  --r-space-4: 16px;
+  --r-space-5: 20px;
+  --r-space-6: 24px;
+  --r-space-8: 32px;
+
+  // Radius scale
+  --r-radius-sm: 4px;
+  --r-radius-md: 6px;
+  --r-radius-lg: 8px;
+  --r-radius-xl: 12px;
+
+  // Backgrounds
+  --r-bg-page: #f5f7fa;
+  --r-bg-card: #ffffff;
+  --r-bg-header: #ffffff;
+  --r-bg-hover: #f1f5f9;
+  --r-bg-active: #eff6ff;
+  --r-bg-panel: #f8fafc;
+  --r-bg-overlay: #ffffff;
+  --r-bg-input: #ffffff;
+  --r-bg-tooltip: #303133;
+  --r-bg-code: #f6f8fa;
+  --r-bg-card-translucent: rgba(255, 255, 255, 0.92);
+
+  // Text
+  --r-text-primary: #0f172a;
+  --r-text-secondary: #475569;
+  --r-text-tertiary: #64748b;
+  --r-text-muted: #94a3b8;
+  --r-text-disabled: #cbd5e1;
+  --r-text-inverse: #ffffff;
+
+  // Borders
+  --r-border: #e2e8f0;
+  --r-border-light: #f1f5f9;
+  --r-border-dark: #cbd5e1;
+
+  // Accent / Primary
+  --r-accent: #3b82f6;
+  --r-accent-hover: #2563eb;
+  --r-accent-bg: #eff6ff;
+  --r-accent-border: #bfdbfe;
+
+  // Status colors
+  --r-success: #22c55e;
+  --r-success-bg: #f0fdf4;
+  --r-success-border: #bbf7d0;
+  --r-warning: #f59e0b;
+  --r-warning-bg: #fffbeb;
+  --r-warning-border: #fde68a;
+  --r-danger: #ef4444;
+  --r-danger-bg: #fef2f2;
+  --r-danger-border: #fecaca;
+  --r-info: #3b82f6;
+  --r-info-bg: #eff6ff;
+  --r-info-border: #bfdbfe;
+
+  // Extended palette (purple / cyan / pink / orange — for tags, categories, avatars)
+  --r-purple: #8b5cf6;
+  --r-purple-bg: rgba(139, 92, 246, 0.1);
+  --r-purple-border: rgba(139, 92, 246, 0.2);
+  --r-cyan: #0ea5e9;
+  --r-cyan-bg: rgba(14, 165, 233, 0.1);
+  --r-cyan-border: rgba(14, 165, 233, 0.2);
+  --r-pink: #ec4899;
+  --r-pink-bg: rgba(236, 72, 153, 0.1);
+  --r-pink-border: rgba(236, 72, 153, 0.2);
+  --r-orange: #f97316;
+  --r-orange-bg: rgba(249, 115, 22, 0.1);
+  --r-orange-border: rgba(249, 115, 22, 0.2);
+  --r-teal: #14b8a6;
+  --r-teal-bg: rgba(20, 184, 166, 0.1);
+  --r-teal-border: rgba(20, 184, 166, 0.2);
+  --r-yellow: #facc15;
+  --r-yellow-bg: rgba(250, 204, 21, 0.1);
+  --r-yellow-border: rgba(250, 204, 21, 0.2);
+
+  // Shadows
+  --r-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --r-shadow-md: 0 4px 16px rgb(0 0 0 / 0.08);
+  --r-shadow-lg: 0 8px 32px rgb(0 0 0 / 0.12);
+  --r-shadow-overlay: 0 4px 24px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(0 0 0 / 0.04);
+
+  // Scrollbar
+  --r-scrollbar-thumb: #c0c4cc;
+  --r-scrollbar-track: transparent;
+
+  // Skeleton / loading
+  --r-skeleton-from: #f1f5f9;
+  --r-skeleton-via: #e8ecf1;
+
+  // Logo
+  --r-logo-bg: #3b82f6;
+  --r-logo-text: #ffffff;
+}
+
+/* ============================================================
+   Dark-mode override for highlight.js (github theme shipped via main.ts
+   is light-only; these rules flip syntax colors to a github-dark palette
+   when <html> has .dark class).
+   ============================================================ */
+html.dark .hljs {
+  background: transparent;
+  color: #e6edf3;
+}
+html.dark {
+  .hljs-comment,
+  .hljs-quote         { color: #8b949e; font-style: italic; }
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal,
+  .hljs-type,
+  .hljs-addition      { color: #ff7b72; }
+  .hljs-number,
+  .hljs-meta,
+  .hljs-link,
+  .hljs-variable,
+  .hljs-template-variable { color: #79c0ff; }
+  .hljs-string,
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-attribute     { color: #a5d6ff; }
+  .hljs-title,
+  .hljs-section,
+  .hljs-name,
+  .hljs-selector-id,
+  .hljs-selector-class { color: #d2a8ff; }
+  .hljs-tag,
+  .hljs-built_in      { color: #7ee787; }
+  .hljs-params,
+  .hljs-attr          { color: #ffa657; }
+  .hljs-regexp,
+  .hljs-deletion      { color: #ffa198; }
+  .hljs-emphasis      { font-style: italic; }
+  .hljs-strong        { font-weight: 600; }
+}
+
+html.dark {
+  color-scheme: dark;
+
+  // Backgrounds
+  --r-bg-page: #0f1117;
+  --r-bg-card: #1a1c23;
+  --r-bg-header: #16181f;
+  --r-bg-hover: #252730;
+  --r-bg-active: #1e253a;
+  --r-bg-panel: #1e1f27;
+  --r-bg-overlay: #22232b;
+  --r-bg-input: #22242c;
+  --r-bg-tooltip: #3a3c44;
+  --r-bg-code: #1e1f27;
+  --r-bg-card-translucent: rgba(26, 28, 35, 0.92);
+
+  // Text
+  --r-text-primary: #e2e4ea;
+  --r-text-secondary: #9ca3af;
+  --r-text-tertiary: #8891a0;
+  --r-text-muted: #6b7280;
+  --r-text-disabled: #4b5563;
+  --r-text-inverse: #0f172a;
+
+  // Borders
+  --r-border: #2a2d36;
+  --r-border-light: #22242c;
+  --r-border-dark: #3a3d46;
+
+  // Accent / Primary
+  --r-accent: #60a5fa;
+  --r-accent-hover: #3b82f6;
+  --r-accent-bg: #1e253a;
+  --r-accent-border: #1e3a5f;
+
+  // Status colors
+  --r-success: #4ade80;
+  --r-success-bg: #14261a;
+  --r-success-border: #166534;
+  --r-warning: #fbbf24;
+  --r-warning-bg: #27200f;
+  --r-warning-border: #854d0e;
+  --r-danger: #f87171;
+  --r-danger-bg: #2a1215;
+  --r-danger-border: #991b1b;
+  --r-info: #60a5fa;
+  --r-info-bg: #1e253a;
+  --r-info-border: #1e3a5f;
+
+  // Extended palette
+  --r-purple: #a78bfa;
+  --r-purple-bg: rgba(139, 92, 246, 0.15);
+  --r-purple-border: rgba(139, 92, 246, 0.3);
+  --r-cyan: #38bdf8;
+  --r-cyan-bg: rgba(14, 165, 233, 0.15);
+  --r-cyan-border: rgba(14, 165, 233, 0.3);
+  --r-pink: #f472b6;
+  --r-pink-bg: rgba(236, 72, 153, 0.15);
+  --r-pink-border: rgba(236, 72, 153, 0.3);
+  --r-orange: #fb923c;
+  --r-orange-bg: rgba(249, 115, 22, 0.15);
+  --r-orange-border: rgba(249, 115, 22, 0.3);
+  --r-teal: #2dd4bf;
+  --r-teal-bg: rgba(20, 184, 166, 0.15);
+  --r-teal-border: rgba(20, 184, 166, 0.3);
+  --r-yellow: #fde047;
+  --r-yellow-bg: rgba(250, 204, 21, 0.15);
+  --r-yellow-border: rgba(250, 204, 21, 0.3);
+
+  // Shadows (darker in dark mode)
+  --r-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --r-shadow-md: 0 4px 16px rgb(0 0 0 / 0.4);
+  --r-shadow-lg: 0 8px 32px rgb(0 0 0 / 0.5);
+  --r-shadow-overlay: 0 4px 24px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+
+  // Scrollbar
+  --r-scrollbar-thumb: #4b5563;
+  --r-scrollbar-track: transparent;
+
+  // Skeleton / loading
+  --r-skeleton-from: #252730;
+  --r-skeleton-via: #2d3040;
+
+  // Logo
+  --r-logo-bg: #3b82f6;
+  --r-logo-text: #ffffff;
+}

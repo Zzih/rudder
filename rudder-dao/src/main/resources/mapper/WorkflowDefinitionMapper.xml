@@ -1,0 +1,82 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.WorkflowDefinitionMapper">
+
+    <sql id="baseSql">
+        id, code, workspace_id, project_code, name, description, dag_json, global_params,
+        published_version_id, created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowDefinition">
+        select <include refid="baseSql"/>
+        from t_r_workflow_definition
+        where code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceIdAndProjectCodeAndCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowDefinition">
+        select <include refid="baseSql"/>
+        from t_r_workflow_definition
+        where workspace_id = #{workspaceId}
+          and project_code = #{projectCode}
+          and code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByProjectCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowDefinition">
+        select <include refid="baseSql"/>
+        from t_r_workflow_definition
+        where project_code = #{projectCode}
+        order by updated_at desc
+    </select>
+
+    <select id="queryPageByProjectCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowDefinition">
+        select <include refid="baseSql"/>
+        from t_r_workflow_definition
+        where project_code = #{projectCode}
+        <if test="searchVal != null and searchVal != ''">
+            and name like concat('%', #{searchVal}, '%')
+        </if>
+        order by updated_at desc
+    </select>
+
+    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.WorkflowDefinition">
+        select <include refid="baseSql"/>
+        from t_r_workflow_definition
+        where workspace_id = #{workspaceId}
+        order by updated_at desc
+    </select>
+
+    <select id="queryIdsByWorkspaceId" resultType="java.lang.Long">
+        select id
+        from t_r_workflow_definition
+        where workspace_id = #{workspaceId}
+    </select>
+
+    <select id="countByProjectCodeAndName" resultType="long">
+        select count(*)
+        from t_r_workflow_definition
+        where project_code = #{projectCode}
+          and name = #{name}
+    </select>
+
+    <select id="selectForUpdateByCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowDefinition">
+        select <include refid="baseSql"/>
+        from t_r_workflow_definition
+        where code = #{code}
+        for update
+    </select>
+
+    <select id="countAll" resultType="long">
+        select count(*) from t_r_workflow_definition
+    </select>
+
+    <select id="countByWorkspaceIds" resultType="long">
+        select count(*)
+        from t_r_workflow_definition
+        where workspace_id in
+        <foreach collection="workspaceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+</mapper>

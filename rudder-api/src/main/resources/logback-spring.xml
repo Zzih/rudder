@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 引入 Spring Boot 默认的颜色转换规则 -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 平台级脱敏:所有 encoder pattern 里的 %msg / %m / %message 自动走 RedactionService.scrubText。
+         Spring 起来之前走原样,起来之后按规则匹配替换。 -->
+    <conversionRule conversionWord="msg"
+                    class="io.github.zzih.rudder.service.redaction.log.RedactingMessageConverter"/>
+    <conversionRule conversionWord="m"
+                    class="io.github.zzih.rudder.service.redaction.log.RedactingMessageConverter"/>
+    <conversionRule conversionWord="message"
+                    class="io.github.zzih.rudder.service.redaction.log.RedactingMessageConverter"/>
+
+    <property name="LOG_BASE" value="${logging.file.path:-logs}"/>
+
+    <!-- Console appender with color -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN:-%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){faint} %clr(%-5level) %clr(%logger{36}){cyan} %clr(-){faint} %msg%n}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Rolling file appender -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_BASE}/api-server.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_BASE}/api-server.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>200MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- SiftingAppender: per-task log files, routed by MDC "taskLogPath" -->
+    <appender name="TASK_LOG" class="ch.qos.logback.classic.sift.SiftingAppender">
+        <filter class="io.github.zzih.rudder.task.api.log.TaskLogFilter"/>
+        <discriminator class="io.github.zzih.rudder.task.api.log.TaskLogDiscriminator">
+            <key>taskLogPath</key>
+        </discriminator>
+        <sift>
+            <appender name="FILE-${taskLogPath}" class="ch.qos.logback.core.FileAppender">
+                <file>${taskLogPath}</file>
+                <append>false</append>
+                <encoder>
+                    <pattern>[%d{yyyy-MM-dd HH:mm:ss.SSS}] [%-5level] %msg%n</pattern>
+                </encoder>
+            </appender>
+        </sift>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="TASK_LOG"/>
+    </root>
+
+    <logger name="io.github.zzih.rudder" level="DEBUG"/>
+    <logger name="io.github.zzih.rudder.dao.mapper" level="INFO"/>
+    <logger name="org.springframework" level="INFO"/>
+</configuration>

@@ -1,0 +1,44 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.PublishRecordMapper">
+
+    <sql id="baseSql">
+        id, batch_code, publish_type, project_code, workflow_definition_code, version_no,
+        status, remark, published_at, created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="selectByBatchCode" resultType="io.github.zzih.rudder.dao.entity.PublishRecord">
+        select <include refid="baseSql" /> from t_r_publish_record where batch_code = #{batchCode}
+    </select>
+
+    <!-- 按 batchCode 分页：先查出分页后的批次，再关联明细 -->
+    <select id="queryBatchPage" resultType="io.github.zzih.rudder.dao.projection.PublishBatchRow">
+        select batch_code as batchCode,
+               max(publish_type) as publishType,
+               max(status) as status,
+               max(remark) as remark,
+               max(created_at) as createdAt,
+               max(published_at) as publishedAt
+        from t_r_publish_record
+        where project_code = #{projectCode}
+        <if test="status != null and status != ''">
+            and status = #{status}
+        </if>
+        group by batch_code
+        order by max(created_at) desc
+    </select>
+
+    <select id="queryDetailsByBatchCodes" resultType="io.github.zzih.rudder.dao.projection.PublishBatchDetailRow">
+        select pr.batch_code as batchCode,
+               wd.name as workflowName,
+               pr.version_no as versionNo,
+               pr.status
+        from t_r_publish_record pr
+        left join t_r_workflow_definition wd on wd.code = pr.workflow_definition_code
+        where pr.batch_code in
+        <foreach collection="batchCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        order by pr.id
+    </select>
+
+</mapper>

@@ -1,0 +1,336 @@
+@use 'variables' as *;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: var(--r-font-ui);
+  font-size: var(--r-font-md);
+  // 'ss01'/'cv11' 启用 Manrope 的可选字形;非 Manrope 字体会静默忽略
+  font-feature-settings: 'ss01', 'cv11';
+  color: var(--r-text-primary);
+  background: var(--r-bg-page);
+}
+
+code, kbd, samp, pre { font-family: var(--r-font-mono); }
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--r-scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: var(--r-scrollbar-track);
+}
+
+// Element Plus overrides
+:root {
+  --el-color-primary: #{$primary-color};
+  --el-color-primary-light-3: #60a5fa;
+  --el-color-primary-light-5: #93c5fd;
+  --el-color-primary-light-7: #bfdbfe;
+  --el-color-primary-light-9: #eff6ff;
+  --el-color-primary-dark-2: #2563eb;
+
+  // Align Element Plus typography with our tokens
+  --el-font-family: var(--r-font-ui);
+  --el-font-size-base: var(--r-font-base);
+  --el-font-size-small: var(--r-font-sm);
+  --el-font-size-large: var(--r-font-md);
+
+  // Component-level radii (el-button / el-input / el-card)
+  --el-border-radius-base: var(--r-radius-md);
+  --el-border-radius-small: var(--r-radius-sm);
+  --el-border-radius-round: 999px;
+}
+
+// ============================================================
+// Shared typography utilities — reach for these before inline font-size
+// ============================================================
+.r-text-xs   { font-size: var(--r-font-xs); }
+.r-text-sm   { font-size: var(--r-font-sm); }
+.r-text-base { font-size: var(--r-font-base); }
+.r-text-md   { font-size: var(--r-font-md); }
+.r-text-lg   { font-size: var(--r-font-lg); }
+.r-text-xl   { font-size: var(--r-font-xl); }
+
+.r-text-muted     { color: var(--r-text-muted); }
+.r-text-secondary { color: var(--r-text-secondary); }
+.r-text-primary   { color: var(--r-text-primary); }
+
+.r-page-title {
+  font-size: var(--r-font-lg);
+  font-weight: var(--r-weight-bold);
+  color: var(--r-text-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--r-leading-tight);
+}
+.r-section-title {
+  font-size: var(--r-font-md);
+  font-weight: var(--r-weight-semibold);
+  color: var(--r-text-primary);
+  line-height: var(--r-leading-tight);
+}
+.r-caption {
+  font-size: var(--r-font-xs);
+  color: var(--r-text-muted);
+  letter-spacing: 0.02em;
+}
+
+// ============================================================
+// Element Plus — uniform sizing / typography polish
+// ============================================================
+
+// Dialog: tighter header/body typography, restrained radius
+.el-dialog {
+  --el-dialog-border-radius: var(--r-radius-lg);
+
+  .el-dialog__header {
+    padding: 16px 20px 12px;
+    margin-right: 0;
+    border-bottom: 1px solid var(--r-border-light);
+  }
+  .el-dialog__title {
+    font-size: var(--r-font-md);
+    font-weight: var(--r-weight-semibold);
+    color: var(--r-text-primary);
+    letter-spacing: -0.01em;
+  }
+  .el-dialog__body {
+    padding: 20px;
+    font-size: var(--r-font-base);
+    color: var(--r-text-secondary);
+  }
+  .el-dialog__footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--r-border-light);
+  }
+}
+
+// Form: consistent label weight/size across the app
+.el-form-item__label {
+  font-size: var(--r-font-base);
+  color: var(--r-text-secondary);
+  font-weight: var(--r-weight-medium);
+  line-height: var(--r-leading-snug);
+}
+.el-form--label-top .el-form-item__label {
+  margin-bottom: 6px;
+  padding-bottom: 0;
+}
+
+// Table header: uppercase captions — uniform across admin / list views
+.el-table th.el-table__cell {
+  background: var(--r-bg-panel);
+  font-size: var(--r-font-sm);
+  font-weight: var(--r-weight-semibold);
+  color: var(--r-text-muted);
+  letter-spacing: 0.02em;
+}
+.el-table td.el-table__cell {
+  font-size: var(--r-font-base);
+  color: var(--r-text-primary);
+}
+
+// Tag: uniform size/weight — keep at --r-font-xs so tags never dominate
+.el-tag {
+  font-size: var(--r-font-xs);
+  font-weight: var(--r-weight-medium);
+  letter-spacing: 0.01em;
+  border-radius: var(--r-radius-sm);
+}
+
+// Button: medium weight for legibility without shouting
+.el-button {
+  font-weight: var(--r-weight-medium);
+  letter-spacing: 0.005em;
+}
+
+// Descriptions-list: unify label/content size
+.el-descriptions__label {
+  font-size: var(--r-font-sm);
+  color: var(--r-text-muted);
+}
+.el-descriptions__content {
+  font-size: var(--r-font-base);
+  color: var(--r-text-primary);
+}
+
+// Empty/placeholder text
+.el-empty__description p {
+  font-size: var(--r-font-base);
+  color: var(--r-text-muted);
+}
+
+// Message / notification
+.el-message { font-size: var(--r-font-base); }
+.el-notification__title { font-size: var(--r-font-md); }
+.el-notification__content { font-size: var(--r-font-base); }
+
+html.dark {
+  --el-bg-color: var(--r-bg-card);
+  --el-bg-color-page: var(--r-bg-page);
+  --el-bg-color-overlay: var(--r-bg-overlay);
+  --el-text-color-primary: var(--r-text-primary);
+  --el-text-color-regular: var(--r-text-secondary);
+  --el-text-color-secondary: var(--r-text-muted);
+  --el-text-color-placeholder: var(--r-text-disabled);
+  --el-border-color: var(--r-border);
+  --el-border-color-light: var(--r-border-light);
+  --el-border-color-lighter: var(--r-border-light);
+  --el-border-color-dark: var(--r-border-dark);
+  --el-fill-color: var(--r-bg-hover);
+  --el-fill-color-light: var(--r-bg-panel);
+  --el-fill-color-lighter: var(--r-bg-page);
+  --el-fill-color-blank: var(--r-bg-card);
+  --el-mask-color: rgba(0, 0, 0, 0.6);
+  --el-color-primary-light-3: #3b82f6;
+  --el-color-primary-light-5: #2563eb;
+  --el-color-primary-light-7: #1e3a5f;
+  --el-color-primary-light-9: #1e253a;
+}
+
+// Params popover
+// EP 给每个 popper 通过 nextZIndex() 内联 z-index, 默认从 2000 累加, 长会话累加到 3000+ 后会盖回来。
+// 用 9999 + !important 保证一直压在所有 EP popper 之上, 不再被增量挤掉。
+.params-popover {
+  padding: 0 !important;
+  background: var(--r-bg-overlay) !important;
+  border: 1px solid var(--r-border) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--r-shadow-overlay) !important;
+  max-height: 440px;
+  overflow-y: auto;
+  z-index: 9999 !important;
+}
+
+// DS-style reusable card
+.page-card {
+  background: var(--r-bg-card);
+  border: 1px solid var(--r-border);
+  border-radius: 4px;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--r-border-light);
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--r-text-primary);
+  }
+
+  &__body {
+    padding: 16px;
+  }
+}
+
+// Toolbar card
+.toolbar-card {
+  background: var(--r-bg-card);
+  border: 1px solid var(--r-border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-container {
+  padding: 16px 22px;
+}
+
+// Unified pagination bar
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  border-top: 1px solid var(--r-border-light);
+}
+
+// Shared card entrance animation
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+// Element Plus pagination overrides
+.el-pagination {
+  --el-pagination-font-size: 13px;
+  --el-pagination-button-width: 30px;
+  --el-pagination-button-height: 30px;
+
+  .el-pagination__total {
+    font-size: 13px;
+    color: var(--r-text-muted);
+    margin-right: 12px;
+  }
+
+  .el-pagination__sizes {
+    margin-right: 12px;
+
+    .el-select .el-input {
+      width: 100px;
+    }
+  }
+
+  &.is-background .el-pager li {
+    min-width: 30px;
+    height: 30px;
+    line-height: 30px;
+    border-radius: 6px;
+    margin: 0 3px;
+    font-weight: 500;
+    background: var(--r-bg-page);
+    color: var(--r-text-secondary);
+
+    &:hover {
+      color: var(--r-accent);
+    }
+
+    &.is-active {
+      background: var(--r-accent);
+      color: var(--r-text-inverse);
+    }
+  }
+
+  &.is-background .btn-prev,
+  &.is-background .btn-next {
+    min-width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    margin: 0 3px;
+    background: var(--r-bg-page);
+
+    &:hover {
+      color: var(--r-accent);
+    }
+  }
+
+  .el-pagination__jump {
+    font-size: 13px;
+    color: var(--r-text-muted);
+    margin-left: 12px;
+
+    .el-input__inner {
+      height: 30px;
+      border-radius: 6px;
+    }
+  }
+}

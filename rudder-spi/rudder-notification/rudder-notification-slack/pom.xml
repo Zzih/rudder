@@ -1,0 +1,29 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-notification</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-notification-slack</artifactId>
+    <name>Rudder Notification Slack</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-notification-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.slack.api</groupId>
+            <artifactId>slack-api-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+        </dependency>
+    </dependencies>
+</project>

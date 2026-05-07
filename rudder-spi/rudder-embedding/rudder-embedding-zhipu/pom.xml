@@ -1,0 +1,30 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-embedding</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-embedding-zhipu</artifactId>
+    <name>Rudder Embedding ZhiPuAI</name>
+    <description>智谱 AI 接入(embedding-3)。底层复用 Spring AI OpenAiEmbeddingModel,通过 embeddingsPath 覆写指向 /api/paas/v4/embeddings。</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-embedding-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+        </dependency>
+    </dependencies>
+</project>

@@ -1,0 +1,36 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.TaskDefinitionMapper">
+
+    <sql id="baseSql">
+        id, code, workspace_id, project_code, workflow_definition_code, name, task_type, script_code,
+        config_json, description, input_params, output_params, priority, delay_time,
+        retry_times, retry_interval, timeout, timeout_enabled, timeout_notify_strategy, is_enabled,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByCode" resultType="io.github.zzih.rudder.dao.entity.TaskDefinition">
+        select <include refid="baseSql"/>
+        from t_r_task_definition
+        where code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByScriptCode" resultType="io.github.zzih.rudder.dao.entity.TaskDefinition">
+        select <include refid="baseSql"/>
+        from t_r_task_definition
+        where script_code = #{scriptCode}
+        limit 1
+    </select>
+
+    <select id="queryByWorkflowDefinitionCode" resultType="io.github.zzih.rudder.dao.entity.TaskDefinition">
+        select <include refid="baseSql"/>
+        from t_r_task_definition
+        where workflow_definition_code = #{workflowDefinitionCode}
+    </select>
+
+    <delete id="deleteByWorkflowDefinitionCode">
+        delete from t_r_task_definition
+        where workflow_definition_code = #{workflowDefinitionCode}
+    </delete>
+
+</mapper>

@@ -1,0 +1,34 @@
+// Layout
+$header-height: 56px;
+$sidebar-width: 220px;
+$content-padding: 16px 22px;
+
+// Primary brand color (used by Element Plus override in global.scss)
+$primary-color: #1890ff;
+
+// IDE layout
+$tab-height: 36px;
+$result-panel-height: 280px;
+$ai-panel-width: 360px;
+
+// ============================================================
+// Design Tokens — Spacing, Typography, Sizing
+// ============================================================
+
+// Spacing scale (4px base)
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-5: 20px;
+$space-6: 24px;
+$space-8: 32px;
+$space-10: 40px;
+
+// Dialog widths
+$dialog-sm: 400px;
+$dialog-md: 540px;
+$dialog-lg: 700px;
+$dialog-xl: 900px;
+// Typography / radius / spacing scales live in theme.scss as CSS custom properties
+// (--r-font-*, --r-radius-*, --r-space-*). Reference those from components.

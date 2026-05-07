@@ -1,0 +1,12 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.MetadataConfigMapper">
+
+    <select id="queryActive" resultType="io.github.zzih.rudder.dao.entity.MetadataConfig">
+        select *
+        from t_r_metadata_config
+        where enabled = 1
+        order by id desc
+        limit 1
+    </select>
+
+</mapper>

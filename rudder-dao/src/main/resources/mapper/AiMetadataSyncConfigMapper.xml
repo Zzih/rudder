@@ -1,0 +1,21 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiMetadataSyncConfigMapper">
+
+    <select id="selectByDatasourceId" resultType="io.github.zzih.rudder.dao.entity.AiMetadataSyncConfig">
+        select * from t_r_ai_metadata_sync_config where datasource_id = #{datasourceId} limit 1
+    </select>
+
+    <select id="selectAllOrdered" resultType="io.github.zzih.rudder.dao.entity.AiMetadataSyncConfig">
+        select * from t_r_ai_metadata_sync_config order by updated_at desc
+    </select>
+
+    <select id="selectPageOrdered" resultType="io.github.zzih.rudder.dao.entity.AiMetadataSyncConfig">
+        select * from t_r_ai_metadata_sync_config order by updated_at desc
+    </select>
+
+    <select id="selectEnabledWithCron" resultType="io.github.zzih.rudder.dao.entity.AiMetadataSyncConfig">
+        select * from t_r_ai_metadata_sync_config
+        where enabled = 1 and schedule_cron is not null and schedule_cron &lt;&gt; ''
+    </select>
+
+</mapper>

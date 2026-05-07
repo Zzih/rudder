@@ -1,0 +1,19 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiMcpServerMapper">
+
+    <select id="selectEnabled" resultType="io.github.zzih.rudder.dao.entity.AiMcpServer">
+        select * from t_r_ai_mcp_server where enabled = 1
+    </select>
+
+    <select id="selectPageOrdered" resultType="io.github.zzih.rudder.dao.entity.AiMcpServer">
+        select * from t_r_ai_mcp_server order by id asc
+    </select>
+
+    <update id="updateHealth">
+        update t_r_ai_mcp_server
+        set health_status = #{status},
+            last_health_at = NOW()
+        where id = #{id}
+    </update>
+
+</mapper>

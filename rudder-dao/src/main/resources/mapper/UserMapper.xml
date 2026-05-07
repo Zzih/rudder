@@ -1,0 +1,53 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.UserMapper">
+
+    <sql id="baseSql">
+        id, username, password, email, avatar, is_super_admin, sso_provider, sso_id,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByUsername" resultType="io.github.zzih.rudder.dao.entity.User">
+        select <include refid="baseSql"/>
+        from t_r_user
+        where username = #{username}
+        limit 1
+    </select>
+
+    <select id="queryByEmail" resultType="io.github.zzih.rudder.dao.entity.User">
+        select <include refid="baseSql"/>
+        from t_r_user
+        where email = #{email}
+        limit 1
+    </select>
+
+    <select id="queryBySso" resultType="io.github.zzih.rudder.dao.entity.User">
+        select <include refid="baseSql"/>
+        from t_r_user
+        where sso_provider = #{ssoProvider}
+          and sso_id = #{ssoId}
+        limit 1
+    </select>
+
+    <select id="countByUsername" resultType="long">
+        select count(*)
+        from t_r_user
+        where username = #{username}
+    </select>
+
+    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.User">
+        select <include refid="baseSql"/>
+        from t_r_user
+        <if test="searchVal != null and searchVal != ''">
+            where (username like concat('%', #{searchVal}, '%')
+                or email like concat('%', #{searchVal}, '%'))
+        </if>
+        order by id asc
+    </select>
+
+    <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.User">
+        select <include refid="baseSql"/>
+        from t_r_user
+        order by id asc
+    </select>
+
+</mapper>

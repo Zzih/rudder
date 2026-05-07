@@ -1,0 +1,54 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.ProjectMapper">
+
+    <sql id="baseSql">
+        id, code, workspace_id, name, description, params,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByCode" resultType="io.github.zzih.rudder.dao.entity.Project">
+        select <include refid="baseSql"/>
+        from t_r_project
+        where code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceIdAndCode" resultType="io.github.zzih.rudder.dao.entity.Project">
+        select <include refid="baseSql"/>
+        from t_r_project
+        where workspace_id = #{workspaceId}
+          and code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.Project">
+        select <include refid="baseSql"/>
+        from t_r_project
+        where workspace_id = #{workspaceId}
+    </select>
+
+    <select id="queryPageByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.Project">
+        select <include refid="baseSql"/>
+        from t_r_project
+        where workspace_id = #{workspaceId}
+        <if test="searchVal != null and searchVal != ''">
+            and name like concat('%', #{searchVal}, '%')
+        </if>
+    </select>
+
+    <select id="countByWorkspaceIdAndName" resultType="long">
+        select count(*)
+        from t_r_project
+        where workspace_id = #{workspaceId}
+          and name = #{name}
+    </select>
+
+    <select id="countByWorkspaceIdAndNameExcludeId" resultType="long">
+        select count(*)
+        from t_r_project
+        where workspace_id = #{workspaceId}
+          and name = #{name}
+          and id != #{excludeId}
+    </select>
+
+</mapper>

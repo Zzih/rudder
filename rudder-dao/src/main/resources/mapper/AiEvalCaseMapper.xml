@@ -1,0 +1,25 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiEvalCaseMapper">
+
+    <sql id="filter">
+        <if test="category != null and category != ''">
+            and category = #{category}
+        </if>
+        <if test="activeOnly != null and activeOnly">
+            and active = 1
+        </if>
+    </sql>
+
+    <select id="selectByFilter" resultType="io.github.zzih.rudder.dao.entity.AiEvalCase">
+        select * from t_r_ai_eval_case where 1=1
+        <include refid="filter" />
+        order by created_at desc
+    </select>
+
+    <select id="selectPageByFilter" resultType="io.github.zzih.rudder.dao.entity.AiEvalCase">
+        select * from t_r_ai_eval_case where 1=1
+        <include refid="filter" />
+        order by created_at desc
+    </select>
+
+</mapper>

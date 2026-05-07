@@ -1,0 +1,46 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.WorkspaceMapper">
+
+    <sql id="baseSql">
+        id, name, description,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryPageAll" resultType="io.github.zzih.rudder.dao.entity.Workspace">
+        select <include refid="baseSql"/>
+        from t_r_workspace
+        <if test="searchVal != null and searchVal != ''">
+            where name like concat('%', #{searchVal}, '%')
+        </if>
+    </select>
+
+    <select id="queryPageByIds" resultType="io.github.zzih.rudder.dao.entity.Workspace">
+        select <include refid="baseSql"/>
+        from t_r_workspace
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        <if test="searchVal != null and searchVal != ''">
+            and name like concat('%', #{searchVal}, '%')
+        </if>
+    </select>
+
+    <select id="countByName" resultType="long">
+        select count(*)
+        from t_r_workspace
+        where name = #{name}
+    </select>
+
+    <select id="countByNameExcludeId" resultType="long">
+        select count(*)
+        from t_r_workspace
+        where name = #{name}
+          and id != #{excludeId}
+    </select>
+
+    <select id="countAll" resultType="long">
+        select count(*) from t_r_workspace
+    </select>
+
+</mapper>

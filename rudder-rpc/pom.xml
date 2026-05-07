@@ -1,0 +1,35 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-rpc</artifactId>
+    <name>Rudder RPC</name>
+    <description>Server / Worker RPC 契约 + 客户端 (Dubbo)。</description>
+
+    <!--
+      纯 RPC 框架 + 服务契约接口（IXxxService）。
+      不依赖任何业务模块（dao / spi-provider 等），impl 由 server 端模块（execution/api）提供。
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

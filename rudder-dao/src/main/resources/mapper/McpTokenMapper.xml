@@ -1,0 +1,73 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.McpTokenMapper">
+
+    <sql id="baseSql">
+        id, user_id, workspace_id, name, description,
+        token_prefix, token_hash, status, expires_at,
+        last_used_at, last_used_ip, revoked_at, revoked_reason,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByTokenPrefix" resultType="io.github.zzih.rudder.dao.entity.McpToken">
+        select <include refid="baseSql"/>
+        from t_r_mcp_token
+        where token_prefix = #{tokenPrefix}
+        limit 1
+    </select>
+
+    <select id="queryByIdWithWorkspaceName" resultType="io.github.zzih.rudder.dao.entity.McpToken">
+        select t.*, w.name as workspace_name
+        from t_r_mcp_token t
+        left join t_r_workspace w on w.id = t.workspace_id
+        where t.id = #{id}
+    </select>
+
+    <select id="queryByUserId" resultType="io.github.zzih.rudder.dao.entity.McpToken">
+        select t.*, w.name as workspace_name
+        from t_r_mcp_token t
+        left join t_r_workspace w on w.id = t.workspace_id
+        where t.user_id = #{userId}
+        order by t.created_at desc
+    </select>
+
+    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.McpToken">
+        select t.*, w.name as workspace_name
+        from t_r_mcp_token t
+        left join t_r_workspace w on w.id = t.workspace_id
+        where t.workspace_id = #{workspaceId}
+        order by t.created_at desc
+    </select>
+
+    <update id="revokeIfActive">
+        update t_r_mcp_token
+        set status = 'REVOKED',
+            revoked_at = #{revokedAt},
+            revoked_reason = #{revokedReason}
+        where id = #{id}
+          and status = 'ACTIVE'
+    </update>
+
+    <update id="touchLastUsed">
+        update t_r_mcp_token
+        set last_used_at = #{lastUsedAt},
+            last_used_ip = #{lastUsedIp}
+        where id = #{id}
+    </update>
+
+    <select id="queryExpiredActiveIds" resultType="long">
+        select id
+        from t_r_mcp_token
+        where status = 'ACTIVE'
+          and expires_at &lt; #{now}
+        order by expires_at asc
+        limit #{limit}
+    </select>
+
+    <update id="markExpiredIfActive">
+        update t_r_mcp_token
+        set status = 'EXPIRED'
+        where id = #{id}
+          and status = 'ACTIVE'
+    </update>
+
+</mapper>

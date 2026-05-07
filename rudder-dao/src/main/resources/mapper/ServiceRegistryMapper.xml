@@ -1,0 +1,66 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.ServiceRegistryMapper">
+
+    <sql id="baseSql">
+        id, `type`, host, port, start_time, heartbeat, status, task_count,
+        created_at, updated_at
+    </sql>
+
+    <select id="queryByTypeAndHostAndPort" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
+        select <include refid="baseSql"/>
+        from t_r_service_registry
+        where `type` = #{type}
+          and host = #{host}
+          and port = #{port}
+        limit 1
+    </select>
+
+    <select id="queryOnlineByType" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
+        select <include refid="baseSql"/>
+        from t_r_service_registry
+        where `type` = #{type}
+          and status = 'ONLINE'
+        order by task_count asc, heartbeat desc
+    </select>
+
+    <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
+        select <include refid="baseSql"/>
+        from t_r_service_registry
+        order by `type` asc, status desc, heartbeat desc
+    </select>
+
+    <update id="updateHeartbeatIfOnline">
+        update t_r_service_registry
+        set heartbeat = #{heartbeat}
+        where `type` = #{type}
+          and host = #{host}
+          and port = #{port}
+          and status = 'ONLINE'
+    </update>
+
+    <update id="reviveAndUpdateHeartbeat">
+        update t_r_service_registry
+        set heartbeat = #{heartbeat},
+            status = 'ONLINE'
+        where `type` = #{type}
+          and host = #{host}
+          and port = #{port}
+    </update>
+
+    <update id="markOfflineIfOnline">
+        update t_r_service_registry
+        set status = 'OFFLINE'
+        where `type` = #{type}
+          and host = #{host}
+          and port = #{port}
+          and status = 'ONLINE'
+    </update>
+
+    <select id="queryExpiredOnline" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
+        select <include refid="baseSql"/>
+        from t_r_service_registry
+        where heartbeat <![CDATA[ < ]]> #{threshold}
+          and status = 'ONLINE'
+    </select>
+
+</mapper>

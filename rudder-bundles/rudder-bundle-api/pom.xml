@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-bundles</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-bundle-api</artifactId>
+    <name>Rudder Bundle: API</name>
+    <description>
+        SPI provider 依赖集合，供 rudder-api（Server）引用。
+        要加/删 provider，直接编辑下面的 &lt;dependencies&gt; 列表即可。
+    </description>
+    <packaging>pom</packaging>
+
+    <dependencies>
+        <!-- SPI api 契约（provider 之间交互用的接口层，不可删） -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-llm-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-vector-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-vector-qdrant</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-vector-local</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-vector-pgvector</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-metadata-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-notification-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-approval-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-version-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-runtime-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-api</artifactId><version>${revision}</version></dependency>
+
+        <!-- File storage provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-local</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-hdfs</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-oss</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-s3</artifactId><version>${revision}</version></dependency>
+
+        <!-- LLM provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-llm-claude</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-llm-openai</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-llm-deepseek</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-llm-ollama</artifactId><version>${revision}</version></dependency>
+
+        <!-- Embedding provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-embedding-openai</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-embedding-zhipu</artifactId><version>${revision}</version></dependency>
+
+        <!-- Metadata provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-metadata-jdbc</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-metadata-datahub</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-metadata-openmetadata</artifactId><version>${revision}</version></dependency>
+
+        <!-- Notification provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-notification-lark</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-notification-dingtalk</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-notification-slack</artifactId><version>${revision}</version></dependency>
+
+        <!-- Approval provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-approval-local</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-approval-lark</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-approval-kissflow</artifactId><version>${revision}</version></dependency>
+
+        <!-- Version store provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-version-local</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-version-git</artifactId><version>${revision}</version></dependency>
+
+        <!-- Runtime provider（Server 需要 RuntimePluginManager 注册所有 provider） -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-runtime-local</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-runtime-aliyun</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-runtime-aws</artifactId><version>${revision}</version></dependency>
+
+        <!-- Task SQL provider（Server 侧用于 SQL 解析 / 参数校验） -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-mysql</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-hive</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-starrocks</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-trino</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-spark</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-flink</artifactId><version>${revision}</version></dependency>
+
+        <!-- AI 子领域(orchestrator / RAG / skill / MCP / dialect / feedback / eval / tool / context / knowledge) -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-ai</artifactId><version>${revision}</version></dependency>
+
+        <!-- Result format provider -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-json</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-csv</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-parquet</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-orc</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-avro</artifactId><version>${revision}</version></dependency>
+    </dependencies>
+</project>

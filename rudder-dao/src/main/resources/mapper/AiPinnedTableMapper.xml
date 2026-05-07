@@ -1,0 +1,40 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiPinnedTableMapper">
+
+    <sql id="refMatch">
+        scope = #{scope}
+          and scope_id = #{scopeId}
+          and datasource_id = #{datasourceId}
+          and table_name = #{tableName}
+        <choose>
+            <when test="database != null">
+                and database_name = #{database}
+            </when>
+            <otherwise>
+                and database_name is null
+            </otherwise>
+        </choose>
+    </sql>
+
+    <select id="selectByScope" resultType="io.github.zzih.rudder.dao.entity.AiPinnedTable">
+        select * from t_r_ai_pinned_table
+        where scope = #{scope} and scope_id = #{scopeId}
+        order by created_at desc
+    </select>
+
+    <select id="selectPageByScope" resultType="io.github.zzih.rudder.dao.entity.AiPinnedTable">
+        select * from t_r_ai_pinned_table
+        where scope = #{scope} and scope_id = #{scopeId}
+        order by created_at desc
+    </select>
+
+    <select id="selectByRef" resultType="io.github.zzih.rudder.dao.entity.AiPinnedTable">
+        select * from t_r_ai_pinned_table where <include refid="refMatch" />
+        limit 1
+    </select>
+
+    <delete id="deleteByRef">
+        delete from t_r_ai_pinned_table where <include refid="refMatch" />
+    </delete>
+
+</mapper>

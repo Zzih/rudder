@@ -1,0 +1,52 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiMessageMapper">
+
+    <select id="queryBySession" resultType="io.github.zzih.rudder.dao.entity.AiMessage">
+        select *
+        from t_r_ai_message
+        where session_id = #{sessionId}
+        order by created_at asc, id asc
+    </select>
+
+    <select id="queryRecentBySession" resultType="io.github.zzih.rudder.dao.entity.AiMessage">
+        select *
+        from (
+            select *
+            from t_r_ai_message
+            where session_id = #{sessionId}
+            order by id desc
+            limit #{limit}
+        ) sub
+        order by id asc
+    </select>
+
+    <delete id="deleteBySessionId">
+        delete from t_r_ai_message where session_id = #{sessionId}
+    </delete>
+
+    <update id="updateContent">
+        update t_r_ai_message
+        set `content` = #{content}
+        where id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        update t_r_ai_message
+        set status = #{status}
+        where id = #{id}
+    </update>
+
+    <update id="updateFinalState">
+        update t_r_ai_message
+        set status = #{status},
+            `content` = #{content},
+            error_message = #{errorMessage},
+            model = #{model},
+            prompt_tokens = #{promptTokens},
+            completion_tokens = #{completionTokens},
+            cost_cents = #{costCents},
+            latency_ms = #{latencyMs}
+        where id = #{id}
+    </update>
+
+</mapper>

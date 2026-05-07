@@ -1,0 +1,91 @@
+// ============================================================
+// Rudder IDE — Design Tokens
+// ============================================================
+
+$ide-bg: var(--r-bg-card);
+$ide-panel-bg: var(--r-bg-panel);
+$ide-border: var(--r-border);
+$ide-border-light: var(--r-border-light);
+$ide-text: var(--r-text-primary);
+$ide-text-secondary: var(--r-text-secondary);
+$ide-text-muted: var(--r-text-muted);
+$ide-text-disabled: var(--r-text-disabled);
+$ide-accent: var(--r-accent);
+$ide-accent-hover: var(--r-accent-hover);
+$ide-accent-bg: var(--r-accent-bg);
+$ide-hover-bg: var(--r-bg-hover);
+$ide-active-bg: var(--r-bg-active);
+$ide-section-header-height: 34px;
+
+// Editorial "spark" — used on active-state signals only.
+$ide-spark: #e8a75b;
+$ide-spark-soft: rgba(232, 167, 91, 0.18);
+$ide-spark-border: rgba(232, 167, 91, 0.28);
+$ide-spark-glow: rgba(232, 167, 91, 0.45);
+
+// Fonts live in theme.scss (--r-font-ui/mono/editorial); reference them directly.
+
+%section-header {
+  display: flex;
+  align-items: center;
+  height: $ide-section-header-height;
+  padding: 0 12px;
+  background: $ide-panel-bg;
+  border-bottom: 1px solid $ide-border;
+  flex-shrink: 0;
+  gap: 8px;
+  position: relative;
+  // hairline underline that sits on top of the border, picks up spark on active focus
+  &::after {
+    content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px;
+    height: 1px; background: linear-gradient(90deg, transparent, $ide-border-light 50%, transparent);
+    pointer-events: none;
+  }
+}
+
+%section-title {
+  font-size: var(--r-font-sm);
+  font-weight: var(--r-weight-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--r-text-tertiary);
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+}
+
+%context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--r-bg-overlay);
+  border: 1px solid $ide-border;
+  border-radius: 8px;
+  padding: 5px 0;
+  min-width: 184px;
+  box-shadow: var(--r-shadow-overlay);
+  animation: menu-in 120ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+
+%context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px;
+  font-size: 12px;
+  cursor: pointer;
+  color: $ide-text-secondary;
+  transition: background 0.1s, color 0.1s;
+
+  &:hover {
+    background: $ide-hover-bg;
+    color: $ide-text;
+  }
+}
+
+%context-menu-divider {
+  height: 1px;
+  background: $ide-border-light;
+  margin: 4px 8px;
+}

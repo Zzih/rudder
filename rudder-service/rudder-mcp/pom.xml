@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-service</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-mcp</artifactId>
+    <name>Rudder MCP</name>
+    <description>
+        MCP (Model Context Protocol) Server: 把 Rudder 平台核心能力暴露给外部 LLM 客户端
+        (Claude Desktop / Cursor / Anthropic SDK 等)。详见 docs/mcp-platform.md。
+
+        关键组件:
+          - Capability 矩阵 (4 角色 × 16 capability)
+          - PAT 认证 + 双闸门 (scope ∩ RBAC)
+          - TokenViewCache (避 bcrypt 热路径)
+          - Streamable HTTP endpoint (Java MCP SDK)
+          - Tool 实现 (转调现有 Service)
+    </description>
+
+    <dependencies>
+        <!-- Server-side service (含 MetadataService / WorkflowService / ApprovalService 等);
+             transitively 拉到 rudder-service-shared / rudder-datasource / rudder-common -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-service-server</artifactId>
+        </dependency>
+
+        <!-- AI 子领域:暴露 RAG 知识库能力(knowledge.search) -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-ai</artifactId>
+        </dependency>
+
+        <!-- Caffeine 用于 TokenViewCache (5s TTL, 避 bcrypt 热路径) -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- bcrypt: spring-security-crypto 已在 common transitive 依赖里 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <!-- Spring AI MCP server (WebMvc transport: SSE + Streamable HTTP)
+             — 替代手写 JSON-RPC controller / tool 路由 / SSE。
+             官方文档: https://docs.spring.io/spring-ai/reference/2.0/api/mcp/mcp-overview.html -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

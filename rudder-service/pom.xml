@@ -1,0 +1,25 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-service</artifactId>
+    <name>Rudder Service</name>
+    <description>
+        业务 service 聚合：shared 给 Execution + Server 共用；server 仅 Server 用。
+        代码按 server-only / shared 两个物理模块拆开，防止 Execution 意外扫入 server-only bean。
+    </description>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>rudder-service-shared</module>
+        <module>rudder-service-server</module>
+        <module>rudder-mcp</module>
+    </modules>
+</project>

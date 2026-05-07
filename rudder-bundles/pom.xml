@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-bundles</artifactId>
+    <name>Rudder Bundles</name>
+    <description>
+        SPI provider 依赖聚合 pom。每个 bundle 对应一个宿主服务：
+        rudder-bundle-api 给 rudder-api 用，rudder-bundle-execution 给 rudder-execution 用。
+        改装哪些 provider 就编辑对应 bundle 的 pom.xml。
+    </description>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>rudder-bundle-api</module>
+        <module>rudder-bundle-execution</module>
+    </modules>
+</project>

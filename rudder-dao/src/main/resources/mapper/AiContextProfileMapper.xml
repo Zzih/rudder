@@ -1,0 +1,12 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiContextProfileMapper">
+
+    <select id="selectByScope" resultType="io.github.zzih.rudder.dao.entity.AiContextProfile">
+        select * from t_r_ai_context_profile where scope = #{scope} and scope_id = #{scopeId} limit 1
+    </select>
+
+    <delete id="deleteByScope">
+        delete from t_r_ai_context_profile where scope = #{scope} and scope_id = #{scopeId}
+    </delete>
+
+</mapper>

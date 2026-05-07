@@ -1,0 +1,82 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiDocumentMapper">
+
+    <sql id="workspaceFilter">
+        <if test="workspaceId != null">
+            and (workspace_ids is null or json_contains(workspace_ids, cast(#{workspaceId} as json)))
+        </if>
+    </sql>
+
+    <select id="selectByWorkspace" resultType="io.github.zzih.rudder.dao.entity.AiDocument">
+        select * from t_r_ai_document
+        <where>
+            <include refid="workspaceFilter" />
+            <if test="docType != null and docType != ''">
+                and doc_type = #{docType}
+            </if>
+        </where>
+        order by updated_at desc
+    </select>
+
+    <select id="selectPageByWorkspace" resultType="io.github.zzih.rudder.dao.entity.AiDocument">
+        select * from t_r_ai_document
+        <where>
+            <include refid="workspaceFilter" />
+            <if test="docType != null and docType != ''">
+                and doc_type = #{docType}
+            </if>
+        </where>
+        order by updated_at desc
+    </select>
+
+    <!-- 元信息分页（不含 content / content_hash）—— 给 list 浏览类调用，避免把全文 RAG 正文整页拉回。 -->
+    <select id="selectMetaPageByWorkspace" resultType="io.github.zzih.rudder.dao.entity.AiDocument">
+        select id, workspace_ids, doc_type, engine_type, source_ref, title, description,
+               indexed_at, created_at, updated_at, created_by, updated_by
+        from t_r_ai_document
+        <where>
+            <include refid="workspaceFilter" />
+            <if test="docType != null and docType != ''">
+                and doc_type = #{docType}
+            </if>
+        </where>
+        order by updated_at desc
+    </select>
+
+    <select id="selectBySourceRef" resultType="io.github.zzih.rudder.dao.entity.AiDocument">
+        select * from t_r_ai_document
+        where source_ref = #{sourceRef}
+        limit 1
+    </select>
+
+    <select id="selectBySourceRefPrefix" resultType="io.github.zzih.rudder.dao.entity.AiDocument">
+        select * from t_r_ai_document
+        where source_ref like concat(#{prefix}, '%')
+    </select>
+
+    <select id="fulltextSearch" resultType="io.github.zzih.rudder.dao.entity.AiDocument">
+        select *, match(title, content) against(#{q} in natural language mode) as score
+        from t_r_ai_document
+        where match(title, content) against(#{q} in natural language mode)
+        <include refid="workspaceFilter" />
+        <if test="docType != null">
+            and doc_type = #{docType}
+        </if>
+        <if test="engineTypes != null and engineTypes.size() > 0">
+            and (engine_type is null or engine_type in
+                <foreach collection="engineTypes" item="et" open="(" separator="," close=")">#{et}</foreach>
+            )
+        </if>
+        order by score desc
+        limit #{limit}
+    </select>
+
+    <select id="selectDistinctDocTypes" resultType="java.lang.String">
+        select distinct doc_type from t_r_ai_document
+        <where>
+            doc_type is not null
+            <include refid="workspaceFilter" />
+        </where>
+    </select>
+
+</mapper>

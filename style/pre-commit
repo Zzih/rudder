@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# Git pre-commit hook: run Spotless + Checkstyle on staged Java files.
+# Only checks files in the current commit, not the entire project.
+#
+
+STAGED_JAVA=$(git diff --cached --name-only --diff-filter=ACM | grep '\.java$')
+
+if [ -z "$STAGED_JAVA" ]; then
+    exit 0
+fi
+
+echo "[pre-commit] Checking code style..."
+
+# Spotless check
+mvn spotless:check -q --no-transfer-progress 2>&1 | tail -5
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo ""
+    echo "[pre-commit] Spotless check FAILED. Run 'mvn spotless:apply' to fix."
+    exit 1
+fi
+
+# Checkstyle check
+mvn checkstyle:check -q --no-transfer-progress 2>&1 | tail -5
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo ""
+    echo "[pre-commit] Checkstyle check FAILED. Fix the violations above."
+    exit 1
+fi
+
+echo "[pre-commit] Code style OK."
+exit 0

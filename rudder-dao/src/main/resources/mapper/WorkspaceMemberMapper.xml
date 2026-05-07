@@ -1,0 +1,36 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.WorkspaceMemberMapper">
+
+    <sql id="baseSql">
+        id, workspace_id, user_id, role,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByWorkspaceIdAndUserId" resultType="io.github.zzih.rudder.dao.entity.WorkspaceMember">
+        select <include refid="baseSql"/>
+        from t_r_workspace_member
+        where workspace_id = #{workspaceId}
+          and user_id = #{userId}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.WorkspaceMember">
+        select <include refid="baseSql"/>
+        from t_r_workspace_member
+        where workspace_id = #{workspaceId}
+    </select>
+
+    <select id="queryByWorkspaceIdAndRole" resultType="io.github.zzih.rudder.dao.entity.WorkspaceMember">
+        select <include refid="baseSql"/>
+        from t_r_workspace_member
+        where workspace_id = #{workspaceId}
+          and role = #{role}
+    </select>
+
+    <select id="queryByUserId" resultType="io.github.zzih.rudder.dao.entity.WorkspaceMember">
+        select <include refid="baseSql"/>
+        from t_r_workspace_member
+        where user_id = #{userId}
+    </select>
+
+</mapper>

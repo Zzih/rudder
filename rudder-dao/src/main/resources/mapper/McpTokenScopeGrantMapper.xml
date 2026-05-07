@@ -1,0 +1,84 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.McpTokenScopeGrantMapper">
+
+    <sql id="baseSql">
+        id, token_id, capability_id, rw_class, status,
+        approval_id, activated_at, activated_by_user_id,
+        rejected_at, rejected_by_user_id, rejected_reason,
+        revoked_at, revoked_reason, created_at
+    </sql>
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        insert into t_r_mcp_token_scope_grant
+            (token_id, capability_id, rw_class, status,
+             approval_id, activated_at, activated_by_user_id,
+             rejected_at, rejected_by_user_id, rejected_reason,
+             revoked_at, revoked_reason, created_at)
+        values
+        <foreach collection="list" item="g" separator=",">
+            (#{g.tokenId}, #{g.capabilityId}, #{g.rwClass}, #{g.status},
+             #{g.approvalId}, #{g.activatedAt}, #{g.activatedByUserId},
+             #{g.rejectedAt}, #{g.rejectedByUserId}, #{g.rejectedReason},
+             #{g.revokedAt}, #{g.revokedReason},
+             coalesce(#{g.createdAt}, current_timestamp))
+        </foreach>
+    </insert>
+
+    <select id="queryByTokenId" resultType="io.github.zzih.rudder.dao.entity.McpTokenScopeGrant">
+        select <include refid="baseSql"/>
+        from t_r_mcp_token_scope_grant
+        where token_id = #{tokenId}
+        order by id
+    </select>
+
+    <select id="queryActiveByTokenId" resultType="io.github.zzih.rudder.dao.entity.McpTokenScopeGrant">
+        select <include refid="baseSql"/>
+        from t_r_mcp_token_scope_grant
+        where token_id = #{tokenId}
+          and status = 'ACTIVE'
+    </select>
+
+    <select id="queryByApprovalId" resultType="io.github.zzih.rudder.dao.entity.McpTokenScopeGrant">
+        select <include refid="baseSql"/>
+        from t_r_mcp_token_scope_grant
+        where approval_id = #{approvalId}
+    </select>
+
+    <update id="activateIfPending">
+        update t_r_mcp_token_scope_grant
+        set status = 'ACTIVE',
+            activated_at = #{activatedAt},
+            activated_by_user_id = #{activatedByUserId}
+        where id = #{id}
+          and status = 'PENDING_APPROVAL'
+    </update>
+
+    <update id="rejectIfPending">
+        update t_r_mcp_token_scope_grant
+        set status = 'REJECTED',
+            rejected_at = #{rejectedAt},
+            rejected_by_user_id = #{rejectedByUserId},
+            rejected_reason = #{rejectedReason}
+        where id = #{id}
+          and status = 'PENDING_APPROVAL'
+    </update>
+
+    <update id="revoke">
+        update t_r_mcp_token_scope_grant
+        set status = 'REVOKED',
+            revoked_at = #{revokedAt},
+            revoked_reason = #{revokedReason}
+        where id = #{id}
+          and status != 'REVOKED'
+    </update>
+
+    <update id="revokeAllByTokenId">
+        update t_r_mcp_token_scope_grant
+        set status = 'REVOKED',
+            revoked_at = #{revokedAt},
+            revoked_reason = #{revokedReason}
+        where token_id = #{tokenId}
+          and status != 'REVOKED'
+    </update>
+
+</mapper>

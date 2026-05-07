@@ -1,0 +1,44 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AuthSourceMapper">
+
+    <sql id="baseSql">
+        id, name, type, enabled, is_system, priority, config_json,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByName" resultType="io.github.zzih.rudder.dao.entity.AuthSource">
+        select <include refid="baseSql"/>
+        from t_r_auth_source
+        where name = #{name}
+        limit 1
+    </select>
+
+    <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.AuthSource">
+        select <include refid="baseSql"/>
+        from t_r_auth_source
+        order by priority desc, id asc
+    </select>
+
+    <select id="queryEnabled" resultType="io.github.zzih.rudder.dao.entity.AuthSource">
+        select <include refid="baseSql"/>
+        from t_r_auth_source
+        where enabled = 1
+        order by priority desc, id asc
+    </select>
+
+    <select id="queryEnabledByType" resultType="io.github.zzih.rudder.dao.entity.AuthSource">
+        select <include refid="baseSql"/>
+        from t_r_auth_source
+        where enabled = 1
+          and type = #{type}
+        order by priority desc, id asc
+    </select>
+
+    <select id="countEnabledByType" resultType="long">
+        select count(*)
+        from t_r_auth_source
+        where enabled = 1
+          and type = #{type}
+    </select>
+
+</mapper>

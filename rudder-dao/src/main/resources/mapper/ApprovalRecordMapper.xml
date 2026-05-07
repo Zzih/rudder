@@ -1,0 +1,87 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.ApprovalRecordMapper">
+
+    <sql id="baseSql">
+        id, channel, external_approval_id, resource_type, resource_code,
+        workspace_id, project_code, title, description, submit_remark,
+        status, stage_chain, current_stage, decision_rule, required_count,
+        resolved_at, expires_at, withdrawn_at, withdrawn_reason,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.ApprovalRecord">
+        select <include refid="baseSql"/>
+        from t_r_approval_record
+        <where>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <!-- roleLevel 3=SUPER_ADMIN sees all -->
+            <if test="roleLevel &lt; 3">
+                AND (
+                    <!-- 自己提交的申请 -->
+                    created_by = #{userId}
+                    <!-- 自己是项目owner的审批 -->
+                    OR project_code IN (SELECT code FROM t_r_project WHERE created_by = #{userId})
+                    <!-- WORKSPACE_OWNER 看本工作空间的 -->
+                    <if test="roleLevel >= 2 and workspaceId != null">
+                        OR workspace_id = #{workspaceId}
+                    </if>
+                )
+            </if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="queryByResourceTypeAndResourceCode" resultType="io.github.zzih.rudder.dao.entity.ApprovalRecord">
+        select <include refid="baseSql"/>
+        from t_r_approval_record
+        where resource_type = #{resourceType}
+          and resource_code = #{resourceCode}
+        order by created_at desc
+    </select>
+
+    <select id="queryByExternalApprovalId" resultType="io.github.zzih.rudder.dao.entity.ApprovalRecord">
+        select <include refid="baseSql"/>
+        from t_r_approval_record
+        where external_approval_id = #{externalApprovalId}
+        limit 1
+    </select>
+
+    <update id="advanceStageIfPending">
+        update t_r_approval_record
+        set current_stage = #{newStage}
+        where id = #{id}
+          and status = 'PENDING'
+          and current_stage = #{oldStage}
+    </update>
+
+    <update id="finalizeIfPending">
+        update t_r_approval_record
+        set status = #{status},
+            resolved_at = #{resolvedAt}
+        where id = #{id}
+          and status = 'PENDING'
+    </update>
+
+    <update id="withdrawIfPending">
+        update t_r_approval_record
+        set status = 'WITHDRAWN',
+            withdrawn_at = #{withdrawnAt},
+            withdrawn_reason = #{withdrawnReason}
+        where id = #{id}
+          and status = 'PENDING'
+          and created_by = #{ownerId}
+    </update>
+
+    <select id="queryExpiredPendingIds" resultType="long">
+        select id
+        from t_r_approval_record
+        where status = 'PENDING'
+          and expires_at is not null
+          and expires_at &lt; #{now}
+        order by expires_at asc
+        limit #{limit}
+    </select>
+
+</mapper>

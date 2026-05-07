@@ -1,0 +1,68 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-datasource</artifactId>
+    <name>Rudder Datasource</name>
+    <description>数据源基础设施: DatasourceService(CRUD) + ConnectionPoolManager(HikariCP) + 加密凭证。L3 设施层,不是 SPI。</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-dao</artifactId>
+        </dependency>
+        <!-- 执行只读 SQL 复用 Worker 的 SqlExecutor,统一 alias 反查 + ColumnMeta 产出 -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-task-api</artifactId>
+        </dependency>
+        <!-- 给 metadata SPI 提供 DatasourceLookup 实现(包装 DatasourceService + ConnectionPoolManager) -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-metadata-api</artifactId>
+        </dependency>
+        <!-- JDBC Drivers for testConnection -->
+        <dependency>
+            <groupId>org.apache.hive</groupId>
+            <artifactId>hive-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-sql-jdbc-driver-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <classifier>all</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

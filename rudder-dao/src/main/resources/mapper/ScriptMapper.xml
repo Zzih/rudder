@@ -1,0 +1,87 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.ScriptMapper">
+
+    <sql id="baseSql">
+        id, code, workspace_id, dir_id, name, task_type, content, source_type, params,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByCode" resultType="io.github.zzih.rudder.dao.entity.Script">
+        select <include refid="baseSql"/>
+        from t_r_script
+        where code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceIdAndCode" resultType="io.github.zzih.rudder.dao.entity.Script">
+        select <include refid="baseSql"/>
+        from t_r_script
+        where workspace_id = #{workspaceId}
+          and code = #{code}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceIdAndName" resultType="io.github.zzih.rudder.dao.entity.Script">
+        select <include refid="baseSql"/>
+        from t_r_script
+        where workspace_id = #{workspaceId}
+          and name = #{name}
+        limit 1
+    </select>
+
+    <select id="queryByCodes" resultType="io.github.zzih.rudder.dao.entity.Script">
+        select <include refid="baseSql"/>
+        from t_r_script
+        where code in
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
+    <select id="queryByDirId" resultType="io.github.zzih.rudder.dao.entity.Script">
+        select <include refid="baseSql"/>
+        from t_r_script
+        where dir_id = #{dirId}
+          and source_type = 'IDE'
+    </select>
+
+    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.Script">
+        select <include refid="baseSql"/>
+        from t_r_script
+        where workspace_id = #{workspaceId}
+          and source_type = 'IDE'
+    </select>
+
+    <select id="countInDirAndNameExcludeId" resultType="long">
+        select count(*)
+        from t_r_script
+        <where>
+            <choose>
+                <when test="dirId == null">dir_id is null</when>
+                <otherwise>dir_id = #{dirId}</otherwise>
+            </choose>
+            and name = #{name}
+            <if test="excludeId != null">and id != #{excludeId}</if>
+        </where>
+    </select>
+
+    <update id="updateDirId">
+        update t_r_script
+        set dir_id = #{dirId, jdbcType=BIGINT}
+        where id = #{id}
+    </update>
+
+    <select id="countAll" resultType="long">
+        select count(*) from t_r_script
+    </select>
+
+    <select id="countByWorkspaceIds" resultType="long">
+        select count(*)
+        from t_r_script
+        where workspace_id in
+        <foreach collection="workspaceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+</mapper>

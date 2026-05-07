@@ -1,0 +1,13 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiConfigMapper">
+
+    <select id="queryActiveByType" resultType="io.github.zzih.rudder.dao.entity.AiConfig">
+        select *
+        from t_r_ai_config
+        where type = #{type}
+          and enabled = 1
+        order by id desc
+        limit 1
+    </select>
+
+</mapper>

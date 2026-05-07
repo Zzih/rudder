@@ -1,0 +1,28 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiSessionMapper">
+
+    <select id="queryByWorkspaceAndUser" resultType="io.github.zzih.rudder.dao.entity.AiSession">
+        select *
+        from t_r_ai_session
+        where workspace_id = #{workspaceId}
+          and created_by = #{userId}
+        order by updated_at desc
+    </select>
+
+    <select id="selectPageByWorkspaceAndUser" resultType="io.github.zzih.rudder.dao.entity.AiSession">
+        select *
+        from t_r_ai_session
+        where workspace_id = #{workspaceId}
+          and created_by = #{userId}
+        order by updated_at desc
+    </select>
+
+    <update id="incrementUsage">
+        update t_r_ai_session
+        set total_prompt_tokens = total_prompt_tokens + #{prompt},
+            total_completion_tokens = total_completion_tokens + #{completion},
+            total_cost_cents = total_cost_cents + #{cost}
+        where id = #{id}
+    </update>
+
+</mapper>

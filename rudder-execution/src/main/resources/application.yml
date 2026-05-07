@@ -1,0 +1,56 @@
+server:
+  port: ${RUDDER_EXECUTION_PORT:5681}
+
+spring:
+  application:
+    name: rudder-execution
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${RUDDER_DB_URL:jdbc:mysql://127.0.0.1:3306/rudder?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowMultiQueries=true}
+    username: ${RUDDER_DB_USERNAME:rudder}
+    password: ${RUDDER_DB_PASSWORD:rudder123}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 60000
+  data:
+    redis:
+      host: ${RUDDER_REDIS_HOST:127.0.0.1}
+      port: ${RUDDER_REDIS_PORT:6379}
+      password: ${RUDDER_REDIS_PASSWORD:}
+      database: ${RUDDER_REDIS_DB:0}
+      timeout: 3s
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+rudder:
+  service:
+    type: EXECUTION
+    heartbeat-timeout: 30
+  rpc:
+    port: ${RUDDER_RPC_PORT:5691}
+    # Server 和 Execution 必须配置相同值（至少 32 字节）。未配置时启动失败
+    auth-secret: ${RUDDER_RPC_AUTH_SECRET:}
+  execution:
+    work-dir: ${RUDDER_EXECUTION_WORK_DIR:/tmp/rudder/tasks}
+    clean-work-dir: ${RUDDER_EXECUTION_CLEAN_WORK_DIR:true}
+
+  file:
+    local-dir: ${RUDDER_FILE_LOCAL_DIR:./local/rudder-data}
+
+  security:
+    jwt-secret: ${RUDDER_JWT_SECRET:}
+    # 12h:跟 API server 保持一致,Execution 端用同一密钥校验
+    jwt-expiration: 43200000
+    encrypt-key: ${RUDDER_ENCRYPT_KEY:}
+
+logging:
+  level:
+    io.github.zzih.rudder: ${RUDDER_LOG_LEVEL:DEBUG}
+    org.springframework: INFO

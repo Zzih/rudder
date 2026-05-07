@@ -1,0 +1,26 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-vector</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-vector-local</artifactId>
+    <name>Rudder Vector Local</name>
+    <description>本地向量存储 provider(MySQL FULLTEXT ngram 关键词召回),作为 LOCAL factory 注册,由 Admin 后台显式选择启用</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-vector-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+        </dependency>
+    </dependencies>
+</project>

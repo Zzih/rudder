@@ -1,0 +1,52 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.ScriptDirMapper">
+
+    <sql id="baseSql">
+        id, workspace_id, parent_id, name, sort_order,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByWorkspaceIdAndId" resultType="io.github.zzih.rudder.dao.entity.ScriptDir">
+        select <include refid="baseSql"/>
+        from t_r_script_dir
+        where workspace_id = #{workspaceId}
+          and id = #{id}
+        limit 1
+    </select>
+
+    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.ScriptDir">
+        select <include refid="baseSql"/>
+        from t_r_script_dir
+        where workspace_id = #{workspaceId}
+        order by sort_order asc
+    </select>
+
+    <select id="queryByParentId" resultType="io.github.zzih.rudder.dao.entity.ScriptDir">
+        select <include refid="baseSql"/>
+        from t_r_script_dir
+        where parent_id = #{parentId}
+        order by sort_order asc
+    </select>
+
+    <select id="countInParentAndNameExcludeId" resultType="long">
+        select count(*)
+        from t_r_script_dir
+        <where>
+            workspace_id = #{workspaceId}
+            and
+            <choose>
+                <when test="parentId == null">parent_id is null</when>
+                <otherwise>parent_id = #{parentId}</otherwise>
+            </choose>
+            and name = #{name}
+            <if test="excludeId != null">and id != #{excludeId}</if>
+        </where>
+    </select>
+
+    <update id="updateParentId">
+        update t_r_script_dir
+        set parent_id = #{parentId, jdbcType=BIGINT}
+        where id = #{id}
+    </update>
+
+</mapper>

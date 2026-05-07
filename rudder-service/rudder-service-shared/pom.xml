@@ -1,0 +1,94 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-service</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-service-shared</artifactId>
+    <name>Rudder Service: Shared</name>
+    <description>
+        Server / Execution 共享的业务 service：
+        notification（通知发送）+ script（脚本 / 任务实例 / 服务注册）。
+    </description>
+
+    <dependencies>
+        <!-- Infrastructure -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-dao</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-rpc</artifactId>
+        </dependency>
+        <!-- Datasource 基础设施: shared 持有 DatasourcePreviewService(业务装配) 复用 datasource 的 CRUD + 连接信息 -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-datasource</artifactId>
+        </dependency>
+
+        <!-- SPI contracts: shared 持有 File / Runtime / Result 三个 ConfigSyncSpec(api/execution 共用) -->
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-task-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-notification-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-file-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-runtime-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-result-api</artifactId>
+        </dependency>
+        <!-- Spring -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- GlobalCacheService 用 Caffeine 做本地 L1 -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <!-- StreamRegistry 的 CancellationHandle 用 reactor Disposable -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+        </dependency>
+        <!-- redaction 的 logback %msg converter 直接用 logback API -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+        <!-- 结果下载 Excel: SXSSF 流式 + 表头样式 / 列宽 / 冻结首行 -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+        </dependency>
+    </dependencies>
+</project>

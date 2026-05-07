@@ -1,0 +1,124 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.WorkflowInstanceMapper">
+
+    <sql id="baseSql">
+        id, workspace_id, project_code, workflow_definition_code, name, version_id, trigger_type,
+        status, dag_snapshot, runtime_params, var_pool, started_at, finished_at, owner_host,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByWorkspaceIdAndWorkflowDefinitionCodeAndId" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workspace_id = #{workspaceId}
+          and workflow_definition_code = #{workflowDefinitionCode}
+          and id = #{id}
+        limit 1
+    </select>
+
+    <select id="queryLatestByWorkflowDefinitionCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workflow_definition_code = #{workflowDefinitionCode}
+        order by created_at desc
+        limit 1
+    </select>
+
+    <select id="queryLatestByWorkflowDefinitionCodeInTimeRange" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workflow_definition_code = #{workflowDefinitionCode}
+        <if test="start != null">
+            and started_at <![CDATA[ >= ]]> #{start}
+        </if>
+        <if test="end != null">
+            and started_at <![CDATA[ <= ]]> #{end}
+        </if>
+        order by started_at desc
+        limit 1
+    </select>
+
+    <select id="queryByWorkflowDefinitionCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workflow_definition_code = #{workflowDefinitionCode}
+        order by created_at desc
+    </select>
+
+    <select id="queryPageByWorkflowDefinitionCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workflow_definition_code = #{workflowDefinitionCode}
+        <if test="searchVal != null and searchVal != ''">
+            and name like concat('%', #{searchVal}, '%')
+        </if>
+        order by created_at desc
+    </select>
+
+    <select id="queryByWorkflowDefinitionCodes" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workflow_definition_code in
+        <foreach collection="workflowDefinitionCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        order by created_at desc
+    </select>
+
+    <select id="queryByProjectCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where project_code = #{projectCode}
+        order by created_at desc
+    </select>
+
+    <select id="queryPageByProjectCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where project_code = #{projectCode}
+        <if test="searchVal != null and searchVal != ''">
+            and name like concat('%', #{searchVal}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            and status = #{status}
+        </if>
+        order by created_at desc
+    </select>
+
+    <!--
+        查询孤儿：status=RUNNING 但 owner_host 在 service_registry 中不是 ONLINE 的 SERVER。
+        owner_host 为空的（旧数据）不纳入回收，避免误伤。
+    -->
+    <select id="queryOrphanedRunning" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance wi
+        where wi.status = 'RUNNING'
+          and wi.owner_host is not null
+          and not exists (
+              select 1 from t_r_service_registry sr
+              where sr.type = 'SERVER'
+                and sr.status = 'ONLINE'
+                and concat(sr.host, ':', sr.port) = wi.owner_host
+          )
+    </select>
+
+    <select id="queryByOwnerHostAndStatus" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where owner_host = #{ownerHost}
+          and status = #{status}
+    </select>
+
+    <!--
+        原子接管：只有当 owner_host 仍然是 oldOwner 且 status 匹配时才写入 newOwner。
+        WHERE 子句起到 CAS 作用，防止两个 Server 同时接管同一个 wf。
+    -->
+    <update id="updateOwnerHostIfMatch">
+        update t_r_workflow_instance
+        set owner_host = #{newOwner}
+        where id = #{id}
+          and owner_host = #{oldOwner}
+          and status = #{status}
+    </update>
+
+</mapper>

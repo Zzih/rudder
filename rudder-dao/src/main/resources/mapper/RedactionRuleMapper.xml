@@ -1,0 +1,17 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.RedactionRuleMapper">
+
+    <select id="queryAllEnabled" resultType="io.github.zzih.rudder.dao.entity.RedactionRuleEntity">
+        select *
+        from t_r_redaction_rule
+        where enabled = 1
+        order by priority asc, id asc
+    </select>
+
+    <select id="countByStrategyCode" resultType="long">
+        select count(*)
+        from t_r_redaction_rule
+        where strategy_code = #{strategyCode}
+    </select>
+
+</mapper>

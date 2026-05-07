@@ -1,0 +1,32 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-spi</artifactId>
+    <packaging>pom</packaging>
+    <name>Rudder SPI</name>
+    <description>All SPI extension points: contracts (-api), built-in defaults (-local), third-party providers (-&lt;provider&gt;)</description>
+
+    <modules>
+        <module>rudder-spi-api</module>
+        <module>rudder-task</module>
+        <module>rudder-file</module>
+        <module>rudder-runtime</module>
+        <module>rudder-result</module>
+        <module>rudder-metadata</module>
+        <module>rudder-llm</module>
+        <module>rudder-embedding</module>
+        <module>rudder-approval</module>
+        <module>rudder-notification</module>
+        <module>rudder-version</module>
+        <module>rudder-vector</module>
+        <module>rudder-rerank</module>
+    </modules>
+</project>

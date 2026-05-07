@@ -1,0 +1,124 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.TaskInstanceMapper">
+
+    <sql id="baseSql">
+        id, name, task_definition_code, script_code, task_type, content, params,
+        workspace_id, source_type, workflow_instance_id,
+        status, runtime_type, app_id, tracking_url, execution_host, log_path,
+        started_at, finished_at, duration, error_message,
+        result_path, row_count, var_pool,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryByScriptCode" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where script_code = #{scriptCode}
+        order by created_at desc
+    </select>
+
+    <select id="queryByWorkflowInstanceId" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where workflow_instance_id = #{workflowInstanceId}
+    </select>
+
+    <select id="queryByWorkflowInstanceIdOrderByCreatedAtAsc" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where workflow_instance_id = #{workflowInstanceId}
+        order by created_at asc
+    </select>
+
+    <select id="queryLatestByWorkflowInstanceIdAndTaskDefinitionCode" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where workflow_instance_id = #{workflowInstanceId}
+          and task_definition_code = #{taskDefinitionCode}
+        order by id desc
+        limit 1
+    </select>
+
+    <update id="cancelPendingAndRunningByInstanceId">
+        update t_r_task_instance
+        set status = 'CANCELLED',
+            finished_at = now()
+            <if test="errorMessage != null and errorMessage != ''">
+                , error_message = #{errorMessage}
+            </if>
+        where workflow_instance_id = #{workflowInstanceId}
+          and status in ('PENDING', 'RUNNING')
+    </update>
+
+    <select id="queryRunningAndPending" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where status in ('PENDING', 'RUNNING')
+        order by created_at desc
+    </select>
+
+    <select id="queryRunningPage" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where status in ('PENDING', 'RUNNING')
+        <if test="workspaceId != null">
+            and workspace_id = #{workspaceId}
+        </if>
+        <if test="name != null and name != ''">
+            and name like concat('%', #{name}, '%')
+        </if>
+        <if test="taskType != null and taskType != ''">
+            and task_type = #{taskType}
+        </if>
+        <if test="runtimeType != null and runtimeType != ''">
+            and runtime_type = #{runtimeType}
+        </if>
+        order by created_at desc
+    </select>
+
+    <select id="queryRunningByScriptCode" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where script_code = #{scriptCode}
+          and status in ('PENDING', 'RUNNING')
+        order by created_at desc
+    </select>
+
+    <select id="queryFinishedByWorkflowInstanceId" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where workflow_instance_id = #{workflowInstanceId}
+          and status in ('SUCCESS', 'FAILED', 'CANCELLED', 'SKIPPED')
+    </select>
+
+    <select id="queryRunningByWorkflowInstanceId" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where workflow_instance_id = #{workflowInstanceId}
+          and status in ('PENDING', 'RUNNING')
+    </select>
+
+    <!-- 每个 task_definition_code 取 id 最大的那行，供 ConditionTask / Runner 等批量评估同一 wf 实例下的最新状态。 -->
+    <select id="queryLatestByWorkflowInstanceIdGroupedByTaskCode" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+        select <include refid="baseSql"/>
+        from t_r_task_instance
+        where workflow_instance_id = #{workflowInstanceId}
+          and id in (
+              select max(id)
+              from t_r_task_instance
+              where workflow_instance_id = #{workflowInstanceId}
+              group by task_definition_code
+          )
+    </select>
+
+    <!-- 原子化：仅当 status=PENDING 时转 RUNNING。Execution 侧防止重复执行的关键 CAS。 -->
+    <update id="claimPending">
+        update t_r_task_instance
+        set status = 'RUNNING',
+            runtime_type = #{runtimeType},
+            started_at = #{startedAt}
+        where id = #{taskInstanceId}
+          and status = 'PENDING'
+    </update>
+
+</mapper>

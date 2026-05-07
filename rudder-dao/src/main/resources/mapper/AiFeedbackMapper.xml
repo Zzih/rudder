@@ -1,0 +1,8 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.AiFeedbackMapper">
+
+    <select id="selectByMessageId" resultType="io.github.zzih.rudder.dao.entity.AiFeedback">
+        select * from t_r_ai_feedback where message_id = #{messageId} order by created_at desc
+    </select>
+
+</mapper>

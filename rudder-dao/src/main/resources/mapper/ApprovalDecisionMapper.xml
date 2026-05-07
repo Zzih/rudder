@@ -1,0 +1,39 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.ApprovalDecisionMapper">
+
+    <sql id="baseSql">
+        id, approval_id, stage, decider_user_id, decider_username,
+        decision, decided_at, remark, created_at
+    </sql>
+
+    <select id="queryByApprovalId" resultType="io.github.zzih.rudder.dao.entity.ApprovalDecision">
+        select <include refid="baseSql"/>
+        from t_r_approval_decision
+        where approval_id = #{approvalId}
+        order by decided_at asc, id asc
+    </select>
+
+    <select id="queryByApprovalIdAndStage" resultType="io.github.zzih.rudder.dao.entity.ApprovalDecision">
+        select <include refid="baseSql"/>
+        from t_r_approval_decision
+        where approval_id = #{approvalId}
+          and stage = #{stage}
+        order by decided_at asc, id asc
+    </select>
+
+    <select id="countApproveByStage" resultType="int">
+        select count(*)
+        from t_r_approval_decision
+        where approval_id = #{approvalId}
+          and stage = #{stage}
+          and decision = 'APPROVE'
+    </select>
+
+    <select id="queryByDeciderUserId" resultType="io.github.zzih.rudder.dao.entity.ApprovalDecision">
+        select <include refid="baseSql"/>
+        from t_r_approval_decision
+        where decider_user_id = #{deciderUserId}
+        order by decided_at desc, id desc
+    </select>
+
+</mapper>

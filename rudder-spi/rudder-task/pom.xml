@@ -1,0 +1,32 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-spi</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-task</artifactId>
+    <packaging>pom</packaging>
+    <name>Rudder Task</name>
+
+    <modules>
+        <module>rudder-task-api</module>
+        <module>rudder-task-hive</module>
+        <module>rudder-task-starrocks</module>
+        <module>rudder-task-mysql</module>
+        <module>rudder-task-doris</module>
+        <module>rudder-task-postgres</module>
+        <module>rudder-task-clickhouse</module>
+        <module>rudder-task-trino</module>
+        <module>rudder-task-spark</module>
+        <module>rudder-task-flink</module>
+        <module>rudder-task-shell</module>
+        <module>rudder-task-python</module>
+        <module>rudder-task-http</module>
+        <module>rudder-task-seatunnel</module>
+    </modules>
+</project>

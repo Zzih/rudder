@@ -1,0 +1,38 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-vector</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-vector-qdrant</artifactId>
+    <name>Rudder Vector Qdrant</name>
+    <description>Qdrant 实现,基于 Spring AI spring-ai-qdrant-store + 官方 QdrantClient。</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.zzih</groupId>
+            <artifactId>rudder-vector-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+        </dependency>
+        <!-- Spring AI Qdrant 裸 lib;不要 starter(我们自己通过 SPI + 工厂 new QdrantClient) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-qdrant-store</artifactId>
+        </dependency>
+        <!-- QdrantClient API 签名引用 io.grpc.ManagedChannel(qdrant-client pom 把 grpc-api 放 runtime scope) -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-api</artifactId>
+            <version>1.65.1</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+</project>
