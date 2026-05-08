@@ -87,9 +87,6 @@ public enum AuditAction {
     VALIDATE,
     TEST,
     SEND_TEST,
-    UPDATE_PLATFORM_CONFIG,
-    UPDATE_WORKSPACE_CONFIG,
-    DELETE_WORKSPACE_CONFIG,
 
     // --- 用户管理 ---
     RESET_PASSWORD,

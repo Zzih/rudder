@@ -25,11 +25,9 @@ import lombok.Data;
 public class NotificationConfigDTO {
 
     private Long id;
-    private Long workspaceId;
+    private String provider;
+    private String providerParams;
     private Boolean enabled;
-    private String channel;
-    private String channelParams;
-    private String subscribedEvents;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

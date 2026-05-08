@@ -21,8 +21,6 @@ import io.github.zzih.rudder.dao.dao.NotificationConfigDao;
 import io.github.zzih.rudder.dao.entity.NotificationConfig;
 import io.github.zzih.rudder.dao.mapper.NotificationConfigMapper;
 
-import java.util.List;
-
 import org.springframework.stereotype.Repository;
 
 import lombok.RequiredArgsConstructor;
@@ -34,23 +32,8 @@ public class NotificationConfigDaoImpl implements NotificationConfigDao {
     private final NotificationConfigMapper mapper;
 
     @Override
-    public List<NotificationConfig> selectAll() {
-        return mapper.selectAllOrdered();
-    }
-
-    @Override
-    public NotificationConfig selectById(Long id) {
-        return mapper.selectById(id);
-    }
-
-    @Override
-    public NotificationConfig selectByWorkspaceId(Long workspaceId) {
-        return mapper.queryByWorkspaceId(workspaceId);
-    }
-
-    @Override
-    public NotificationConfig selectPlatformConfig() {
-        return mapper.queryPlatformConfig();
+    public NotificationConfig selectActive() {
+        return mapper.queryActive();
     }
 
     @Override
@@ -61,15 +44,5 @@ public class NotificationConfigDaoImpl implements NotificationConfigDao {
     @Override
     public int updateById(NotificationConfig config) {
         return mapper.updateById(config);
-    }
-
-    @Override
-    public int deleteById(Long id) {
-        return mapper.deleteById(id);
-    }
-
-    @Override
-    public int deleteByWorkspaceId(Long workspaceId) {
-        return mapper.deleteByWorkspaceId(workspaceId);
     }
 }

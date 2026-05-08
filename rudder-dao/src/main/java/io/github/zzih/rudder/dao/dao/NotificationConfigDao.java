@@ -19,23 +19,11 @@ package io.github.zzih.rudder.dao.dao;
 
 import io.github.zzih.rudder.dao.entity.NotificationConfig;
 
-import java.util.List;
-
 public interface NotificationConfigDao {
 
-    List<NotificationConfig> selectAll();
-
-    NotificationConfig selectById(Long id);
-
-    NotificationConfig selectByWorkspaceId(Long workspaceId);
-
-    NotificationConfig selectPlatformConfig();
+    NotificationConfig selectActive();
 
     int insert(NotificationConfig config);
 
     int updateById(NotificationConfig config);
-
-    int deleteById(Long id);
-
-    int deleteByWorkspaceId(Long workspaceId);
 }

@@ -29,22 +29,9 @@ import lombok.EqualsAndHashCode;
 @TableName("t_r_notification_config")
 public class NotificationConfig extends BaseEntity {
 
-    private Long workspaceId;
+    private String provider;
+
+    private String providerParams;
 
     private Boolean enabled;
-
-    /**
-     * 通知渠道：LARK / DINGTALK / SLACK。
-     */
-    private String channel;
-
-    /**
-     * 渠道配置参数（JSON），如 {"webhookUrl":"...", "secret":"..."}。
-     */
-    private String channelParams;
-
-    /**
-     * 订阅的事件类型，逗号分隔，如 "APPROVAL,NODE_OFFLINE"。
-     */
-    private String subscribedEvents;
 }

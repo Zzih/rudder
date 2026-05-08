@@ -18,7 +18,6 @@
 package io.github.zzih.rudder.service.workflow;
 
 import static io.github.zzih.rudder.approval.api.model.ApprovalExtraKeys.INITIATOR_EMAIL;
-import static io.github.zzih.rudder.notification.api.model.NotificationExtraKeys.*;
 
 import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
 import io.github.zzih.rudder.common.context.UserContext;
@@ -27,26 +26,43 @@ import io.github.zzih.rudder.common.enums.error.WorkflowErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.common.i18n.I18n;
+import io.github.zzih.rudder.common.param.Property;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
+import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.common.utils.naming.CodeGenerateUtils;
 import io.github.zzih.rudder.dao.dao.ProjectDao;
 import io.github.zzih.rudder.dao.dao.PublishRecordDao;
+import io.github.zzih.rudder.dao.dao.ScriptDao;
+import io.github.zzih.rudder.dao.dao.TaskDefinitionDao;
 import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.dao.WorkflowDefinitionDao;
 import io.github.zzih.rudder.dao.entity.Project;
 import io.github.zzih.rudder.dao.entity.PublishRecord;
+import io.github.zzih.rudder.dao.entity.Script;
+import io.github.zzih.rudder.dao.entity.TaskDefinition;
 import io.github.zzih.rudder.dao.entity.User;
 import io.github.zzih.rudder.dao.entity.WorkflowDefinition;
+import io.github.zzih.rudder.dao.entity.WorkflowSchedule;
 import io.github.zzih.rudder.dao.enums.PublishStatus;
 import io.github.zzih.rudder.dao.enums.PublishType;
 import io.github.zzih.rudder.dao.projection.PublishBatchDetailRow;
 import io.github.zzih.rudder.dao.projection.PublishBatchRow;
-import io.github.zzih.rudder.notification.api.model.NotificationEventType;
+import io.github.zzih.rudder.notification.api.model.ApprovalSubmittedMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
-import io.github.zzih.rudder.notification.api.model.NotificationMessage;
+import io.github.zzih.rudder.notification.api.model.UserRef;
+import io.github.zzih.rudder.publish.api.Publisher;
+import io.github.zzih.rudder.publish.api.bundle.EdgeBundle;
+import io.github.zzih.rudder.publish.api.bundle.ProjectPublishBundle;
+import io.github.zzih.rudder.publish.api.bundle.ScheduleBundle;
+import io.github.zzih.rudder.publish.api.bundle.TaskBundle;
+import io.github.zzih.rudder.publish.api.bundle.WorkflowPublishBundle;
+import io.github.zzih.rudder.service.config.PublishConfigService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.version.VersionService;
+import io.github.zzih.rudder.service.workflow.dag.DagGraph;
+import io.github.zzih.rudder.service.workflow.dag.DagNode;
+import io.github.zzih.rudder.service.workflow.dag.DagParser;
 import io.github.zzih.rudder.service.workflow.dto.ApprovalRecordDTO;
 import io.github.zzih.rudder.service.workflow.dto.PublishBatchDTO;
 import io.github.zzih.rudder.service.workflow.dto.PublishRecordDTO;
@@ -58,9 +74,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,18 +98,15 @@ public class WorkflowPublishService {
     private final PublishRecordDao publishRecordDao;
     private final WorkflowDefinitionDao workflowDefinitionDao;
     private final ProjectDao projectDao;
+    private final TaskDefinitionDao taskDefinitionDao;
+    private final ScriptDao scriptDao;
     private final ApprovalService approvalService;
     private final WorkflowVersionService workflowVersionService;
+    private final WorkflowScheduleService workflowScheduleService;
     private final VersionService versionService;
     private final NotificationService notificationService;
     private final UserDao userDao;
-
-    /**
-     * 可选依赖：未启用 Arion-Dolphin 集成时 Bean 不存在。
-     * 用 {@link ObjectProvider} 替代字段注入 + {@code @Autowired(required=false)}，
-     * 保持构造注入的一致性与可测试性。
-     */
-    private final ObjectProvider<ArionDolphinPublishService> arionDolphinProvider;
+    private final PublishConfigService publishConfigService;
 
     /**
      * 按 batchCode 分页查询发布批次，每个批次包含关联的工作流明细。
@@ -168,7 +184,6 @@ public class WorkflowPublishService {
                     "Workflow Publish: " + workflow.getName(),
                     "Publish workflow [" + workflow.getName() + "] v" + versionNo,
                     workflow.getWorkspaceId(), projectCode,
-                    project != null ? project.getCreatedBy() : null,
                     workflow.getName(), remark);
         }
 
@@ -224,7 +239,7 @@ public class WorkflowPublishService {
                     "Project Publish: " + project.getName(),
                     "Publish project [" + project.getName() + "] with " + items.size() + " workflows:\n"
                             + contentJoiner,
-                    project.getWorkspaceId(), projectCode, project.getCreatedBy(),
+                    project.getWorkspaceId(), projectCode,
                     project.getName(), remark);
         }
 
@@ -265,7 +280,7 @@ public class WorkflowPublishService {
         publishToTarget(batchCode, records, workflows);
     }
 
-    /** 实际发布到 DS（不含审批校验）—— 复用给审批通过后的执行路径与 SUPER_ADMIN 跳审批路径。 */
+    /** 实际发布到目标调度器（不含审批校验）—— 复用给审批通过后的执行路径与 SUPER_ADMIN 跳审批路径。 */
     private void publishToTarget(Long batchCode, List<PublishRecord> records,
                                  List<WorkflowDefinition> workflows) {
         if (records.size() != workflows.size()) {
@@ -274,10 +289,7 @@ public class WorkflowPublishService {
                     "records and workflows must have same size: records=" + records.size()
                             + ", workflows=" + workflows.size());
         }
-        ArionDolphinPublishService arionDolphinPublishService = arionDolphinProvider.getIfAvailable();
-        if (arionDolphinPublishService == null) {
-            throw new BizException(WorkflowErrorCode.PUBLISH_SERVICE_UNAVAILABLE);
-        }
+        Publisher publisher = publishConfigService.required();
 
         PublishRecord first = records.get(0);
         String userName = resolveUserName(first.getCreatedBy());
@@ -285,14 +297,29 @@ public class WorkflowPublishService {
         try {
             if (first.getPublishType() == PublishType.PROJECT) {
                 Project project = projectDao.selectByCode(first.getProjectCode());
-                String projectName = project != null ? project.getName() : "unknown";
-                String projectDesc = project != null ? project.getDescription() : null;
-                arionDolphinPublishService.publishProject(workflows, userName, projectName, projectDesc);
+                List<WorkflowPublishBundle> wfBundles = new ArrayList<>(workflows.size());
+                for (WorkflowDefinition wf : workflows) {
+                    wfBundles.add(buildWorkflowBundle(wf, project, userName));
+                }
+                ProjectPublishBundle projectBundle = ProjectPublishBundle.builder()
+                        .projectCode(first.getProjectCode())
+                        .projectName(project != null ? project.getName() : "unknown")
+                        .projectDescription(project != null ? project.getDescription() : null)
+                        .userName(userName)
+                        .workflows(wfBundles)
+                        .build();
+                publisher.publishProject(projectBundle);
             } else {
-                arionDolphinPublishService.publish(workflows.get(0), userName);
+                WorkflowDefinition wf = workflows.get(0);
+                Project project = projectDao.selectByCode(wf.getProjectCode());
+                publisher.publishWorkflow(buildWorkflowBundle(wf, project, userName));
             }
+        } catch (BizException e) {
+            log.error("发布失败, batchCode={}, publishType={}", batchCode, first.getPublishType(), e);
+            markAllFailed(records);
+            throw e;
         } catch (Exception e) {
-            log.error("发布到 DS 失败, batchCode={}, publishType={}", batchCode, first.getPublishType(), e);
+            log.error("发布失败, batchCode={}, publishType={}", batchCode, first.getPublishType(), e);
             markAllFailed(records);
             throw new BizException(WorkflowErrorCode.PUBLISH_FAILED, e.getMessage());
         }
@@ -303,6 +330,87 @@ public class WorkflowPublishService {
             record.setPublishedAt(now);
             publishRecordDao.updateById(record);
         }
+    }
+
+    /**
+     * 把工作流相关资源（task / script / dag / schedule / globalParams / project）拢成中性 bundle，
+     * 交给 Publisher SPI 自行翻译到具体调度器格式。
+     */
+    private WorkflowPublishBundle buildWorkflowBundle(WorkflowDefinition workflow, Project project,
+                                                      String userName) {
+        DagGraph dag = DagParser.parse(workflow.getDagJson());
+
+        List<TaskDefinition> taskDefs =
+                taskDefinitionDao.selectByWorkflowDefinitionCode(workflow.getCode());
+        Map<Long, TaskDefinition> taskDefByCode = taskDefs.stream()
+                .collect(Collectors.toMap(TaskDefinition::getCode, Function.identity()));
+
+        Set<Long> scriptCodes = taskDefs.stream()
+                .map(TaskDefinition::getScriptCode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Script> scriptMap = scriptCodes.isEmpty()
+                ? Map.of()
+                : scriptDao.selectByCodes(scriptCodes).stream()
+                        .collect(Collectors.toMap(Script::getCode, Function.identity()));
+
+        List<TaskBundle> tasks = new ArrayList<>();
+        for (DagNode node : dag.getNodes()) {
+            TaskDefinition td = taskDefByCode.get(node.getTaskCode());
+            if (td == null) {
+                continue;
+            }
+            Script script = td.getScriptCode() != null ? scriptMap.get(td.getScriptCode()) : null;
+            tasks.add(TaskBundle.builder()
+                    .taskCode(td.getCode())
+                    .name(td.getName())
+                    .description(td.getDescription())
+                    .taskType(td.getTaskType())
+                    .scriptContent(script != null ? script.getContent() : null)
+                    .configJson(td.getConfigJson())
+                    .retryTimes(td.getRetryTimes())
+                    .retryInterval(td.getRetryInterval())
+                    .timeout(td.getTimeout())
+                    .build());
+        }
+
+        List<EdgeBundle> edges = dag.getEdges().stream()
+                .map(e -> EdgeBundle.builder()
+                        .sourceTaskCode(e.getSource())
+                        .targetTaskCode(e.getTarget())
+                        .build())
+                .toList();
+
+        WorkflowSchedule schedule =
+                workflowScheduleService.getByWorkflowDefinitionCode(workflow.getCode());
+        ScheduleBundle scheduleBundle = null;
+        if (schedule != null && schedule.getCronExpression() != null) {
+            scheduleBundle = ScheduleBundle.builder()
+                    .cronExpression(schedule.getCronExpression())
+                    .timezone(schedule.getTimezone())
+                    .startTime(schedule.getStartTime())
+                    .endTime(schedule.getEndTime())
+                    .build();
+        }
+
+        List<Property> globalParams = workflow.getGlobalParams() != null
+                && !workflow.getGlobalParams().isBlank()
+                        ? JsonUtils.toList(workflow.getGlobalParams(), Property.class)
+                        : List.of();
+
+        return WorkflowPublishBundle.builder()
+                .workflowCode(workflow.getCode())
+                .workflowName(workflow.getName())
+                .workflowDescription(workflow.getDescription())
+                .projectCode(workflow.getProjectCode())
+                .projectName(project != null ? project.getName() : null)
+                .projectDescription(project != null ? project.getDescription() : null)
+                .userName(userName)
+                .tasks(tasks)
+                .edges(edges)
+                .schedule(scheduleBundle)
+                .globalParams(globalParams != null ? globalParams : List.of())
+                .build();
     }
 
     private void markAllFailed(List<PublishRecord> records) {
@@ -331,18 +439,17 @@ public class WorkflowPublishService {
 
     private void triggerApproval(Long batchCode, PublishType publishType, String title,
                                  String content, Long workspaceId, Long projectCode,
-                                 Long projectCreatedBy, String name, String remark) {
+                                 String name, String remark) {
+        Long currentUserId = UserContext.getUserId();
+        User currentUser = currentUserId != null ? userDao.selectById(currentUserId) : null;
+
         try {
             Map<String, String> extra = new HashMap<>();
             extra.put("batchCode", String.valueOf(batchCode));
             extra.put("publishType", publishType.name());
             // 当前用户邮箱，用于飞书审批动态解析发起人 open_id
-            Long currentUserId = UserContext.getUserId();
-            if (currentUserId != null) {
-                User currentUser = userDao.selectById(currentUserId);
-                if (currentUser != null && currentUser.getEmail() != null) {
-                    extra.put(INITIATOR_EMAIL, currentUser.getEmail());
-                }
+            if (currentUser != null && currentUser.getEmail() != null) {
+                extra.put(INITIATOR_EMAIL, currentUser.getEmail());
             }
             ApprovalRequest approvalRequest = ApprovalRequest.builder()
                     .title(title)
@@ -356,17 +463,18 @@ public class WorkflowPublishService {
             log.warn("Failed to trigger approval notification", e);
         }
 
-        NotificationMessage message = NotificationMessage.builder()
-                .title(I18n.t("msg.approval.title.publishWorkflow"))
-                .content(title + (remark != null ? "\nRemark: " + remark : ""))
+        UserRef submitter = currentUser != null
+                ? UserRef.of(currentUser.getUsername(), currentUser.getEmail())
+                : null;
+        notificationService.notify(ApprovalSubmittedMessage.builder()
                 .level(NotificationLevel.WARN)
-                .extra(Map.of(
-                        EVENT_TYPE, NotificationEventType.APPROVAL.name(),
-                        ACTION, "SUBMITTED",
-                        WORKFLOW_NAME, name,
-                        REMARK, remark != null ? remark : ""))
-                .build();
-        notificationService.notify(message, NotificationEventType.APPROVAL, workspaceId);
+                .resourceTitle(I18n.t("msg.approval.title.publishWorkflow") + ": " + name)
+                .resourceContent(content)
+                .submitter(submitter)
+                .approvers(List.of())
+                .remark(remark)
+                .detailUrl(null)
+                .build());
     }
 
     private String resolveUserName(Long userId) {

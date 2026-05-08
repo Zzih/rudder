@@ -23,20 +23,18 @@ import io.github.zzih.rudder.dao.dao.ApprovalConfigDao;
 import io.github.zzih.rudder.dao.dao.FileConfigDao;
 import io.github.zzih.rudder.dao.dao.MetadataConfigDao;
 import io.github.zzih.rudder.dao.dao.NotificationConfigDao;
+import io.github.zzih.rudder.dao.dao.PublishConfigDao;
 import io.github.zzih.rudder.dao.dao.ResultConfigDao;
 import io.github.zzih.rudder.dao.dao.RuntimeConfigDao;
 import io.github.zzih.rudder.dao.dao.VersionConfigDao;
-import io.github.zzih.rudder.dao.entity.NotificationConfig;
 import io.github.zzih.rudder.dao.enums.AiConfigType;
 import io.github.zzih.rudder.service.config.dto.AiConfigDTO;
 import io.github.zzih.rudder.service.config.dto.ApprovalConfigDTO;
 import io.github.zzih.rudder.service.config.dto.NotificationConfigDTO;
 import io.github.zzih.rudder.service.config.dto.ProviderConfigDTO;
+import io.github.zzih.rudder.service.config.dto.PublishConfigDTO;
 import io.github.zzih.rudder.service.config.dto.ResultConfigDTO;
 
-import java.util.List;
-
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -55,6 +53,7 @@ public class PlatformConfigService {
     private final AiConfigDao aiConfigDao;
     private final MetadataConfigDao metadataConfigDao;
     private final ApprovalConfigDao approvalConfigDao;
+    private final PublishConfigDao publishConfigDao;
     private final VersionConfigDao versionConfigDao;
     private final NotificationConfigDao notificationConfigDao;
 
@@ -86,44 +85,12 @@ public class PlatformConfigService {
         return BeanConvertUtils.convert(approvalConfigDao.selectActive(), ApprovalConfigDTO.class);
     }
 
-    public NotificationConfigDTO getNotificationPlatform() {
-        return BeanConvertUtils.convert(notificationConfigDao.selectPlatformConfig(), NotificationConfigDTO.class);
+    public PublishConfigDTO getActivePublish() {
+        return BeanConvertUtils.convert(publishConfigDao.selectActive(), PublishConfigDTO.class);
     }
 
-    public NotificationConfigDTO getNotificationByWorkspaceId(Long workspaceId) {
-        return BeanConvertUtils.convert(
-                notificationConfigDao.selectByWorkspaceId(workspaceId), NotificationConfigDTO.class);
-    }
-
-    public NotificationConfigDTO getNotificationById(Long id) {
-        return BeanConvertUtils.convert(notificationConfigDao.selectById(id), NotificationConfigDTO.class);
-    }
-
-    public List<NotificationConfigDTO> listAllNotification() {
-        return BeanConvertUtils.convertList(notificationConfigDao.selectAll(), NotificationConfigDTO.class);
-    }
-
-    public void deleteNotificationByWorkspaceId(Long workspaceId) {
-        notificationConfigDao.deleteByWorkspaceId(workspaceId);
-    }
-
-    /** 平台或工作空间通知配置 upsert,返回保存后的 DTO。 */
-    public NotificationConfigDTO upsertNotification(Long workspaceId, NotificationConfigDTO body) {
-        NotificationConfig existing = workspaceId == null
-                ? notificationConfigDao.selectPlatformConfig()
-                : notificationConfigDao.selectByWorkspaceId(workspaceId);
-        if (existing != null) {
-            // 系统管理字段(id / workspaceId / 时间戳 / 创建人)不让 DTO 改写
-            BeanUtils.copyProperties(body, existing,
-                    "id", "workspaceId", "createdAt", "createdBy", "updatedAt", "updatedBy");
-            notificationConfigDao.updateById(existing);
-            return BeanConvertUtils.convert(existing, NotificationConfigDTO.class);
-        }
-        NotificationConfig fresh = BeanConvertUtils.convert(body, NotificationConfig.class);
-        fresh.setId(null);
-        fresh.setWorkspaceId(workspaceId);
-        notificationConfigDao.insert(fresh);
-        return BeanConvertUtils.convert(fresh, NotificationConfigDTO.class);
+    public NotificationConfigDTO getActiveNotification() {
+        return BeanConvertUtils.convert(notificationConfigDao.selectActive(), NotificationConfigDTO.class);
     }
 
 }

@@ -17,9 +17,6 @@
 
 package io.github.zzih.rudder.service.workflow;
 
-import static io.github.zzih.rudder.notification.api.model.NotificationExtraKeys.ACTION;
-import static io.github.zzih.rudder.notification.api.model.NotificationExtraKeys.EVENT_TYPE;
-
 import io.github.zzih.rudder.approval.api.model.ApprovalAction;
 import io.github.zzih.rudder.approval.api.model.ApprovalCallback;
 import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
@@ -40,9 +37,12 @@ import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.entity.ApprovalDecision;
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
 import io.github.zzih.rudder.dao.entity.User;
-import io.github.zzih.rudder.notification.api.model.NotificationEventType;
+import io.github.zzih.rudder.notification.api.model.ApprovalApprovedMessage;
+import io.github.zzih.rudder.notification.api.model.ApprovalRejectedMessage;
+import io.github.zzih.rudder.notification.api.model.ApprovalSubmittedMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
 import io.github.zzih.rudder.notification.api.model.NotificationMessage;
+import io.github.zzih.rudder.notification.api.model.UserRef;
 import io.github.zzih.rudder.service.approval.event.ApprovalFinalizedEvent;
 import io.github.zzih.rudder.service.config.ApprovalConfigService;
 import io.github.zzih.rudder.service.notification.NotificationService;
@@ -282,7 +282,7 @@ public class ApprovalService {
             throw new BizException(ApprovalErrorCode.APPROVAL_ALREADY_RESOLVED);
         }
         log.info("Approval withdrawn: id={}, owner={}", id, ownerUserId);
-        notifyResolved(record, false, "WITHDRAWN");
+        notifyResolved(record, ApprovalStatus.WITHDRAWN, "Withdrawn by submitter");
         publishFinalized(record, ApprovalFinalizedEvent.STATUS_WITHDRAWN, ownerUserId);
     }
 
@@ -299,7 +299,7 @@ public class ApprovalService {
                 expired++;
                 ApprovalRecord r = approvalRecordDao.selectById(id);
                 if (r != null) {
-                    notifyResolved(r, false, "EXPIRED");
+                    notifyResolved(r, ApprovalStatus.EXPIRED, "Expired");
                     publishFinalized(r, ApprovalFinalizedEvent.STATUS_EXPIRED, null);
                 }
             }
@@ -347,7 +347,7 @@ public class ApprovalService {
         record.setStatus(status);
         record.setResolvedAt(LocalDateTime.now());
         log.info("Approval finalized: id={}, status={}", record.getId(), status);
-        notifyResolved(record, status == ApprovalStatus.APPROVED, status.name());
+        notifyResolved(record, status, latestRemark(record.getId()));
         publishFinalized(record, status.name(), UserContext.getUserId());
     }
 
@@ -360,24 +360,84 @@ public class ApprovalService {
         }
         record.setCurrentStage(newStage);
         log.info("Approval advanced: id={}, {}→{}", record.getId(), oldStage, newStage);
-        String advanceTitle = I18n.t(
-                "msg.approval.advanceToStage", record.getTitle(), newStage);
-        sendNotification(record, advanceTitle,
-                record.getDescription() != null ? record.getDescription() : record.getTitle(),
-                NotificationLevel.WARN, "STAGE_ADVANCED");
+
+        UserRef submitter = loadUserRef(record.getCreatedBy());
+        List<UserRef> approvers = loadStageCandidates(record, newStage);
+        sendNotification(record, ApprovalSubmittedMessage.builder()
+                .level(NotificationLevel.WARN)
+                .resourceTitle(I18n.t("msg.approval.advanceToStage", record.getTitle(), newStage))
+                .resourceContent(record.getDescription())
+                .submitter(submitter)
+                .approvers(approvers)
+                .build());
     }
 
-    private void notifyResolved(ApprovalRecord record, boolean approved, String actionLabel) {
-        // actionLabel 是 ApprovalStatus.name() / "WITHDRAWN" / "EXPIRED",作为 i18n key 后缀
-        String localizedAction = I18n.t(
-                "msg.approval.action." + actionLabel);
-        String title = I18n.t(
-                "msg.approval.resolvedTitle", record.getTitle(), localizedAction);
-        String body = record.getDescription() != null ? record.getDescription() : record.getTitle();
-        String content = I18n.t(
-                "msg.approval.resolvedContent", body, localizedAction);
-        sendNotification(record, title, content,
-                approved ? NotificationLevel.SUCCESS : NotificationLevel.FAIL, actionLabel);
+    private void notifyResolved(ApprovalRecord record, ApprovalStatus status, String reason) {
+        UserRef submitter = loadUserRef(record.getCreatedBy());
+        UserRef approver = loadUserRef(UserContext.getUserId());
+
+        NotificationMessage message;
+        switch (status) {
+            case APPROVED -> message = ApprovalApprovedMessage.builder()
+                    .level(NotificationLevel.SUCCESS)
+                    .resourceTitle(record.getTitle())
+                    .resourceContent(record.getDescription())
+                    .submitter(submitter)
+                    .approver(approver)
+                    .comment(reason)
+                    .build();
+            // REJECTED 用 FAIL 红卡；WITHDRAWN/EXPIRED 不是真正的"驳回"，视觉用 WARN 黄卡，reason 字段携带具体动因
+            case REJECTED, WITHDRAWN, EXPIRED -> message = ApprovalRejectedMessage.builder()
+                    .level(status == ApprovalStatus.REJECTED ? NotificationLevel.FAIL : NotificationLevel.WARN)
+                    .resourceTitle(record.getTitle())
+                    .resourceContent(record.getDescription())
+                    .submitter(submitter)
+                    .approver(approver)
+                    .reason(reason)
+                    .build();
+            default -> {
+                log.warn("Skipping notification for unexpected resolved status: id={}, status={}",
+                        record.getId(), status);
+                return;
+            }
+        }
+        sendNotification(record, message);
+    }
+
+    private String latestRemark(Long approvalId) {
+        List<ApprovalDecision> decisions = approvalDecisionDao.selectByApprovalId(approvalId);
+        if (decisions == null || decisions.isEmpty()) {
+            return null;
+        }
+        return decisions.get(decisions.size() - 1).getRemark();
+    }
+
+    private UserRef loadUserRef(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        User u = userDao.selectById(userId);
+        if (u == null) {
+            return null;
+        }
+        return UserRef.of(u.getUsername(), u.getEmail());
+    }
+
+    private List<UserRef> loadStageCandidates(ApprovalRecord record, String stage) {
+        try {
+            List<Long> ids = approverResolverRegistry.require(stage).resolveCandidateUserIds(record);
+            if (ids == null || ids.isEmpty()) {
+                return List.of();
+            }
+            List<User> users = userDao.selectByIds(ids);
+            return users.stream()
+                    .map(u -> UserRef.of(u.getUsername(), u.getEmail()))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("Failed to load stage candidates for notification: stage={}, recordId={}",
+                    stage, record.getId(), e);
+            return List.of();
+        }
     }
 
     /**
@@ -399,24 +459,13 @@ public class ApprovalService {
         }
     }
 
-    /**
-     * 发审批通知，吞异常（通知失败不应阻断主流程）。
-     */
-    private void sendNotification(ApprovalRecord record, String title, String content,
-                                  NotificationLevel level, String action) {
+    /** 发审批通知，吞异常（通知失败不应阻断主流程）。 */
+    private void sendNotification(ApprovalRecord record, NotificationMessage message) {
         try {
-            NotificationMessage message = NotificationMessage.builder()
-                    .title(title)
-                    .content(content)
-                    .level(level)
-                    .extra(Map.of(
-                            EVENT_TYPE, NotificationEventType.APPROVAL.name(),
-                            ACTION, action))
-                    .build();
-            notificationService.notify(message, NotificationEventType.APPROVAL, record.getWorkspaceId());
+            notificationService.notify(message);
         } catch (Exception e) {
-            log.warn("Failed to send approval notification (resourceType={}, resourceCode={}, action={}): {}",
-                    record.getResourceType(), record.getResourceCode(), action, e.getMessage());
+            log.warn("Failed to send approval notification (resourceType={}, resourceCode={}): {}",
+                    record.getResourceType(), record.getResourceCode(), e.getMessage());
         }
     }
 

@@ -378,6 +378,16 @@
             </dependency>
             <dependency>
                 <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-publish-api</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-publish-arion-dolphin</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
                 <artifactId>rudder-llm-api</artifactId>
                 <version>${rudder.version}</version>
             </dependency>

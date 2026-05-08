@@ -20,22 +20,11 @@ package io.github.zzih.rudder.notification.api.model;
 public enum NotificationEventType {
 
     /** 审批流转（提交审批、审批通过/驳回） */
-    APPROVAL(false),
+    APPROVAL,
 
     /** Execution 节点上线通知 */
-    NODE_ONLINE(true),
+    NODE_ONLINE,
 
     /** Execution 节点离线告警 */
-    NODE_OFFLINE(true);
-
-    /** 是否为平台级事件（仅使用平台级配置，忽略 workspace 级配置） */
-    private final boolean platformOnly;
-
-    NotificationEventType(boolean platformOnly) {
-        this.platformOnly = platformOnly;
-    }
-
-    public boolean isPlatformOnly() {
-        return platformOnly;
-    }
+    NODE_OFFLINE
 }

@@ -21,13 +21,11 @@ import io.github.zzih.rudder.ai.orchestrator.RagPipelineConfigService;
 import io.github.zzih.rudder.ai.orchestrator.RagPipelineSettings;
 import io.github.zzih.rudder.ai.rerank.RerankConfigService;
 import io.github.zzih.rudder.api.request.ApprovalConfigRequest;
-import io.github.zzih.rudder.api.request.NotificationConfigRequest;
 import io.github.zzih.rudder.api.request.ResultSpiConfigRequest;
 import io.github.zzih.rudder.api.request.SpiConfigRequest;
 import io.github.zzih.rudder.api.request.SpiTestRequest;
 import io.github.zzih.rudder.api.response.AiConfigResponse;
 import io.github.zzih.rudder.api.response.ApprovalConfigResponse;
-import io.github.zzih.rudder.api.response.NotificationConfigResponse;
 import io.github.zzih.rudder.api.response.ProviderConfigResponse;
 import io.github.zzih.rudder.api.response.ResultConfigResponse;
 import io.github.zzih.rudder.api.response.RuntimeTypeResponse;
@@ -40,8 +38,6 @@ import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
-import io.github.zzih.rudder.common.exception.NotFoundException;
-import io.github.zzih.rudder.common.i18n.I18n;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.dao.enums.AiConfigType;
@@ -50,9 +46,8 @@ import io.github.zzih.rudder.embedding.api.plugin.EmbeddingPluginManager;
 import io.github.zzih.rudder.file.api.plugin.FilePluginManager;
 import io.github.zzih.rudder.llm.api.plugin.LlmPluginManager;
 import io.github.zzih.rudder.metadata.api.plugin.MetadataPluginManager;
-import io.github.zzih.rudder.notification.api.model.NotificationLevel;
-import io.github.zzih.rudder.notification.api.model.NotificationMessage;
 import io.github.zzih.rudder.notification.api.plugin.NotificationPluginManager;
+import io.github.zzih.rudder.publish.api.plugin.PublishPluginManager;
 import io.github.zzih.rudder.rerank.api.plugin.RerankPluginManager;
 import io.github.zzih.rudder.result.api.plugin.ResultPluginManager;
 import io.github.zzih.rudder.runtime.api.plugin.RuntimePluginManager;
@@ -61,7 +56,9 @@ import io.github.zzih.rudder.service.config.EmbeddingConfigService;
 import io.github.zzih.rudder.service.config.FileConfigService;
 import io.github.zzih.rudder.service.config.LlmConfigService;
 import io.github.zzih.rudder.service.config.MetadataConfigService;
+import io.github.zzih.rudder.service.config.NotificationConfigService;
 import io.github.zzih.rudder.service.config.PlatformConfigService;
+import io.github.zzih.rudder.service.config.PublishConfigService;
 import io.github.zzih.rudder.service.config.ResultConfigService;
 import io.github.zzih.rudder.service.config.RuntimeConfigService;
 import io.github.zzih.rudder.service.config.VectorConfigService;
@@ -69,8 +66,8 @@ import io.github.zzih.rudder.service.config.VersionConfigService;
 import io.github.zzih.rudder.service.config.dto.ApprovalConfigDTO;
 import io.github.zzih.rudder.service.config.dto.NotificationConfigDTO;
 import io.github.zzih.rudder.service.config.dto.ProviderConfigDTO;
+import io.github.zzih.rudder.service.config.dto.PublishConfigDTO;
 import io.github.zzih.rudder.service.config.dto.ResultConfigDTO;
-import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.spi.api.model.PluginProviderDefinition;
 import io.github.zzih.rudder.spi.api.model.TestResult;
@@ -88,7 +85,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -121,12 +117,14 @@ public class ConfigController {
     private final ResultPluginManager resultPluginManager;
     private final MetadataPluginManager metadataPluginManager;
     private final NotificationPluginManager notificationPluginManager;
-    private final NotificationService notificationService;
     private final VersionPluginManager versionPluginManager;
     private final RuntimePluginManager runtimePluginManager;
     private final RerankPluginManager rerankPluginManager;
     private final RerankConfigService rerankConfigService;
     private final RagPipelineConfigService ragPipelineConfigService;
+    private final PublishPluginManager publishPluginManager;
+    private final PublishConfigService publishConfigService;
+    private final NotificationConfigService notificationConfigService;
     private final PlatformConfigService platformConfig;
 
     // ==================== 任务/运行时/语法 ====================
@@ -203,6 +201,37 @@ public class ConfigController {
         validateKnown(metadataPluginManager.providerKeys(), request.getProvider(), "metadata provider");
         metadataConfigService.saveDetail(BeanConvertUtils.convert(request, ProviderConfigDTO.class));
         return Result.ok();
+    }
+
+    // ==================== 发布平台配置 ====================
+
+    @GetMapping("/publish/providers")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<Map<String, PluginProviderDefinition>> publishProviders() {
+        return Result.ok(publishPluginManager.getProviderDefinitions(LocaleContextHolder.getLocale()));
+    }
+
+    @GetMapping("/publish")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<ProviderConfigResponse> getPublishConfig() {
+        return Result.ok(BeanConvertUtils.convert(
+                platformConfig.getActivePublish(), ProviderConfigResponse.class));
+    }
+
+    @PostMapping("/publish")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    @AuditLog(module = AuditModule.PUBLISH, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
+    public Result<Void> savePublishConfig(@Valid @RequestBody SpiConfigRequest request) {
+        validateKnown(publishPluginManager.providerKeys(), request.getProvider(), "publish provider");
+        PublishConfigDTO dto = BeanConvertUtils.convert(request, PublishConfigDTO.class);
+        publishConfigService.saveDetail(dto);
+        return Result.ok();
+    }
+
+    @GetMapping("/publish/health")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<HealthStatus> publishHealth() {
+        return Result.ok(publishConfigService.health());
     }
 
     // ==================== AI LLM 平台配置 ====================
@@ -443,84 +472,32 @@ public class ConfigController {
 
     // ==================== 通知平台配置 ====================
 
-    @GetMapping("/notification/channels")
+    @GetMapping("/notification/providers")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<Map<String, PluginProviderDefinition>> notificationChannels() {
+    public Result<Map<String, PluginProviderDefinition>> notificationProviders() {
         return Result.ok(notificationPluginManager.getProviderDefinitions(LocaleContextHolder.getLocale()));
     }
 
-    @GetMapping("/notification/platform")
+    @GetMapping("/notification")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<NotificationConfigResponse> getNotificationPlatformConfig() {
+    public Result<ProviderConfigResponse> getNotificationConfig() {
         return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getNotificationPlatform(), NotificationConfigResponse.class));
+                platformConfig.getActiveNotification(), ProviderConfigResponse.class));
     }
 
-    @PostMapping("/notification/platform")
+    @PostMapping("/notification")
     @RequireRole(RoleType.SUPER_ADMIN)
-    @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.UPDATE_PLATFORM_CONFIG, resourceType = AuditResourceType.NOTIFICATION_CONFIG)
-    public Result<NotificationConfigResponse> saveNotificationPlatformConfig(
-                                                                             @Valid @RequestBody NotificationConfigRequest request) {
-        return Result.ok(BeanConvertUtils.convert(
-                upsertNotification(null, request), NotificationConfigResponse.class));
-    }
-
-    @GetMapping("/notification/list")
-    @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<List<NotificationConfigResponse>> listNotificationConfigs() {
-        return Result.ok(BeanConvertUtils.convertList(
-                platformConfig.listAllNotification(), NotificationConfigResponse.class));
-    }
-
-    @GetMapping("/notification/workspace/{workspaceId}")
-    public Result<NotificationConfigResponse> getNotificationWorkspaceConfig(@PathVariable Long workspaceId) {
-        return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getNotificationByWorkspaceId(workspaceId), NotificationConfigResponse.class));
-    }
-
-    @PostMapping("/notification/workspace/{workspaceId}")
-    @RequireRole(RoleType.SUPER_ADMIN)
-    @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.UPDATE_WORKSPACE_CONFIG, resourceType = AuditResourceType.NOTIFICATION_CONFIG)
-    public Result<NotificationConfigResponse> saveNotificationWorkspaceConfig(
-                                                                              @PathVariable Long workspaceId,
-                                                                              @Valid @RequestBody NotificationConfigRequest request) {
-        return Result.ok(BeanConvertUtils.convert(
-                upsertNotification(workspaceId, request), NotificationConfigResponse.class));
-    }
-
-    @DeleteMapping("/notification/workspace/{workspaceId}")
-    @RequireRole(RoleType.SUPER_ADMIN)
-    @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.DELETE_WORKSPACE_CONFIG, resourceType = AuditResourceType.NOTIFICATION_CONFIG)
-    public Result<Void> deleteNotificationWorkspaceConfig(@PathVariable Long workspaceId) {
-        platformConfig.deleteNotificationByWorkspaceId(workspaceId);
+    @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
+    public Result<Void> saveNotificationConfig(@Valid @RequestBody SpiConfigRequest request) {
+        validateKnown(notificationPluginManager.providerKeys(), request.getProvider(), "notification provider");
+        notificationConfigService.saveDetail(BeanConvertUtils.convert(request, NotificationConfigDTO.class));
         return Result.ok();
     }
 
-    @PostMapping("/notification/{id}/test")
+    @GetMapping("/notification/health")
     @RequireRole(RoleType.SUPER_ADMIN)
-    @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.SEND_TEST, resourceType = AuditResourceType.NOTIFICATION_CONFIG, description = "发送测试通知")
-    public Result<Void> testNotification(@PathVariable Long id) {
-        if (platformConfig.getNotificationById(id) == null) {
-            throw new NotFoundException(ConfigErrorCode.NOTIFICATION_CONFIG_NOT_FOUND, id);
-        }
-        NotificationMessage message = NotificationMessage.builder()
-                .title(I18n.t("msg.notification.test.title"))
-                .content(I18n.t("msg.notification.test.content"))
-                .level(NotificationLevel.SUCCESS)
-                .build();
-        notificationService.sendDirectById(id, message);
-        return Result.ok();
-    }
-
-    private NotificationConfigDTO upsertNotification(Long workspaceId, NotificationConfigRequest request) {
-        validateKnown(notificationPluginManager.providerKeys(), request.getChannel(), "notification channel");
-        NotificationConfigDTO body = new NotificationConfigDTO();
-        body.setEnabled(request.getEnabled() != null ? request.getEnabled() : true);
-        body.setChannel(request.getChannel().toUpperCase());
-        body.setChannelParams(request.getChannelParams());
-        body.setSubscribedEvents(
-                request.getSubscribedEvents() != null ? request.getSubscribedEvents() : "APPROVAL,NODE_OFFLINE");
-        return platformConfig.upsertNotification(workspaceId, body);
+    public Result<HealthStatus> notificationHealth() {
+        return Result.ok(notificationConfigService.health());
     }
 
     // ==================== SPI 校验 / 测试连接 / 健康 ====================
