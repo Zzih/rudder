@@ -19,11 +19,13 @@ package io.github.zzih.rudder.service.script;
 
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.common.enums.datatype.Direct;
 import io.github.zzih.rudder.common.enums.error.ScriptErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.common.execution.LogResponse;
 import io.github.zzih.rudder.common.execution.ResultResponse;
+import io.github.zzih.rudder.common.param.Property;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.io.StoragePathUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
@@ -50,6 +52,7 @@ import io.github.zzih.rudder.task.api.task.enums.TaskType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -92,7 +95,7 @@ public class TaskInstanceService {
                 "executionMode", executionMode != null ? executionMode : ExecutionMode.BATCH.name())));
         instance.setStatus(InstanceStatus.PENDING);
         if (params != null && !params.isEmpty()) {
-            instance.setParams(JsonUtils.toJson(params));
+            instance.setParams(serializeParams(params));
         }
         taskInstanceDao.insert(instance);
 
@@ -158,7 +161,7 @@ public class TaskInstanceService {
         instance.setContent(content);
         instance.setStatus(InstanceStatus.PENDING);
         if (params != null && !params.isEmpty()) {
-            instance.setParams(JsonUtils.toJson(params));
+            instance.setParams(serializeParams(params));
         }
         taskInstanceDao.insert(instance);
 
@@ -267,6 +270,18 @@ public class TaskInstanceService {
 
     private String generateInstanceName(String baseName) {
         return InstanceNameUtils.snapshotName(baseName);
+    }
+
+    // TaskWorker 把 instance.params 当 List<Property> 反序列化（与 WorkflowInstanceRunner 写入格式对齐），
+    // IDE 直跑入口拿到的是 Map<String,String>，必须转一下再落库,否则 Worker 端 JsonUtils.toList 失败。
+    private String serializeParams(Map<String, String> params) {
+        List<Property> properties = new ArrayList<>(params.size());
+        params.forEach((k, v) -> properties.add(Property.builder()
+                .prop(k)
+                .direct(Direct.IN)
+                .value(v)
+                .build()));
+        return JsonUtils.toJson(properties);
     }
 
     public TaskInstance getById(Long id) {
