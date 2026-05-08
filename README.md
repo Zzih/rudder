@@ -466,13 +466,9 @@ Rudder,舵。希望每一位使用这个平台的人,都能在数据的海洋中
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。
+欢迎提交 Issue 和 Pull Request。完整流程(构建、代码风格、commit 约定、PR 目标分支)见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/your-feature`)
-3. 提交更改 (`git commit -m 'Add some feature'`)
-4. 推送到分支 (`git push origin feature/your-feature`)
-5. 创建 Pull Request
+> GitHub 上 Rudder 主分支是 `dev`(不是 `main`),所有 PR 请开到 `dev` 分支。
 
 ## 联系
 
