@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { AxiosResponse } from 'axios'
 
 export function listScriptDirs(workspaceId: number) {
   return request.get(`/workspaces/${workspaceId}/script-dirs`)
@@ -74,6 +75,13 @@ export function getExecutionResult(id: number, offset = 0, limit = 500) {
 
 export function listExecutionsByScript(scriptId: number | string) {
   return request.get(`/executions/script/${scriptId}`)
+}
+
+export function downloadExecutionResult(id: number, format: 'csv' | 'excel'): Promise<AxiosResponse<Blob>> {
+  return request.get(`/executions/${id}/download`, {
+    params: { format },
+    responseType: 'blob',
+  }) as unknown as Promise<AxiosResponse<Blob>>
 }
 
 export function dispatchToWorkflow(workspaceId: number, projectCode: number | string, code: number | string, data: { workflowDefinitionCode: number | string; mode: string }) {
