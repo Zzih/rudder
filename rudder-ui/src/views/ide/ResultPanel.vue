@@ -11,11 +11,11 @@
         </button>
         <button class="result-tab" :class="{ 'result-tab--active': currentTab === 'versions' }" @click="currentTab = 'versions'; loadVersions(true)">{{ t('ide.versionHistory') }}</button>
       </div>
+      <div class="result-panel__spacer" />
       <el-tag v-if="executionStatus" :type="statusType" size="small" effect="light" class="result-panel__status">{{ executionStatus }}</el-tag>
       <el-button v-if="executionStatus === 'FAILED'" type="warning" text size="small" :loading="diagnosing" @click="handleDiagnose">
-        <el-icon><MagicStick /></el-icon>{{ t('ide.aiDiagnose') }}
+        <el-icon><MagicStick /></el-icon><span>{{ t('ide.aiDiagnose') }}</span>
       </el-button>
-      <div class="result-panel__spacer" />
       <el-button text size="small" @click="ideState.resultPanelVisible = false"><el-icon><ArrowDown /></el-icon></el-button>
     </div>
 
@@ -34,6 +34,22 @@
             @current-change="(p: number) => loadResultPage(currentExecutionId!, p, resultPageSize)"
             @size-change="(s: number) => loadResultPage(currentExecutionId!, 1, s)"
           />
+          <el-dropdown
+            v-if="currentExecutionId"
+            trigger="click"
+            @command="(fmt: 'csv' | 'excel') => handleDownload(currentExecutionId!, fmt)"
+          >
+            <el-button text size="small" :loading="downloading">
+              <el-icon><Download /></el-icon><span>{{ t('ide.download') }}</span>
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="csv">{{ t('ide.downloadCsv') }}</el-dropdown-item>
+                <el-dropdown-item command="excel">{{ t('ide.downloadExcel') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </template>
       <div v-else class="result-panel__empty">{{ t('ide.noResults') }}</div>
@@ -69,9 +85,9 @@
             <button class="result-tab" :class="{ 'result-tab--active': historyDetailTab === 'log' }" @click="historyDetailTab = 'log'">{{ t('ide.log') }}</button>
             <span class="history-detail__status">
               <el-tag :type="historySelected.status === 'SUCCESS' ? 'success' : historySelected.status === 'FAILED' ? 'danger' : 'warning'" size="small" effect="light">{{ historySelected.status }}</el-tag>
-              <span v-if="historySelected.duration" style="font-size:11px;color:var(--r-text-muted);margin-left:6px">{{ (historySelected.duration / 1000).toFixed(1) }}s</span>
-              <el-button v-if="historySelected.status === 'FAILED'" type="warning" text size="small" :loading="diagnosingHistory" style="margin-left:6px" @click="handleHistoryDiagnose">
-                <el-icon><MagicStick /></el-icon>{{ t('ide.aiDiagnose') }}
+              <span v-if="historySelected.duration" class="history-detail__duration">{{ (historySelected.duration / 1000).toFixed(1) }}s</span>
+              <el-button v-if="historySelected.status === 'FAILED'" type="warning" text size="small" :loading="diagnosingHistory" @click="handleHistoryDiagnose">
+                <el-icon><MagicStick /></el-icon><span>{{ t('ide.aiDiagnose') }}</span>
               </el-button>
             </span>
           </div>
@@ -95,6 +111,21 @@
                   @current-change="(p: number) => loadHistoryResultPage(historySelected!.id, p, historyPageSize)"
                   @size-change="(s: number) => loadHistoryResultPage(historySelected!.id, 1, s)"
                 />
+                <el-dropdown
+                  trigger="click"
+                  @command="(fmt: 'csv' | 'excel') => handleDownload(historySelected!.id, fmt)"
+                >
+                  <el-button text size="small" :loading="downloading">
+                    <el-icon><Download /></el-icon><span>{{ t('ide.download') }}</span>
+                    <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="csv">{{ t('ide.downloadCsv') }}</el-dropdown-item>
+                      <el-dropdown-item command="excel">{{ t('ide.downloadExcel') }}</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
             </template>
             <div v-else class="result-panel__empty">{{ t('ide.noResults') }}</div>
@@ -181,8 +212,8 @@
 import { ref, inject, computed, watch, onUnmounted } from 'vue'
 import { IDE_STATE_KEY, type Tab, type ResultTab } from './ideState'
 import { useI18n } from 'vue-i18n'
-import { ArrowDown, MagicStick } from '@element-plus/icons-vue'
-import { getExecution, getExecutionLog, getExecutionResult, listExecutionsByScript, listScriptVersions, rollbackScript, getScriptVersionContent } from '@/api/script'
+import { ArrowDown, Download, MagicStick } from '@element-plus/icons-vue'
+import { getExecution, getExecutionLog, getExecutionResult, listExecutionsByScript, listScriptVersions, rollbackScript, getScriptVersionContent, downloadExecutionResult } from '@/api/script'
 import { listRunningByScript, killJob } from '@/api/jobs'
 import { getRuntimeTypes, type RuntimeTypeDef } from '@/api/config'
 import SqlDiffViewer from '@/components/SqlDiffViewer.vue'
@@ -514,6 +545,47 @@ async function handleHistoryDiagnose() {
   }
 }
 
+// === Download ===
+const downloading = ref(false)
+
+async function handleDownload(executionId: number, format: 'csv' | 'excel') {
+  if (!executionId) return
+  downloading.value = true
+  try {
+    const res = await downloadExecutionResult(executionId, format)
+    const filename = parseDownloadFilename(res.headers['content-disposition'])
+        || `result_${executionId}${format === 'excel' ? '.xlsx' : '.csv'}`
+    triggerBlobDownload(res.data, filename)
+  } catch {
+    ElMessage.error(t('ide.downloadFailed'))
+  } finally {
+    downloading.value = false
+  }
+}
+
+// Content-Disposition 优先取 RFC 5987 的 filename*=UTF-8''<encoded>(后端 HttpUtils 写的就是这个),
+// 退化到 filename="...";拿不到就让调用方走默认名。
+function parseDownloadFilename(cd: unknown): string | null {
+  if (typeof cd !== 'string') return null
+  const utf8 = cd.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8) {
+    try { return decodeURIComponent(utf8[1]) } catch { /* fallthrough */ }
+  }
+  const plain = cd.match(/filename="?([^";]+)"?/i)
+  return plain ? plain[1] : null
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // ==================== Running Jobs Tab ====================
 
 const runningJobs = ref<any[]>([])
@@ -704,7 +776,8 @@ async function handleDiffVersion(version: any) {
   display: flex; align-items: center; gap: 2px; padding: 4px 10px;
   background: #{$ide-panel-bg}; border-bottom: 1px solid #{$ide-hover-bg}; flex-shrink: 0;
 }
-.history-detail__status { margin-left: auto; display: flex; align-items: center; }
+.history-detail__status { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.history-detail__duration { font-size: 11px; color: var(--r-text-muted); }
 .history-detail__body { flex: 1; overflow: auto; min-height: 0; }
 .history-detail__body--table {
   overflow: hidden;

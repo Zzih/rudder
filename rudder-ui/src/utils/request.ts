@@ -27,6 +27,11 @@ request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 request.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Blob/ArrayBuffer 响应是文件下载,不走 {code, data} envelope。原样返回 AxiosResponse,
+    // 调用方自行从 data (Blob) + headers (Content-Disposition) 取文件。
+    if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
+      return response
+    }
     const { data } = response
     if (data.code !== 200) {
       ElMessage.error(data.message || t('common.requestFailed'))
