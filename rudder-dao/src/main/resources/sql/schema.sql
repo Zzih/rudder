@@ -383,6 +383,17 @@ CREATE TABLE IF NOT EXISTS `t_r_approval_config` (
     `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB COMMENT='审批配置(平台级单例)';
 
+CREATE TABLE IF NOT EXISTS `t_r_publish_config` (
+    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `provider`        VARCHAR(32) NOT NULL              COMMENT '发布 provider: ARION_DOLPHIN/...',
+    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
+    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
+    `created_by`      BIGINT                            COMMENT '创建人ID',
+    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`      BIGINT                            COMMENT '更新人ID',
+    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB COMMENT='发布配置(平台级单例)';
+
 -- AI provider 配置见下方 AI Platform 专用区段
 
 CREATE TABLE IF NOT EXISTS `t_r_metadata_config` (
@@ -874,18 +885,15 @@ CREATE TABLE IF NOT EXISTS `t_r_redaction_rule` (
 -- ==================== Notification Module ====================
 
 CREATE TABLE IF NOT EXISTS `t_r_notification_config` (
-    `id`                      BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `workspace_id`            BIGINT                            COMMENT '所属工作空间ID，NULL表示平台级配置',
-    `enabled`                 TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `channel`                 VARCHAR(32) NOT NULL              COMMENT '通知渠道: LARK/DINGTALK/SLACK',
-    `channel_params`          JSON                              COMMENT '渠道配置参数（JSON）',
-    `subscribed_events`       VARCHAR(256) DEFAULT 'APPROVAL,NODE_OFFLINE' COMMENT '订阅的事件类型，逗号分隔',
-    `created_by`              BIGINT NOT NULL                   COMMENT '创建人ID',
-    `created_at`              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`              BIGINT                            COMMENT '更新人ID',
-    `updated_at`              DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY `uk_workspace` (`workspace_id`)
-) ENGINE=InnoDB COMMENT='通知配置（平台级+工作空间级）';
+    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `provider`        VARCHAR(32) NOT NULL              COMMENT '通知 provider: LARK/DINGTALK/SLACK',
+    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
+    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
+    `created_by`      BIGINT NOT NULL                   COMMENT '创建人ID',
+    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`      BIGINT                            COMMENT '更新人ID',
+    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB COMMENT='通知配置(平台级单例)';
 
 -- ==================== Quick Link ====================
 

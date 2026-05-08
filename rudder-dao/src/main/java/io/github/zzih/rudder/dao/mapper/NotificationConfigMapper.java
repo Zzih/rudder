@@ -19,21 +19,12 @@ package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.NotificationConfig;
 
-import java.util.List;
-
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 @Mapper
 public interface NotificationConfigMapper extends BaseMapper<NotificationConfig> {
 
-    List<NotificationConfig> selectAllOrdered();
-
-    NotificationConfig queryByWorkspaceId(@Param("workspaceId") Long workspaceId);
-
-    NotificationConfig queryPlatformConfig();
-
-    int deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);
+    NotificationConfig queryActive();
 }

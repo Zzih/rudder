@@ -82,11 +82,9 @@
             <groupId>io.github.zzih</groupId>
             <artifactId>rudder-approval-local</artifactId>
         </dependency>
-
-        <!-- Third-party: Arion Dolphin client for workflow publishing -->
         <dependency>
             <groupId>io.github.zzih</groupId>
-            <artifactId>arion-dolphin-client</artifactId>
+            <artifactId>rudder-publish-api</artifactId>
         </dependency>
 
         <!-- Spring -->

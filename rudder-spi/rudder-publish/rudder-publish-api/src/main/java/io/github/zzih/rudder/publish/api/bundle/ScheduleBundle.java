@@ -15,21 +15,27 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.api.response;
+package io.github.zzih.rudder.publish.api.bundle;
 
 import java.time.LocalDateTime;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
+/** 工作流调度配置快照。整体为 null 表示未配置调度。 */
 @Data
-public class NotificationConfigResponse {
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ScheduleBundle {
 
-    private Long id;
-    private Long workspaceId;
-    private Boolean enabled;
-    private String channel;
-    private String channelParams;
-    private String subscribedEvents;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String cronExpression;
+
+    private String timezone;
+
+    private LocalDateTime startTime;
+
+    private LocalDateTime endTime;
 }

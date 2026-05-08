@@ -17,26 +17,22 @@
 
 package io.github.zzih.rudder.service.registry;
 
-import static io.github.zzih.rudder.notification.api.model.NotificationExtraKeys.*;
-
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.net.NetUtils;
 import io.github.zzih.rudder.dao.dao.ServiceRegistryDao;
 import io.github.zzih.rudder.dao.entity.ServiceRegistry;
 import io.github.zzih.rudder.dao.enums.ServiceStatus;
 import io.github.zzih.rudder.dao.enums.ServiceType;
-import io.github.zzih.rudder.notification.api.model.NotificationEventType;
+import io.github.zzih.rudder.notification.api.model.NodeInfo;
+import io.github.zzih.rudder.notification.api.model.NodeOfflineMessage;
+import io.github.zzih.rudder.notification.api.model.NodeOnlineMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
-import io.github.zzih.rudder.notification.api.model.NotificationMessage;
 import io.github.zzih.rudder.rpc.spring.RpcProperties;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.registry.dto.ServiceRegistryDTO;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -95,8 +91,10 @@ public class ServiceRegistryService {
         }
 
         log.info("Service registered: type={}, rpc={}:{}", serviceType, localHost, rpcPort);
-        notifySelf(NotificationEventType.NODE_ONLINE, "Rudder Node Online",
-                "Node came online: ", NotificationLevel.SUCCESS);
+        notificationService.notify(NodeOnlineMessage.builder()
+                .level(NotificationLevel.SUCCESS)
+                .nodes(List.of(selfInfo()))
+                .build());
     }
 
     /**
@@ -124,8 +122,10 @@ public class ServiceRegistryService {
         }
         serviceRegistryDao.reviveAndUpdateHeartbeat(serviceType, localHost, rpcPort, now);
         log.warn("Service revived from OFFLINE: type={}, rpc={}:{}", serviceType, localHost, rpcPort);
-        notifySelf(NotificationEventType.NODE_ONLINE, "Rudder Node Recovered",
-                "Node came back online: ", NotificationLevel.SUCCESS);
+        notificationService.notify(NodeOnlineMessage.builder()
+                .level(NotificationLevel.SUCCESS)
+                .nodes(List.of(selfInfo()))
+                .build());
     }
 
     /**
@@ -153,39 +153,18 @@ public class ServiceRegistryService {
         }
 
         log.warn("Marked {} expired service(s) as OFFLINE", flipped.size());
-        String nodeList = flipped.stream()
-                .map(n -> n.getType() + " " + n.getHost() + ":" + n.getPort())
-                .collect(Collectors.joining("\n"));
-        notifyNodeEvent(flipped, NotificationEventType.NODE_OFFLINE,
-                "Rudder Node Offline Alert", "The following node(s) went offline:\n" + nodeList,
-                NotificationLevel.ERROR);
+        List<NodeInfo> nodes = flipped.stream()
+                .map(n -> new NodeInfo(n.getType().name(), n.getHost(), n.getPort()))
+                .toList();
+        notificationService.notify(NodeOfflineMessage.builder()
+                .level(NotificationLevel.ERROR)
+                .nodes(nodes)
+                .graceful(false)
+                .build());
     }
 
-    private void notifyNodeEvent(List<ServiceRegistry> nodes, NotificationEventType eventType,
-                                 String title, String content, NotificationLevel level) {
-        Map<String, String> extra = new LinkedHashMap<>();
-        extra.put(EVENT_TYPE, eventType.name());
-        extra.put(NODE_COUNT, String.valueOf(nodes.size()));
-        for (int i = 0; i < nodes.size(); i++) {
-            ServiceRegistry n = nodes.get(i);
-            extra.put(nodeType(i), n.getType().name());
-            extra.put(nodeHost(i), n.getHost());
-            extra.put(nodePort(i), String.valueOf(n.getPort()));
-        }
-        NotificationMessage message = NotificationMessage.builder()
-                .title(title).content(content).level(level).extra(extra).build();
-        notificationService.notify(message, eventType, null);
-    }
-
-    /** 自身节点事件 — register / heartbeat-revive / deregister 都用,内容统一拼 type+host:port。 */
-    private void notifySelf(NotificationEventType eventType, String title, String contentPrefix,
-                            NotificationLevel level) {
-        ServiceRegistry self = new ServiceRegistry();
-        self.setType(serviceType);
-        self.setHost(localHost);
-        self.setPort(rpcPort);
-        notifyNodeEvent(List.of(self), eventType, title,
-                contentPrefix + serviceType + " " + localHost + ":" + rpcPort, level);
+    private NodeInfo selfInfo() {
+        return new NodeInfo(serviceType.name(), localHost, rpcPort);
     }
 
     /**
@@ -198,8 +177,11 @@ public class ServiceRegistryService {
         log.info("Service deregistered: type={}, rpc={}:{}, flipped={}",
                 serviceType, localHost, rpcPort, affected);
         if (affected > 0) {
-            notifySelf(NotificationEventType.NODE_OFFLINE, "Rudder Node Offline",
-                    "Node went offline (graceful shutdown): ", NotificationLevel.WARN);
+            notificationService.notify(NodeOfflineMessage.builder()
+                    .level(NotificationLevel.WARN)
+                    .nodes(List.of(selfInfo()))
+                    .graceful(true)
+                    .build());
         }
     }
 

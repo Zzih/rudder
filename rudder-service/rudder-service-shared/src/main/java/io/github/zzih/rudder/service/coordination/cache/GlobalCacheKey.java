@@ -43,6 +43,8 @@ public enum GlobalCacheKey {
     RAG_PIPELINE(Defaults.CONFIG),
     METADATA(Defaults.CONFIG),
     APPROVAL(Defaults.CONFIG),
+    PUBLISH(Defaults.CONFIG),
+    NOTIFICATION(Defaults.CONFIG),
     VERSION(Defaults.CONFIG),
     REDACTION(Defaults.CONFIG),
     DIALECT(Defaults.CONFIG),

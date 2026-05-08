@@ -17,21 +17,15 @@
 
 package io.github.zzih.rudder.notification.api.model;
 
-import java.util.Map;
+/**
+ * 通知消息总根。每个事件类型一个具体子类型 record，
+ * sealed permits 让 sender 写 switch 漏分支编译告警。
+ */
+public sealed interface NotificationMessage
+        permits ApprovalSubmittedMessage, ApprovalApprovedMessage, ApprovalRejectedMessage,
+        NodeOnlineMessage, NodeOfflineMessage, PlainMessage {
 
-import lombok.Builder;
-import lombok.Data;
+    NotificationLevel level();
 
-@Data
-@Builder
-public class NotificationMessage {
-
-    private String title;
-
-    private String content;
-
-    private NotificationLevel level;
-
-    @Builder.Default
-    private Map<String, String> extra = Map.of();
+    NotificationEventType eventType();
 }

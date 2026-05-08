@@ -120,12 +120,6 @@ spring.ai.mcp.server:
   protocol: STREAMABLE      # SSE / STREAMABLE / STATELESS
   type: SYNC                # 同步模式, 便于 ThreadLocal (UserContext / RequestContextHolder) 透传
 
-# Arion（DolphinScheduler 发布网关）
-arion-dolphin:
-  client:
-    url: ${ARION_DOLPHIN_CLIENT_URL:http://127.0.0.1:12348}
-    token: ${ARION_DOLPHIN_CLIENT_TOKEN:}
-
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

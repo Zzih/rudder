@@ -28,5 +28,6 @@
         <module>rudder-version</module>
         <module>rudder-vector</module>
         <module>rudder-rerank</module>
+        <module>rudder-publish</module>
     </modules>
 </project>

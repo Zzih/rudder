@@ -15,24 +15,22 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.api.request;
+package io.github.zzih.rudder.notification.api.model;
 
-import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
+import lombok.Builder;
 
-@Data
-public class NotificationConfigRequest {
+@Builder
+public record ApprovalApprovedMessage(
+        NotificationLevel level,
+        String resourceTitle,
+        String resourceContent,
+        UserRef submitter,
+        UserRef approver,
+        String comment,
+        String detailUrl) implements NotificationMessage {
 
-    private Boolean enabled;
-
-    @NotBlank
-    private String channel;
-
-    /** 渠道配置参数 JSON */
-    private String channelParams;
-
-    /**
-     * 订阅的事件类型，逗号分隔，如 "APPROVAL,NODE_OFFLINE"。
-     */
-    private String subscribedEvents;
+    @Override
+    public NotificationEventType eventType() {
+        return NotificationEventType.APPROVAL;
+    }
 }

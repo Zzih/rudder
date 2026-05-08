@@ -16,23 +16,36 @@ const basePath = computed(() => {
 })
 
 // requireRole 必须与 router meta 一对一对齐 —— 双源任何一边漏改都会让 UI 与守卫不一致
+// 排序按职能分组：平台运维 → 首页定制 → 用户与权限 → 业务资源 → AI/业务 SPI → 运行时 SPI
 const allMenuItems = computed<{ key: string; icon: string; label: string; requireRole: Role }[]>(() => [
+  // 平台运维
   { key: 'services', icon: 'Monitor', label: t('admin.services'), requireRole: 'VIEWER' },
-  { key: 'workspaces', icon: 'OfficeBuilding', label: t('admin.workspaces'), requireRole: 'WORKSPACE_OWNER' },
+  { key: 'audit-logs', icon: 'Document', label: t('admin.auditLogs'), requireRole: 'SUPER_ADMIN' },
+
+  // 首页定制
   { key: 'quick-links', icon: 'Link', label: t('admin.quickLinks'), requireRole: 'SUPER_ADMIN' },
+
+  // 用户与权限
+  { key: 'workspaces', icon: 'OfficeBuilding', label: t('admin.workspaces'), requireRole: 'WORKSPACE_OWNER' },
   { key: 'users', icon: 'User', label: t('admin.users'), requireRole: 'SUPER_ADMIN' },
   { key: 'auth-sources', icon: 'Key', label: t('admin.authSources'), requireRole: 'SUPER_ADMIN' },
+
+  // 业务资源
   { key: 'datasources', icon: 'Connection', label: t('admin.datasources'), requireRole: 'SUPER_ADMIN' },
-  { key: 'audit-logs', icon: 'Document', label: t('admin.auditLogs'), requireRole: 'SUPER_ADMIN' },
-  { key: 'notifications', icon: 'Bell', label: t('admin.notifications'), requireRole: 'SUPER_ADMIN' },
-  { key: 'approval-config', icon: 'Stamp', label: t('admin.approvalConfig'), requireRole: 'SUPER_ADMIN' },
+
+  // AI / 业务 SPI
   { key: 'ai-config', icon: 'MagicStick', label: t('admin.aiConfig'), requireRole: 'SUPER_ADMIN' },
-  { key: 'redaction-config', icon: 'Lock', label: t('admin.redactionConfig'), requireRole: 'SUPER_ADMIN' },
   { key: 'metadata-config', icon: 'Coin', label: t('admin.metadataConfig'), requireRole: 'SUPER_ADMIN' },
+  { key: 'approval-config', icon: 'Stamp', label: t('admin.approvalConfig'), requireRole: 'SUPER_ADMIN' },
+  { key: 'publish-config', icon: 'Promotion', label: t('admin.publishConfig'), requireRole: 'SUPER_ADMIN' },
+  { key: 'notification-config', icon: 'Bell', label: t('admin.notificationConfig'), requireRole: 'SUPER_ADMIN' },
+  { key: 'redaction-config', icon: 'Lock', label: t('admin.redactionConfig'), requireRole: 'SUPER_ADMIN' },
+
+  // 运行时 SPI
+  { key: 'runtime-config', icon: 'Cpu', label: t('admin.runtimeConfig'), requireRole: 'SUPER_ADMIN' },
   { key: 'file-config', icon: 'FolderOpened', label: t('admin.fileConfig'), requireRole: 'SUPER_ADMIN' },
   { key: 'result-config', icon: 'Files', label: t('admin.resultConfig'), requireRole: 'SUPER_ADMIN' },
   { key: 'version-config', icon: 'Document', label: t('admin.versionConfig'), requireRole: 'SUPER_ADMIN' },
-  { key: 'runtime-config', icon: 'Cpu', label: t('admin.runtimeConfig'), requireRole: 'SUPER_ADMIN' },
 ])
 
 const menuItems = computed(() => allMenuItems.value.filter(item => hasRole(item.requireRole)))
