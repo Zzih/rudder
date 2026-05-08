@@ -460,13 +460,9 @@ Rudder. The thing that lets you steer. Hopefully it lets every user steer freely
 
 ## Contributing
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. See [CONTRIBUTING.en.md](CONTRIBUTING.en.md) for the full workflow (build, code style, commit convention, PR target branch).
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a pull request
+> The primary branch is `dev`. Open all PRs against `dev`.
 
 ## Contact
 

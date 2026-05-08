@@ -1,5 +1,0 @@
-#!/bin/sh
-# Pre-commit hook: verify code style before committing.
-# Force Java 21 to avoid IntelliJ's bundled JRE (Java 8) breaking spotless.
-export JAVA_HOME=$(/usr/libexec/java_home -v 21 2>/dev/null || echo "$JAVA_HOME")
-exec ./mvnw spotless:check -q -DskipTests 2>&1
