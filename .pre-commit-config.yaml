@@ -1,0 +1,10 @@
+default_stages: [pre-commit, pre-push]
+repos:
+  - repo: local
+    hooks:
+      - id: spotless
+        name: spotless-check
+        entry: ./mvnw spotless:check -q -DskipTests
+        language: system
+        pass_filenames: false
+        files: \.java$
