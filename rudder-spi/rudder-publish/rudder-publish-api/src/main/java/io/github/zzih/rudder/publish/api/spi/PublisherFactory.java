@@ -21,19 +21,19 @@ import io.github.zzih.rudder.publish.api.Publisher;
 import io.github.zzih.rudder.spi.api.ConfigurablePluginProviderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 /**
  * Publisher provider 工厂。实现需在
  * {@code META-INF/services/io.github.zzih.rudder.publish.api.spi.PublisherFactory}
- * 中登记，由 {@code PublishPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ * 中登记,由 {@code PublishPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface PublisherFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface PublisherFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "publish";
     }
 
-    Publisher create(ProviderContext ctx, Map<String, String> config);
+    Publisher create(ProviderContext ctx, P props);
 }

@@ -19,21 +19,24 @@ package io.github.zzih.rudder.approval.kissflow;
 
 import io.github.zzih.rudder.approval.api.ApprovalNotifier;
 import io.github.zzih.rudder.approval.api.spi.ApprovalNotifierFactory;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(ApprovalNotifierFactory.class)
-public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory {
+public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory<KissflowApprovalProperties> {
 
     @Override
     public String getProvider() {
         return "KISSFLOW";
+    }
+
+    @Override
+    public Class<KissflowApprovalProperties> propertiesClass() {
+        return KissflowApprovalProperties.class;
     }
 
     @Override
@@ -73,14 +76,10 @@ public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory 
     }
 
     @Override
-    public ApprovalNotifier create(ProviderContext ctx, Map<String, String> config) {
+    public ApprovalNotifier create(ProviderContext ctx, KissflowApprovalProperties props) {
         return new KissflowApprovalNotifier(
-                config.getOrDefault("apiKey", ""),
-                config.getOrDefault("accountId", ""),
-                config.getOrDefault("processId", ""),
-                config.getOrDefault("titleField", "Title"),
-                config.getOrDefault("contentField", "Description"),
-                config.getOrDefault("applicantField", ""),
-                JsonUtils.toMap(config.get("stageFieldMapping")));
+                props.apiKey(), props.accountId(), props.processId(),
+                props.titleField(), props.contentField(), props.applicantField(),
+                props.stageFieldMapping());
     }
 }

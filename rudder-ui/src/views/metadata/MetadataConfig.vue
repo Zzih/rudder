@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SpiConfigPage from '@/components/SpiConfigPage.vue'
-import { getMetadataProviderDefinitions, getMetadataConfig, saveMetadataConfig } from '@/api/metadata-config'
+import { getMetadataProviderDefinitions, getMetadataConfig, saveMetadataConfig, listMetadataConfigs } from '@/api/metadata-config'
 </script>
 
 <template>
@@ -9,6 +9,7 @@ import { getMetadataProviderDefinitions, getMetadataConfig, saveMetadataConfig }
     enable-label-key="metadata.enableMetadata"
     :get-provider-definitions="getMetadataProviderDefinitions"
     :get-config="getMetadataConfig"
+    :list-configs="listMetadataConfigs"
     :save-config="saveMetadataConfig"
   />
 </template>

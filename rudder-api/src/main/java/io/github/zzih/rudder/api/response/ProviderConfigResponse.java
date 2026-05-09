@@ -26,7 +26,13 @@ public class ProviderConfigResponse {
 
     private Long id;
     private String provider;
-    private String providerParams;
+
+    /**
+     * 反序列化后的 properties 对象(由 PluginManager.deserialize 产生)。Jackson 序列化为 JSON 时
+     * 按 P 子类字段输出,前端拿到结构化对象。未配置时为 null。
+     */
+    private Object providerParams;
+
     private Boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

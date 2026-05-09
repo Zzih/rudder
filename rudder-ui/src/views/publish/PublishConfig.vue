@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SpiConfigPage from '@/components/SpiConfigPage.vue'
-import { getPublishProviderDefinitions, getPublishConfig, savePublishConfig } from '@/api/publish-config'
+import { getPublishProviderDefinitions, getPublishConfig, savePublishConfig, listPublishConfigs } from '@/api/publish-config'
 </script>
 
 <template>
@@ -9,6 +9,7 @@ import { getPublishProviderDefinitions, getPublishConfig, savePublishConfig } fr
     enable-label-key="publish.enablePublish"
     :get-provider-definitions="getPublishProviderDefinitions"
     :get-config="getPublishConfig"
+    :list-configs="listPublishConfigs"
     :save-config="savePublishConfig"
   />
 </template>

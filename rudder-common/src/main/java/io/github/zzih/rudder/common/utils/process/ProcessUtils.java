@@ -20,30 +20,28 @@ package io.github.zzih.rudder.common.utils.process;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/**
- * 进程执行工具类，封装 ProcessBuilder + BufferedReader + waitFor 的通用模式。
- */
 public class ProcessUtils {
 
     private ProcessUtils() {
     }
 
-    /**
-     * 执行命令并逐行读取输出。
-     *
-     * @param command      命令参数
-     * @param lineConsumer 每行输出回调（可用于日志记录或输出参数解析）
-     * @param timeoutSec   超时秒数，0 或负数表示无限等待
-     * @return 执行结果
-     */
     public static Result execute(String[] command, Consumer<String> lineConsumer,
                                  long timeoutSec) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
+        return execute(command, null, lineConsumer, timeoutSec);
+    }
+
+    public static Result execute(String[] command,
+                                 Consumer<String> lineConsumer) throws IOException, InterruptedException {
+        return execute(command, null, lineConsumer, 0);
+    }
+
+    public static Result execute(String[] command, Map<String, String> env, Consumer<String> lineConsumer,
+                                 long timeoutSec) throws IOException, InterruptedException {
+        Process process = builder(command, env).start();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
@@ -70,24 +68,14 @@ public class ProcessUtils {
         return new Result(process.exitValue(), false);
     }
 
-    /**
-     * 执行命令，无超时限制。
-     */
-    public static Result execute(String[] command,
-                                 Consumer<String> lineConsumer) throws IOException, InterruptedException {
-        return execute(command, lineConsumer, 0);
+    public static RunningProcess start(String[] command, Consumer<String> lineConsumer) throws IOException {
+        return start(command, null, lineConsumer);
     }
 
-    /**
-     * 启动命令并返回 RunningProcess 句柄，调用方可持有引用用于 cancel。
-     * 调用方需自行调用 {@link RunningProcess#waitFor} 等待完成。
-     */
-    public static RunningProcess start(String[] command, Consumer<String> lineConsumer) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
+    public static RunningProcess start(String[] command, Map<String, String> env,
+                                       Consumer<String> lineConsumer) throws IOException {
+        Process process = builder(command, env).start();
 
-        // 在后台线程读取输出，避免阻塞
         Thread reader = new Thread(() -> {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
@@ -103,6 +91,15 @@ public class ProcessUtils {
         reader.start();
 
         return new RunningProcess(process, reader);
+    }
+
+    private static ProcessBuilder builder(String[] command, Map<String, String> env) {
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        if (env != null && !env.isEmpty()) {
+            pb.environment().putAll(env);
+        }
+        return pb;
     }
 
     /**

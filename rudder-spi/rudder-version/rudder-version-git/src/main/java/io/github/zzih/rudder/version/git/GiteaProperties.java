@@ -23,11 +23,9 @@ import lombok.Data;
 @Data
 public class GiteaProperties {
 
-    private boolean enabled = false;
-
     /** Gitea server URL, e.g. http://localhost:3000 */
-    private String url;
+    private String url = "";
 
     /** Gitea API token */
-    private String token;
+    private String token = "";
 }

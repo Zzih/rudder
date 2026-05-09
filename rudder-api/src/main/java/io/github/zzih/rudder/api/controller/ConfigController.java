@@ -20,14 +20,9 @@ package io.github.zzih.rudder.api.controller;
 import io.github.zzih.rudder.ai.orchestrator.RagPipelineConfigService;
 import io.github.zzih.rudder.ai.orchestrator.RagPipelineSettings;
 import io.github.zzih.rudder.ai.rerank.RerankConfigService;
-import io.github.zzih.rudder.api.request.ApprovalConfigRequest;
-import io.github.zzih.rudder.api.request.ResultSpiConfigRequest;
 import io.github.zzih.rudder.api.request.SpiConfigRequest;
 import io.github.zzih.rudder.api.request.SpiTestRequest;
-import io.github.zzih.rudder.api.response.AiConfigResponse;
-import io.github.zzih.rudder.api.response.ApprovalConfigResponse;
 import io.github.zzih.rudder.api.response.ProviderConfigResponse;
-import io.github.zzih.rudder.api.response.ResultConfigResponse;
 import io.github.zzih.rudder.api.response.RuntimeTypeResponse;
 import io.github.zzih.rudder.approval.api.plugin.ApprovalPluginManager;
 import io.github.zzih.rudder.common.annotation.RequireRole;
@@ -40,7 +35,6 @@ import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
-import io.github.zzih.rudder.dao.enums.AiConfigType;
 import io.github.zzih.rudder.dao.enums.RuntimeType;
 import io.github.zzih.rudder.embedding.api.plugin.EmbeddingPluginManager;
 import io.github.zzih.rudder.file.api.plugin.FilePluginManager;
@@ -63,11 +57,7 @@ import io.github.zzih.rudder.service.config.ResultConfigService;
 import io.github.zzih.rudder.service.config.RuntimeConfigService;
 import io.github.zzih.rudder.service.config.VectorConfigService;
 import io.github.zzih.rudder.service.config.VersionConfigService;
-import io.github.zzih.rudder.service.config.dto.ApprovalConfigDTO;
-import io.github.zzih.rudder.service.config.dto.NotificationConfigDTO;
 import io.github.zzih.rudder.service.config.dto.ProviderConfigDTO;
-import io.github.zzih.rudder.service.config.dto.PublishConfigDTO;
-import io.github.zzih.rudder.service.config.dto.ResultConfigDTO;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.spi.api.model.PluginProviderDefinition;
 import io.github.zzih.rudder.spi.api.model.TestResult;
@@ -157,25 +147,25 @@ public class ConfigController {
 
     // ==================== 审批平台配置 ====================
 
-    @GetMapping("/approval/channels")
+    @GetMapping("/approval/providers")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<Map<String, PluginProviderDefinition>> approvalChannels() {
+    public Result<Map<String, PluginProviderDefinition>> approvalProviders() {
         return Result.ok(approvalPluginManager.getProviderDefinitions(LocaleContextHolder.getLocale()));
     }
 
     @GetMapping("/approval")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<ApprovalConfigResponse> getApprovalConfig() {
+    public Result<ProviderConfigResponse> getApprovalConfig() {
         return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getActiveApproval(), ApprovalConfigResponse.class));
+                platformConfig.getActiveApproval(), ProviderConfigResponse.class));
     }
 
     @PostMapping("/approval")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.APPROVAL_CONFIG, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
-    public Result<Void> saveApprovalConfig(@Valid @RequestBody ApprovalConfigRequest request) {
-        validateKnown(approvalPluginManager.providerKeys(), request.getChannel(), "approval channel");
-        approvalConfigService.saveDetail(BeanConvertUtils.convert(request, ApprovalConfigDTO.class));
+    public Result<Void> saveApprovalConfig(@Valid @RequestBody SpiConfigRequest request) {
+        validateKnown(approvalPluginManager.providerKeys(), request.getProvider(), "approval provider");
+        approvalConfigService.saveDetail(BeanConvertUtils.convert(request, ProviderConfigDTO.class));
         return Result.ok();
     }
 
@@ -223,8 +213,7 @@ public class ConfigController {
     @AuditLog(module = AuditModule.PUBLISH, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
     public Result<Void> savePublishConfig(@Valid @RequestBody SpiConfigRequest request) {
         validateKnown(publishPluginManager.providerKeys(), request.getProvider(), "publish provider");
-        PublishConfigDTO dto = BeanConvertUtils.convert(request, PublishConfigDTO.class);
-        publishConfigService.saveDetail(dto);
+        publishConfigService.saveDetail(BeanConvertUtils.convert(request, ProviderConfigDTO.class));
         return Result.ok();
     }
 
@@ -244,9 +233,8 @@ public class ConfigController {
 
     @GetMapping("/ai-llm")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<AiConfigResponse> getAiLlmConfig() {
-        return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getActiveAi(AiConfigType.LLM), AiConfigResponse.class));
+    public Result<ProviderConfigResponse> getAiLlmConfig() {
+        return Result.ok(BeanConvertUtils.convert(platformConfig.getActiveLlm(), ProviderConfigResponse.class));
     }
 
     @PostMapping("/ai-llm")
@@ -268,9 +256,8 @@ public class ConfigController {
 
     @GetMapping("/ai-embedding")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<AiConfigResponse> getAiEmbeddingConfig() {
-        return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getActiveAi(AiConfigType.EMBEDDING), AiConfigResponse.class));
+    public Result<ProviderConfigResponse> getAiEmbeddingConfig() {
+        return Result.ok(BeanConvertUtils.convert(platformConfig.getActiveEmbedding(), ProviderConfigResponse.class));
     }
 
     @PostMapping("/ai-embedding")
@@ -292,9 +279,8 @@ public class ConfigController {
 
     @GetMapping("/ai-vector")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<AiConfigResponse> getAiVectorConfig() {
-        return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getActiveAi(AiConfigType.VECTOR), AiConfigResponse.class));
+    public Result<ProviderConfigResponse> getAiVectorConfig() {
+        return Result.ok(BeanConvertUtils.convert(platformConfig.getActiveVector(), ProviderConfigResponse.class));
     }
 
     @PostMapping("/ai-vector")
@@ -316,9 +302,8 @@ public class ConfigController {
 
     @GetMapping("/ai-rerank")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<AiConfigResponse> getAiRerankConfig() {
-        return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getActiveAi(AiConfigType.RERANK), AiConfigResponse.class));
+    public Result<ProviderConfigResponse> getAiRerankConfig() {
+        return Result.ok(BeanConvertUtils.convert(rerankConfigService.getActiveDetail(), ProviderConfigResponse.class));
     }
 
     @PostMapping("/ai-rerank")
@@ -334,28 +319,28 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Rerank provider 配置")
     public Result<TestResult> testAiRerank(@RequestBody SpiTestRequest req) {
-        return Result.ok(rerankPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(rerankPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/ai-embedding/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Embedding provider 配置")
     public Result<TestResult> testAiEmbedding(@RequestBody SpiTestRequest req) {
-        return Result.ok(embeddingPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(embeddingPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/ai-vector/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Vector provider 配置")
     public Result<TestResult> testAiVector(@RequestBody SpiTestRequest req) {
-        return Result.ok(vectorPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(vectorPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/ai-llm/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 LLM provider 配置")
     public Result<TestResult> testAiLlm(@RequestBody SpiTestRequest req) {
-        return Result.ok(aiPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(aiPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     // ==================== AI RAG Pipeline 链路配置(单例) ====================
@@ -408,17 +393,17 @@ public class ConfigController {
 
     @GetMapping("/result")
     @RequireRole(RoleType.SUPER_ADMIN)
-    public Result<ResultConfigResponse> getResultConfig() {
+    public Result<ProviderConfigResponse> getResultConfig() {
         return Result.ok(BeanConvertUtils.convert(
-                platformConfig.getActiveResult(), ResultConfigResponse.class));
+                resultConfigService.getActiveDetail(), ProviderConfigResponse.class));
     }
 
     @PostMapping("/result")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.FILE_CONFIG, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
-    public Result<Void> saveResultConfig(@Valid @RequestBody ResultSpiConfigRequest request) {
+    public Result<Void> saveResultConfig(@Valid @RequestBody SpiConfigRequest request) {
         validateKnown(resultPluginManager.providerKeys(), request.getProvider(), "result provider");
-        resultConfigService.saveDetail(BeanConvertUtils.convert(request, ResultConfigDTO.class));
+        resultConfigService.saveDetail(BeanConvertUtils.convert(request, ProviderConfigDTO.class));
         return Result.ok();
     }
 
@@ -490,7 +475,7 @@ public class ConfigController {
     @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
     public Result<Void> saveNotificationConfig(@Valid @RequestBody SpiConfigRequest request) {
         validateKnown(notificationPluginManager.providerKeys(), request.getProvider(), "notification provider");
-        notificationConfigService.saveDetail(BeanConvertUtils.convert(request, NotificationConfigDTO.class));
+        notificationConfigService.saveDetail(BeanConvertUtils.convert(request, ProviderConfigDTO.class));
         return Result.ok();
     }
 
@@ -506,14 +491,14 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.FILE_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验文件 provider 配置")
     public Result<ValidationResult> validateFile(@RequestBody SpiTestRequest req) {
-        return Result.ok(filePluginManager.validate(req.provider(), req.config()));
+        return Result.ok(filePluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/file/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.FILE_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试文件 provider 配置")
     public Result<TestResult> testFile(@RequestBody SpiTestRequest req) {
-        return Result.ok(filePluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(filePluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @GetMapping("/file/health")
@@ -526,14 +511,14 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.AI_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验 AI provider 配置")
     public Result<ValidationResult> validateAi(@RequestBody SpiTestRequest req) {
-        return Result.ok(aiPluginManager.validate(req.provider(), req.config()));
+        return Result.ok(aiPluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/ai/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.AI_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 AI provider 配置")
     public Result<TestResult> testAi(@RequestBody SpiTestRequest req) {
-        return Result.ok(aiPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(aiPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @GetMapping("/ai/health")
@@ -546,14 +531,14 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.VERSION_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验版本存储 provider 配置")
     public Result<ValidationResult> validateVersion(@RequestBody SpiTestRequest req) {
-        return Result.ok(versionPluginManager.validate(req.provider(), req.config()));
+        return Result.ok(versionPluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/version/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.VERSION_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试版本存储 provider 配置")
     public Result<TestResult> testVersion(@RequestBody SpiTestRequest req) {
-        return Result.ok(versionPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(versionPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @GetMapping("/version/health")
@@ -566,14 +551,14 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.APPROVAL_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验审批渠道配置")
     public Result<ValidationResult> validateApproval(@RequestBody SpiTestRequest req) {
-        return Result.ok(approvalPluginManager.validate(req.provider(), req.config()));
+        return Result.ok(approvalPluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/approval/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.APPROVAL_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试审批渠道配置")
     public Result<TestResult> testApproval(@RequestBody SpiTestRequest req) {
-        return Result.ok(approvalPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(approvalPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @GetMapping("/approval/health")
@@ -586,14 +571,14 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.METADATA_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验元数据 provider 配置")
     public Result<ValidationResult> validateMetadata(@RequestBody SpiTestRequest req) {
-        return Result.ok(metadataPluginManager.validate(req.provider(), req.config()));
+        return Result.ok(metadataPluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/metadata/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.METADATA_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试元数据 provider 配置")
     public Result<TestResult> testMetadata(@RequestBody SpiTestRequest req) {
-        return Result.ok(metadataPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(metadataPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @GetMapping("/metadata/health")
@@ -606,28 +591,124 @@ public class ConfigController {
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验通知渠道配置")
     public Result<ValidationResult> validateNotification(@RequestBody SpiTestRequest req) {
-        return Result.ok(notificationPluginManager.validate(req.provider(), req.config()));
+        return Result.ok(notificationPluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/notification/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试通知渠道配置")
     public Result<TestResult> testNotification(@RequestBody SpiTestRequest req) {
-        return Result.ok(notificationPluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(notificationPluginManager.testConnection(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/runtime/validate")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.RUNTIME_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验运行时 provider 配置")
     public Result<ValidationResult> validateRuntime(@RequestBody SpiTestRequest req) {
-        return Result.ok(runtimePluginManager.validate(req.provider(), req.config()));
+        return Result.ok(runtimePluginManager.validate(req.provider(), req.providerParams()));
     }
 
     @PostMapping("/runtime/test")
     @RequireRole(RoleType.SUPER_ADMIN)
     @AuditLog(module = AuditModule.RUNTIME_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试运行时 provider 配置")
     public Result<TestResult> testRuntime(@RequestBody SpiTestRequest req) {
-        return Result.ok(runtimePluginManager.testConnection(req.provider(), req.config()));
+        return Result.ok(runtimePluginManager.testConnection(req.provider(), req.providerParams()));
+    }
+
+    @GetMapping("/approval/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listApprovalConfigs() {
+        return Result.ok(approvalConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/metadata/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listMetadataConfigs() {
+        return Result.ok(metadataConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/publish/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listPublishConfigs() {
+        return Result.ok(publishConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/ai-llm/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listLlmConfigs() {
+        return Result.ok(llmConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/ai-embedding/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listEmbeddingConfigs() {
+        return Result.ok(embeddingConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/ai-vector/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listVectorConfigs() {
+        return Result.ok(vectorConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/ai-rerank/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listRerankConfigs() {
+        return Result.ok(rerankConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/file/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listFileConfigs() {
+        return Result.ok(fileConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/result/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listResultConfigs() {
+        return Result.ok(resultConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/version/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listVersionConfigs() {
+        return Result.ok(versionConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/runtime/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listRuntimeConfigs() {
+        return Result.ok(runtimeConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
+    }
+
+    @GetMapping("/notification/configs")
+    @RequireRole(RoleType.SUPER_ADMIN)
+    public Result<List<ProviderConfigResponse>> listNotificationConfigs() {
+        return Result.ok(notificationConfigService.listAll().stream()
+                .map(d -> BeanConvertUtils.convert(d, ProviderConfigResponse.class))
+                .toList());
     }
 
     private static void validateKnown(Set<String> known, String key, String kind) {

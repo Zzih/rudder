@@ -19,23 +19,26 @@ package io.github.zzih.rudder.llm.openai;
 
 import io.github.zzih.rudder.llm.api.LlmClient;
 import io.github.zzih.rudder.llm.api.spi.LlmClientFactory;
-import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(LlmClientFactory.class)
-public class OpenaiLlmClientFactory implements LlmClientFactory {
+public class OpenaiLlmClientFactory implements LlmClientFactory<OpenaiProperties> {
 
     public static final String PROVIDER = "OPENAI";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<OpenaiProperties> propertiesClass() {
+        return OpenaiProperties.class;
     }
 
     @Override
@@ -63,19 +66,7 @@ public class OpenaiLlmClientFactory implements LlmClientFactory {
     }
 
     @Override
-    public LlmClient create(ProviderContext ctx, Map<String, String> config) {
-        OpenaiProperties props = new OpenaiProperties();
-        props.setApiKey(config.getOrDefault("apiKey", ""));
-        String model = config.get("model");
-        if (model != null && !model.isBlank()) {
-            props.setModel(model);
-        }
-        String baseUrl = config.get("baseUrl");
-        if (baseUrl != null && !baseUrl.isBlank()) {
-            props.setBaseUrl(baseUrl);
-        }
-        props.setMaxTokens(AbstractConfigurablePluginRegistry.parseIntOrDefault(
-                config.get("maxTokens"), props.getMaxTokens()));
+    public LlmClient create(ProviderContext ctx, OpenaiProperties props) {
         return new OpenaiLlmClient(props);
     }
 }

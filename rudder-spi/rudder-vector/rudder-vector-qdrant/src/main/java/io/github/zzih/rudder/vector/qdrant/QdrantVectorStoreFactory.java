@@ -17,26 +17,29 @@
 
 package io.github.zzih.rudder.vector.qdrant;
 
-import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 import io.github.zzih.rudder.vector.api.VectorStore;
 import io.github.zzih.rudder.vector.api.VectorStoreFactory;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
-/** Qdrant HTTP REST 客户端工厂。 */
+/** Qdrant gRPC 客户端工厂。 */
 @AutoService(VectorStoreFactory.class)
-public class QdrantVectorStoreFactory implements VectorStoreFactory {
+public class QdrantVectorStoreFactory implements VectorStoreFactory<QdrantProperties> {
 
     public static final String PROVIDER = "QDRANT";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<QdrantProperties> propertiesClass() {
+        return QdrantProperties.class;
     }
 
     @Override
@@ -51,8 +54,8 @@ public class QdrantVectorStoreFactory implements VectorStoreFactory {
                         .required(false).placeholder("6334").defaultValue("6334")
                         .build(),
                 PluginParamDefinition.builder()
-                        .name("useTls").label("Use TLS").type("input")
-                        .required(false).placeholder("false").defaultValue("false")
+                        .name("useTls").label("Use TLS").type("boolean")
+                        .required(false).defaultValue("false")
                         .build(),
                 PluginParamDefinition.builder()
                         .name("apiKey").label("API Key").type("password")
@@ -61,11 +64,7 @@ public class QdrantVectorStoreFactory implements VectorStoreFactory {
     }
 
     @Override
-    public VectorStore create(ProviderContext ctx, Map<String, String> config) {
-        String host = config.getOrDefault("host", "127.0.0.1").trim();
-        int port = AbstractConfigurablePluginRegistry.parseIntOrDefault(config.get("port"), 6334);
-        boolean useTls = Boolean.parseBoolean(config.getOrDefault("useTls", "false").trim());
-        String apiKey = config.getOrDefault("apiKey", "");
-        return new QdrantVectorStore(host, port, useTls, apiKey);
+    public VectorStore create(ProviderContext ctx, QdrantProperties props) {
+        return new QdrantVectorStore(props.getHost(), props.getPort(), props.isUseTls(), props.getApiKey());
     }
 }

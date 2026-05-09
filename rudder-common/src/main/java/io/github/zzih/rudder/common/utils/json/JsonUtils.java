@@ -39,6 +39,7 @@ public class JsonUtils {
         OBJECT_MAPPER = new ObjectMapper();
         OBJECT_MAPPER.registerModule(new JavaTimeModule());
         OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        OBJECT_MAPPER.configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, true);
         OBJECT_MAPPER.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
     }
 
@@ -121,6 +122,16 @@ public class JsonUtils {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to deserialize JSON to map", e);
         }
+    }
+
+    /**
+     * Map / POJO 等内存对象之间的结构转换,不绕中间 JSON 字符串。
+     * <p>典型用法:SPI provider 配置由 admin 表单序列化为 {@code Map<String, String>},
+     * 框架转成强类型 Properties POJO 传给 factory.create(P)。Jackson 默认 coercion 支持
+     * {@code String "5432" → int 5432} / {@code "false" → boolean false}。
+     */
+    public static <T> T convertValue(Object source, Class<T> clazz) {
+        return OBJECT_MAPPER.convertValue(source, clazz);
     }
 
     // ==================== JsonNode 操作 ====================

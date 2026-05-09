@@ -91,4 +91,14 @@ public final class RedisNaming {
         private RateLimit() {
         }
     }
+
+    /** 编辑锁命名空间 —— 悲观编辑锁(纯 UX,数据安全靠 hash 兜底)。 */
+    public static final class EditLock {
+
+        /** 锁 key 前缀。完整 key:{@code rudder:editlock:{resource}:{id}}。 */
+        public static final String PREFIX = ROOT + ":editlock:";
+
+        private EditLock() {
+        }
+    }
 }

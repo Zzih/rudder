@@ -18,65 +18,41 @@
 package io.github.zzih.rudder.service.config;
 
 import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.FileConfigDao;
-import io.github.zzih.rudder.dao.entity.FileConfig;
+import io.github.zzih.rudder.dao.dao.SpiConfigDao;
+import io.github.zzih.rudder.dao.enums.SpiType;
 import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.file.api.plugin.FilePluginManager;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
+import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
-
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
 /** FileStorage active 实例的访问入口。 */
 @Service
-public class FileConfigService extends AbstractConfigService<FileConfig, FileStorage> {
+public class FileConfigService extends AbstractConfigService<FileStorage> {
 
-    private final FileConfigDao dao;
     private final FilePluginManager pluginManager;
 
-    public FileConfigService(GlobalCacheService cache, FileConfigDao dao, FilePluginManager pluginManager) {
-        super(cache, GlobalCacheKey.FILE, ConfigErrorCode.FILE_NOT_CONFIGURED);
-        this.dao = dao;
+    public FileConfigService(GlobalCacheService cache, SpiConfigDao spiConfigDao,
+                             FilePluginManager pluginManager) {
+        super(cache, GlobalCacheKey.FILE, ConfigErrorCode.FILE_NOT_CONFIGURED, spiConfigDao, SpiType.FILE);
         this.pluginManager = pluginManager;
     }
 
     @Override
-    protected FileStorage build() {
-        FileConfig c = dao.selectActive();
-        if (c == null || !Boolean.TRUE.equals(c.getEnabled()) || c.getProvider() == null) {
-            return null;
-        }
-        Map<String, String> params = JsonUtils.toMap(c.getProviderParams());
-        return pluginManager.create(c.getProvider(), params);
+    protected AbstractConfigurablePluginRegistry<?, ?> pluginManager() {
+        return pluginManager;
     }
 
     @Override
-    protected void doUpsert(FileConfig config) {
-        if (config.getId() != null) {
-            dao.updateById(config);
-        } else {
-            dao.insert(config);
-        }
+    protected FileStorage buildInstance(String provider, String providerParamsJson) {
+        return pluginManager.create(provider, providerParamsJson);
     }
 
     @Override
     protected HealthStatus healthOf(FileStorage instance) {
         return instance.healthCheck();
-    }
-
-    /** Controller 入口:DTO → entity 取-或-新建 → 灌字段 → save。 */
-    public void saveDetail(io.github.zzih.rudder.service.config.dto.ProviderConfigDTO body) {
-        FileConfig c = dao.selectActive();
-        if (c == null) {
-            c = new FileConfig();
-        }
-        c.setProvider(body.getProvider());
-        c.setProviderParams(body.getProviderParams());
-        c.setEnabled(body.getEnabled() == null || body.getEnabled());
-        save(c);
     }
 }

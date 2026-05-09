@@ -1,0 +1,36 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.SpiConfigMapper">
+
+    <select id="queryActiveByType" resultType="io.github.zzih.rudder.dao.entity.SpiConfig">
+        select *
+        from t_r_spi_config
+        where `type` = #{type}
+          and enabled = 1
+        order by id desc
+        limit 1
+    </select>
+
+    <select id="queryByTypeAndProvider" resultType="io.github.zzih.rudder.dao.entity.SpiConfig">
+        select *
+        from t_r_spi_config
+        where `type` = #{type}
+          and provider = #{provider}
+        limit 1
+    </select>
+
+    <select id="queryAllByType" resultType="io.github.zzih.rudder.dao.entity.SpiConfig">
+        select *
+        from t_r_spi_config
+        where `type` = #{type}
+        order by provider asc
+    </select>
+
+    <update id="disableOthers">
+        update t_r_spi_config
+        set enabled = 0
+        where `type` = #{type}
+          and provider &lt;&gt; #{keepProvider}
+          and enabled = 1
+    </update>
+
+</mapper>

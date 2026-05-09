@@ -22,11 +22,8 @@ import lombok.Data;
 @Data
 public class ClaudeProperties {
 
-    private String apiKey;
-
+    private String apiKey = "";
     private String model = "claude-sonnet-4-6";
-
     private String baseUrl = "https://api.anthropic.com";
-
     private int maxTokens = 4096;
 }

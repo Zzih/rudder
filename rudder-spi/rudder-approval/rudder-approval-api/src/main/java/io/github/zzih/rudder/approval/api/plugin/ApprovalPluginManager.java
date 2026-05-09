@@ -22,33 +22,35 @@ import io.github.zzih.rudder.approval.api.spi.ApprovalNotifierFactory;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
 /**
- * Approval 插件注册表。**只暴露工厂能力**（create / closeNotifier），不持 active 状态。
- * 当前生效的 ApprovalNotifier 由上层 {@code ApprovalConfigService} 管理。
+ * Approval 插件注册表。只暴露工厂能力(create),不持 active 状态。当前生效的 ApprovalNotifier 由上层
+ * {@code ApprovalConfigService} 管理。
  */
 @Component
 public class ApprovalPluginManager
         extends
-            AbstractConfigurablePluginRegistry<ProviderContext, ApprovalNotifierFactory> {
+            AbstractConfigurablePluginRegistry<ProviderContext, ApprovalNotifierFactory<?>> {
 
-    /** DB 配置加载前的默认 channel。 */
-    public static final String FALLBACK_CHANNEL = "LOCAL";
+    public static final String FALLBACK_PROVIDER = "LOCAL";
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public ApprovalPluginManager(ProviderContext providerContext) {
-        super(ApprovalNotifierFactory.class, providerContext, "approval");
+        super((Class) ApprovalNotifierFactory.class, providerContext, "approval");
     }
 
-    /** 用 channel + 配置造一个 ApprovalNotifier 实例。无状态,纯工厂方法。 */
-    public ApprovalNotifier create(String channel, Map<String, String> config) {
-        return requireFactory(channel).create(providerContext, config != null ? config : Map.of());
+    /** 用 provider + JSON 参数造一个 active ApprovalNotifier 实例。 */
+    public ApprovalNotifier create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
     }
 
-    /** 当前是否注册了 fallback channel(默认 LOCAL)。 */
+    private <P> ApprovalNotifier doCreate(ApprovalNotifierFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
+    }
+
     public boolean hasFallback() {
-        return factories.containsKey(FALLBACK_CHANNEL);
+        return factories.containsKey(FALLBACK_PROVIDER);
     }
 }

@@ -22,32 +22,31 @@ import io.github.zzih.rudder.runtime.api.spi.EngineRuntimeProvider;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Runtime 插件注册表。**只暴露工厂能力**({@link #create}),不持 active 状态。
- * 当前 active EngineRuntime 由 {@code RuntimeConfigService} 通过 {@code GlobalCacheService} 管理。
- */
+/** Runtime 插件注册表。 */
 @Slf4j
 @Component
-public class RuntimePluginManager extends AbstractConfigurablePluginRegistry<ProviderContext, EngineRuntimeProvider> {
+public class RuntimePluginManager
+        extends
+            AbstractConfigurablePluginRegistry<ProviderContext, EngineRuntimeProvider<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public RuntimePluginManager(ProviderContext providerContext) {
-        super(EngineRuntimeProvider.class, providerContext, "runtime");
+        super((Class) EngineRuntimeProvider.class, providerContext, "runtime");
     }
 
-    /** 用 provider + 配置造一个 active EngineRuntime。无状态,纯工厂方法。 */
-    public EngineRuntime create(String provider, Map<String, String> params) {
-        EngineRuntimeProvider rp = requireFactory(provider);
-        EngineRuntime runtime = rp.create(providerContext,
-                new HashMap<>(params != null ? params : Map.of()));
+    public EngineRuntime create(String provider, String providerParamsJson) {
+        EngineRuntime runtime = doCreate(requireFactory(provider), providerParamsJson);
         log.info("Built active runtime: provider={}", normalize(provider));
         return runtime;
+    }
+
+    private <P> EngineRuntime doCreate(EngineRuntimeProvider<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 
     /** 关闭 provider 持有的共享资源(SDK client 池等)。配置切换 / 关停时由上层调用。 */
@@ -55,7 +54,7 @@ public class RuntimePluginManager extends AbstractConfigurablePluginRegistry<Pro
         if (provider == null) {
             return;
         }
-        EngineRuntimeProvider rp = factories.get(normalize(provider));
+        EngineRuntimeProvider<?> rp = factories.get(normalize(provider));
         if (rp == null) {
             return;
         }

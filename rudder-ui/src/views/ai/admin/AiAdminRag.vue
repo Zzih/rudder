@@ -12,6 +12,7 @@ import {
 import {
   getAiRerankProviderDefinitions,
   getAiRerankConfig,
+  listAiRerankConfigs,
   saveAiRerankConfig,
   testAiRerankConfig,
 } from '@/api/ai-rerank-config'
@@ -193,6 +194,7 @@ onMounted(load)
         enable-label-key="aiAdmin.rerank.enable"
         :get-provider-definitions="getAiRerankProviderDefinitions"
         :get-config="getAiRerankConfig"
+        :list-configs="listAiRerankConfigs"
         :save-config="saveAiRerankConfig"
         :test-config="testAiRerankConfig"
       />

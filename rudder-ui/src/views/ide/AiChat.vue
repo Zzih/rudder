@@ -238,7 +238,7 @@
           @compositionend="imeComposing = false"
         />
       </div>
-      <button v-if="store.streaming" class="send-btn send-btn--stop" @click="handleCancel">
+      <button v-if="isStreamingMine" class="send-btn send-btn--stop" @click="handleCancel">
         <el-icon :size="16"><VideoPause /></el-icon>
       </button>
       <button v-else class="send-btn" :class="{ disabled: !canSend }" @click="handleSend">
@@ -440,6 +440,8 @@ function copyText(text: string, okMsg?: string) {
   navigator.clipboard.writeText(text).then(() => ElMessage.success(okMsg ?? text))
 }
 
+// 流是否属于当前会话:跨 session 切换 / 新建会话时,旧流仍在跑但不属于当前 session
+const isStreamingMine = computed(() => store.streaming && store.streamingSessionId === store.activeSessionId)
 const canSend = computed(() => inputText.value.trim().length > 0 && !store.streaming)
 
 // ---------- tool_call 右侧状态徽章组件 ----------
@@ -585,7 +587,11 @@ function handleEnter(ev: Event) {
 
 async function handleSend() {
   const text = inputText.value.trim()
-  if (!text || store.streaming) return
+  if (!text) return
+  if (store.streaming) {
+    ElMessage.warning(t('ide.aiAnotherSessionStreaming'))
+    return
+  }
   inputText.value = ''
   const activeTab = ideState.tabs?.find(t => t.id === ideState.activeTabId)
   try {

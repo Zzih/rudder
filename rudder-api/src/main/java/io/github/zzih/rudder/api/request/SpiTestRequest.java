@@ -17,8 +17,6 @@
 
 package io.github.zzih.rudder.api.request;
 
-import java.util.Map;
-
-/** 通用 SPI 校验 / 测试连接请求体。 */
-public record SpiTestRequest(String provider, Map<String, String> config) {
+/** 通用 SPI 校验 / 测试连接请求体。{@code providerParams} 是 Properties POJO 序列化后的 JSON 字符串。 */
+public record SpiTestRequest(String provider, String providerParams) {
 }

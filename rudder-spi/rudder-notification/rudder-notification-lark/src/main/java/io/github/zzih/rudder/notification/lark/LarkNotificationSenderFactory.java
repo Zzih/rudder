@@ -18,21 +18,26 @@
 package io.github.zzih.rudder.notification.lark;
 
 import io.github.zzih.rudder.notification.api.NotificationSender;
+import io.github.zzih.rudder.notification.api.WebhookProperties;
 import io.github.zzih.rudder.notification.api.spi.NotificationSenderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(NotificationSenderFactory.class)
-public class LarkNotificationSenderFactory implements NotificationSenderFactory {
+public class LarkNotificationSenderFactory implements NotificationSenderFactory<WebhookProperties> {
 
     @Override
     public String getProvider() {
         return "LARK";
+    }
+
+    @Override
+    public Class<WebhookProperties> propertiesClass() {
+        return WebhookProperties.class;
     }
 
     @Override
@@ -45,8 +50,7 @@ public class LarkNotificationSenderFactory implements NotificationSenderFactory 
     }
 
     @Override
-    public NotificationSender create(ProviderContext ctx, Map<String, String> config) {
-        return new LarkNotificationSender(
-                config.getOrDefault("webhookUrl", ""));
+    public NotificationSender create(ProviderContext ctx, WebhookProperties props) {
+        return new LarkNotificationSender(props.webhookUrl());
     }
 }

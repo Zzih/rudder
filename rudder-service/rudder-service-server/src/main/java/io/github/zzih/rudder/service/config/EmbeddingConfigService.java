@@ -18,67 +18,42 @@
 package io.github.zzih.rudder.service.config;
 
 import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.AiConfigDao;
-import io.github.zzih.rudder.dao.entity.AiConfig;
-import io.github.zzih.rudder.dao.enums.AiConfigType;
+import io.github.zzih.rudder.dao.dao.SpiConfigDao;
+import io.github.zzih.rudder.dao.enums.SpiType;
 import io.github.zzih.rudder.embedding.api.EmbeddingClient;
 import io.github.zzih.rudder.embedding.api.plugin.EmbeddingPluginManager;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
+import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
-
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-/** EmbeddingClient active 实例的访问入口。复用 AiConfig 表，{@code type=EMBEDDING}。 */
+/** EmbeddingClient active 实例的访问入口。 */
 @Service
-public class EmbeddingConfigService extends AbstractConfigService<AiConfig, EmbeddingClient> {
+public class EmbeddingConfigService extends AbstractConfigService<EmbeddingClient> {
 
-    private final AiConfigDao dao;
     private final EmbeddingPluginManager pluginManager;
 
-    public EmbeddingConfigService(GlobalCacheService cache, AiConfigDao dao, EmbeddingPluginManager pluginManager) {
-        super(cache, GlobalCacheKey.EMBEDDING, ConfigErrorCode.EMBEDDING_NOT_CONFIGURED);
-        this.dao = dao;
+    public EmbeddingConfigService(GlobalCacheService cache, SpiConfigDao spiConfigDao,
+                                  EmbeddingPluginManager pluginManager) {
+        super(cache, GlobalCacheKey.EMBEDDING, ConfigErrorCode.EMBEDDING_NOT_CONFIGURED, spiConfigDao,
+                SpiType.EMBEDDING);
         this.pluginManager = pluginManager;
     }
 
     @Override
-    protected EmbeddingClient build() {
-        AiConfig c = dao.selectActive(AiConfigType.EMBEDDING);
-        if (c == null || !Boolean.TRUE.equals(c.getEnabled()) || c.getProvider() == null) {
-            return null;
-        }
-        Map<String, String> params = JsonUtils.toMap(c.getProviderParams());
-        return pluginManager.create(c.getProvider(), params);
+    protected AbstractConfigurablePluginRegistry<?, ?> pluginManager() {
+        return pluginManager;
     }
 
     @Override
-    protected void doUpsert(AiConfig config) {
-        if (config.getId() != null) {
-            dao.updateById(config);
-        } else {
-            dao.insert(config);
-        }
+    protected EmbeddingClient buildInstance(String provider, String providerParamsJson) {
+        return pluginManager.create(provider, providerParamsJson);
     }
 
     @Override
     protected HealthStatus healthOf(EmbeddingClient instance) {
         return instance.healthCheck();
-    }
-
-    /** Controller 入口:DTO → entity 取-或-新建 → 灌字段 → save。 */
-    public void saveDetail(io.github.zzih.rudder.service.config.dto.ProviderConfigDTO body) {
-        AiConfig c = dao.selectActive(AiConfigType.EMBEDDING);
-        if (c == null) {
-            c = new AiConfig();
-            c.setType(AiConfigType.EMBEDDING);
-        }
-        c.setProvider(body.getProvider());
-        c.setProviderParams(body.getProviderParams());
-        c.setEnabled(body.getEnabled() == null || body.getEnabled());
-        save(c);
     }
 }

@@ -22,30 +22,26 @@ import io.github.zzih.rudder.spi.api.ConfigurablePluginProviderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.TestResult;
 
-import java.util.Map;
-
 /**
  * File storage provider 工厂。实现需在 {@code META-INF/services/io.github.zzih.rudder.file.api.spi.FileStorageFactory}
  * 中登记,由 {@code FilePluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface FileStorageFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface FileStorageFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "file";
     }
 
-    FileStorage create(ProviderContext ctx, Map<String, String> config);
+    FileStorage create(ProviderContext ctx, P props);
 
-    /**
-     * 默认 testConnection: 创建实例 + 列根目录("")。任何 IO/认证失败抛异常,捕获后返回 failed。
-     * 各 provider 用 list("") 都能命中"通了 endpoint + 凭证有效"的最小路径(LOCAL 列基目录;OSS/S3 列 bucket;
-     * HDFS 列 NameNode)。如果某 provider 的 list 太重,可自己 override 走 HEAD 之类的轻量探测。
-     */
+    /** 默认 testConnection: 创建实例 + 列根目录(""),任何 IO/认证失败返回 failed。 */
     @Override
-    default TestResult testConnection(ProviderContext ctx, Map<String, String> config) {
+    default TestResult testConnection(ProviderContext ctx, P props) {
         long start = System.currentTimeMillis();
-        try (FileStorage storage = create(ctx, config)) {
+        try (FileStorage storage = create(ctx, props)) {
             storage.list("");
             return TestResult.success(System.currentTimeMillis() - start);
         } catch (Exception e) {

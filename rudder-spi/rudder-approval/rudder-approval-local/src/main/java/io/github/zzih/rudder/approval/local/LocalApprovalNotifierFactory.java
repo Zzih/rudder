@@ -20,19 +20,24 @@ package io.github.zzih.rudder.approval.local;
 import io.github.zzih.rudder.approval.api.ApprovalNotifier;
 import io.github.zzih.rudder.approval.api.spi.ApprovalNotifierFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
+import io.github.zzih.rudder.spi.api.model.NoProps;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(ApprovalNotifierFactory.class)
-public class LocalApprovalNotifierFactory implements ApprovalNotifierFactory {
+public class LocalApprovalNotifierFactory implements ApprovalNotifierFactory<NoProps> {
 
     @Override
     public String getProvider() {
         return LocalApprovalNotifier.CHANNEL;
+    }
+
+    @Override
+    public Class<NoProps> propertiesClass() {
+        return NoProps.class;
     }
 
     @Override
@@ -41,7 +46,7 @@ public class LocalApprovalNotifierFactory implements ApprovalNotifierFactory {
     }
 
     @Override
-    public ApprovalNotifier create(ProviderContext ctx, Map<String, String> config) {
+    public ApprovalNotifier create(ProviderContext ctx, NoProps props) {
         return new LocalApprovalNotifier();
     }
 }

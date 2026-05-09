@@ -27,9 +27,9 @@ import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 按 classpath 约定加载 provider guide:{@code spi-guide/<family>-<provider>.<lang>.md}。
+ * 按 classpath 约定加载 provider guide:{@code spi-guide/<type>-<provider>.<lang>.md}。
  * <p>
- * 文件名 family 做前缀,避免跨 SPI 同名 provider(OPENAI / LARK / LOCAL)在 fat jar 里被覆盖。
+ * 文件名 type 做前缀,避免跨 SPI 同名 provider(OPENAI / LARK / LOCAL)在 fat jar 里被覆盖。
  * 请求 locale miss 退化到 {@link #DEFAULT_LANG};再 miss 返回 {@link SpiGuideFile#EMPTY}。
  * <p>
  * 加载失败永远不抛异常,只 WARN —— provider 文档缺失不该让后台挂。
@@ -47,11 +47,11 @@ public final class SpiGuideLoader {
     }
 
     /**
-     * 按 family + provider + locale 加载。先按请求 lang 找,miss 退 {@link #DEFAULT_LANG}。
+     * 按 type + provider + locale 加载。先按请求 lang 找,miss 退 {@link #DEFAULT_LANG}。
      * 未知 lang 归一到 DEFAULT_LANG。
      */
-    public static SpiGuideFile load(String family, String provider, Locale locale) {
-        if (provider == null || provider.isBlank() || family == null || family.isBlank()) {
+    public static SpiGuideFile load(String type, String provider, Locale locale) {
+        if (provider == null || provider.isBlank() || type == null || type.isBlank()) {
             return SpiGuideFile.EMPTY;
         }
         String lang = locale == null ? DEFAULT_LANG : locale.getLanguage().toLowerCase(Locale.ROOT);
@@ -59,14 +59,14 @@ public final class SpiGuideLoader {
             lang = DEFAULT_LANG;
         }
         String p = provider.toLowerCase(Locale.ROOT);
-        String f = family.toLowerCase(Locale.ROOT).replace('_', '-');
+        String t = type.toLowerCase(Locale.ROOT).replace('_', '-');
 
-        SpiGuideFile hit = readIfExists("spi-guide/" + f + "-" + p + "." + lang + ".md");
+        SpiGuideFile hit = readIfExists("spi-guide/" + t + "-" + p + "." + lang + ".md");
         if (hit != SpiGuideFile.EMPTY) {
             return hit;
         }
         if (!DEFAULT_LANG.equals(lang)) {
-            return readIfExists("spi-guide/" + f + "-" + p + "." + DEFAULT_LANG + ".md");
+            return readIfExists("spi-guide/" + t + "-" + p + "." + DEFAULT_LANG + ".md");
         }
         return SpiGuideFile.EMPTY;
     }

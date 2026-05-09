@@ -23,13 +23,12 @@ import io.github.zzih.rudder.vector.api.VectorStore;
 import io.github.zzih.rudder.vector.api.VectorStoreFactory;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 /** 本地向量存储 provider。向量方法全部 no-op,语义搜索返回空(由调用方走 MySQL FULLTEXT 降级)。 */
 @AutoService(VectorStoreFactory.class)
-public class LocalVectorStoreFactory implements VectorStoreFactory {
+public class LocalVectorStoreFactory implements VectorStoreFactory<LocalVectorProperties> {
 
     public static final String PROVIDER = "LOCAL";
 
@@ -39,12 +38,17 @@ public class LocalVectorStoreFactory implements VectorStoreFactory {
     }
 
     @Override
+    public Class<LocalVectorProperties> propertiesClass() {
+        return LocalVectorProperties.class;
+    }
+
+    @Override
     public List<PluginParamDefinition> params() {
         return List.of();
     }
 
     @Override
-    public VectorStore create(ProviderContext ctx, Map<String, String> config) {
+    public VectorStore create(ProviderContext ctx, LocalVectorProperties props) {
         return new FulltextVectorStore();
     }
 }

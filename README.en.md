@@ -182,7 +182,7 @@ rudder/
 
 Rudder funnels every pluggable extension through a single `AbstractPluginRegistry<K, F>`. All SPI modules follow a strict `-api` / `-local` / `-<provider>` naming convention; adding a new engine or platform means implementing the corresponding factory interface plus one annotation.
 
-| SPI family | Module | Providers | Notes |
+| SPI type | Module | Providers | Notes |
 |:---|:---|:---|:---|
 | **Task** | `rudder-task` | mysql / postgres / hive / starrocks / doris / clickhouse / trino / spark / flink / python / shell / seatunnel / http | Task execution engines (13 + api) |
 | **Runtime** | `rudder-runtime` | local / aliyun / aws | Execution-environment abstraction |
@@ -199,7 +199,7 @@ Rudder funnels every pluggable extension through a single `AbstractPluginRegistr
 > Control-flow nodes (CONDITION / SWITCH / SUB_WORKFLOW / DEPENDENT) are not standalone TaskChannel SPIs. They live under `service.workflow.controlflow` on the Server and are executed in-process by `WorkflowInstanceRunner`, never dispatched to Execution.
 
 Every provider ships with:
-- A bilingual Markdown integration guide (`spi-guide/<family>-<provider>.{zh,en}.md`), bundled inside the provider jar.
+- A bilingual Markdown integration guide (`spi-guide/<type>-<provider>.{zh,en}.md`), bundled inside the provider jar.
 - Frontend form-parameter declarations with i18n keys (`PluginParamDefinition`) — the Web UI auto-renders the configuration form.
 - `validate(config)` and `testConnection(ctx, config)` hooks for pre-save validation and post-save smoke testing.
 

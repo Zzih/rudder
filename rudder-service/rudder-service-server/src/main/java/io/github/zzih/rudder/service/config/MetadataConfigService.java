@@ -18,85 +18,46 @@
 package io.github.zzih.rudder.service.config;
 
 import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
-import io.github.zzih.rudder.common.exception.BizException;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.MetadataConfigDao;
-import io.github.zzih.rudder.dao.entity.MetadataConfig;
+import io.github.zzih.rudder.dao.dao.SpiConfigDao;
+import io.github.zzih.rudder.dao.enums.SpiType;
 import io.github.zzih.rudder.metadata.api.MetadataClient;
 import io.github.zzih.rudder.metadata.api.plugin.MetadataPluginManager;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
+import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
-
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-/** Metadata active 实例的访问入口。未配置时 fallback 到 JDBC（如有）。 */
-@Slf4j
+/** Metadata active 实例的访问入口。未配置时 fallback 到 JDBC。 */
 @Service
-@RequiredArgsConstructor
-public class MetadataConfigService {
+public class MetadataConfigService extends AbstractConfigService<MetadataClient> {
 
-    private final GlobalCacheService cache;
-    private final MetadataConfigDao dao;
     private final MetadataPluginManager pluginManager;
 
-    public MetadataClient active() {
-        return cache.getOrLoad(GlobalCacheKey.METADATA, this::build);
+    public MetadataConfigService(GlobalCacheService cache, SpiConfigDao spiConfigDao,
+                                 MetadataPluginManager pluginManager) {
+        super(cache, GlobalCacheKey.METADATA, ConfigErrorCode.METADATA_NOT_CONFIGURED, spiConfigDao, SpiType.METADATA);
+        this.pluginManager = pluginManager;
     }
 
-    public MetadataClient required() {
-        MetadataClient c = active();
-        if (c == null) {
-            throw new BizException(ConfigErrorCode.METADATA_NOT_CONFIGURED);
-        }
-        return c;
+    @Override
+    protected AbstractConfigurablePluginRegistry<?, ?> pluginManager() {
+        return pluginManager;
     }
 
-    public void save(MetadataConfig config) {
-        if (config.getId() != null) {
-            dao.updateById(config);
-        } else {
-            dao.insert(config);
-        }
-        cache.invalidate(GlobalCacheKey.METADATA);
+    @Override
+    protected MetadataClient buildInstance(String provider, String providerParamsJson) {
+        return pluginManager.create(provider, providerParamsJson);
     }
 
-    /** Controller 入口:DTO → entity 取-或-新建 → 灌字段 → save。 */
-    public void saveDetail(io.github.zzih.rudder.service.config.dto.ProviderConfigDTO body) {
-        MetadataConfig c = dao.selectActive();
-        if (c == null) {
-            c = new MetadataConfig();
-        }
-        c.setProvider(body.getProvider());
-        c.setProviderParams(body.getProviderParams());
-        c.setEnabled(body.getEnabled() == null || body.getEnabled());
-        save(c);
+    @Override
+    protected HealthStatus healthOf(MetadataClient instance) {
+        return instance.healthCheck();
     }
 
-    public HealthStatus health() {
-        MetadataClient c = active();
-        return c == null ? HealthStatus.unknown() : c.healthCheck();
-    }
-
-    private MetadataClient build() {
-        MetadataConfig c = dao.selectActive();
-        if (c != null && Boolean.TRUE.equals(c.getEnabled()) && c.getProvider() != null) {
-            Map<String, String> params = JsonUtils.toMap(c.getProviderParams());
-            return pluginManager.create(c.getProvider(), params);
-        }
-        if (pluginManager.hasFallback()) {
-            try {
-                return pluginManager.create(MetadataPluginManager.FALLBACK_PROVIDER, Map.of());
-            } catch (Exception e) {
-                log.warn("Metadata fallback provider {} cannot be initialized: {}",
-                        MetadataPluginManager.FALLBACK_PROVIDER, e.getMessage());
-            }
-        }
-        return null;
+    @Override
+    protected String fallbackProvider() {
+        return pluginManager.hasFallback() ? MetadataPluginManager.FALLBACK_PROVIDER : null;
     }
 }

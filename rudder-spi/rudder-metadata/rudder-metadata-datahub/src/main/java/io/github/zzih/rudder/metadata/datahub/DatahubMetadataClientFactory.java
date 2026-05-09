@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(MetadataClientFactory.class)
-public class DatahubMetadataClientFactory implements MetadataClientFactory {
+public class DatahubMetadataClientFactory implements MetadataClientFactory<DatahubMetadataProperties> {
 
     @Override
     public String getProvider() {
         return "DATAHUB";
+    }
+
+    @Override
+    public Class<DatahubMetadataProperties> propertiesClass() {
+        return DatahubMetadataProperties.class;
     }
 
     @Override
@@ -54,10 +58,7 @@ public class DatahubMetadataClientFactory implements MetadataClientFactory {
     }
 
     @Override
-    public MetadataClient create(ProviderContext ctx, Map<String, String> config) {
-        return new DatahubMetadataClient(
-                config.get("url"),
-                config.get("token"),
-                config.get("environment"));
+    public MetadataClient create(ProviderContext ctx, DatahubMetadataProperties props) {
+        return new DatahubMetadataClient(props.url(), props.token(), props.environment());
     }
 }

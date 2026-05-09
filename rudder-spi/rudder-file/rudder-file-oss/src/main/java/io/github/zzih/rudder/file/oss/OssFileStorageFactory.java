@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(FileStorageFactory.class)
-public class OssFileStorageFactory implements FileStorageFactory {
+public class OssFileStorageFactory implements FileStorageFactory<OssFileStorageProperties> {
 
     @Override
     public String getProvider() {
         return "OSS";
+    }
+
+    @Override
+    public Class<OssFileStorageProperties> propertiesClass() {
+        return OssFileStorageProperties.class;
     }
 
     @Override
@@ -62,12 +66,9 @@ public class OssFileStorageFactory implements FileStorageFactory {
     }
 
     @Override
-    public FileStorage create(ProviderContext ctx, Map<String, String> config) {
+    public FileStorage create(ProviderContext ctx, OssFileStorageProperties props) {
         return new OssFileStorage(
-                config.getOrDefault("endpoint", ""),
-                config.getOrDefault("accessKeyId", ""),
-                config.getOrDefault("accessKeySecret", ""),
-                config.getOrDefault("bucket", ""),
-                config.getOrDefault("basePath", "/rudder"));
+                props.endpoint(), props.accessKeyId(), props.accessKeySecret(),
+                props.bucket(), props.basePath());
     }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import SpiConfigPage from '@/components/SpiConfigPage.vue'
-import { getResultProviderDefinitions, getResultConfig, saveResultConfig } from '@/api/result-config'
+import { getResultProviderDefinitions, getResultConfig, saveResultConfig, listResultConfigs } from '@/api/result-config'
 
 const { t } = useI18n()
 </script>
@@ -12,6 +12,7 @@ const { t } = useI18n()
     enable-label-key="resultFormat.enableResultFormat"
     :get-provider-definitions="getResultProviderDefinitions"
     :get-config="getResultConfig"
+    :list-configs="listResultConfigs"
     :save-config="saveResultConfig"
     :extra-fields="['defaultQueryRows']"
   >

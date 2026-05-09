@@ -22,24 +22,24 @@ import io.github.zzih.rudder.notification.api.spi.NotificationSenderFactory;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
 @Component
 public class NotificationPluginManager
         extends
-            AbstractConfigurablePluginRegistry<ProviderContext, NotificationSenderFactory> {
+            AbstractConfigurablePluginRegistry<ProviderContext, NotificationSenderFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public NotificationPluginManager(ProviderContext providerContext) {
-        super(NotificationSenderFactory.class, providerContext, "notification");
+        super((Class) NotificationSenderFactory.class, providerContext, "notification");
     }
 
-    /**
-     * 根据渠道和配置创建 Sender 实例。每个 workspace 可能有不同的 webhook 配置,因此不做全局缓存;
-     * 调用方负责对返回实例调用 {@link NotificationSender#close()}。
-     */
-    public NotificationSender create(String channel, Map<String, String> config) {
-        return requireFactory(channel).create(providerContext, config != null ? config : Map.of());
+    public NotificationSender create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> NotificationSender doCreate(NotificationSenderFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

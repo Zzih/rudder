@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -36,12 +37,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Jar 类 Task(Spark JAR / Flink JAR)用的子进程执行 + YARN 状态轮询工具。
- * <p>
- * 通过生成临时 shell 脚本 + {@code bash -l} 执行,自动加载 /etc/profile + ~/.profile,
- * envScript 进一步 prepend 用户配置(SPARK_HOME / FLINK_HOME / 自定义 PATH)。
- */
+/** Jar 类 Task 子进程执行 + YARN 状态轮询工具。脚本以 bash -l 启动以 source 用户 profile。 */
 public final class ShellRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ShellRunner.class);
@@ -69,20 +65,16 @@ public final class ShellRunner {
         }
     }
 
-    /**
-     * 把 cmd 包装成临时 shell 脚本通过 bash -l 执行,逐行回调 stdout/stderr。
-     *
-     * @param workDir   临时脚本目录
-     * @param envScript 用户配置的 env 脚本片段(prepend 到脚本顶部),可空
-     * @return 子进程退出码
-     */
-    public static int executeShell(String workDir, String envScript, List<String> cmd,
+    /** 把 cmd 包装成临时 shell 脚本通过 bash -l 执行,envVars 注入子进程 environment。 */
+    public static int executeShell(String workDir, Map<String, String> envVars, List<String> cmd,
                                    Consumer<String> lineConsumer) throws IOException, InterruptedException {
-        Path scriptFile = createScript(workDir, envScript, cmd);
+        Path scriptFile = createScript(workDir, cmd);
         try {
             ProcessUtils.Result result = ProcessUtils.execute(
                     new String[]{"bash", "-l", scriptFile.toString()},
-                    lineConsumer);
+                    envVars,
+                    lineConsumer,
+                    0);
             return result.exitCode();
         } finally {
             Files.deleteIfExists(scriptFile);
@@ -171,19 +163,13 @@ public final class ShellRunner {
         return last[0];
     }
 
-    private static Path createScript(String workDir, String envScript, List<String> cmd) throws IOException {
+    private static Path createScript(String workDir, List<String> cmd) throws IOException {
         Path dir = Path.of(workDir);
         Files.createDirectories(dir);
         Path scriptFile = Files.createTempFile(dir, "rudder_", ".sh",
                 PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
 
         StringBuilder sb = new StringBuilder("#!/bin/bash\n");
-        if (envScript != null && !envScript.isBlank()) {
-            sb.append(envScript);
-            if (!envScript.endsWith("\n")) {
-                sb.append('\n');
-            }
-        }
         for (int i = 0; i < cmd.size(); i++) {
             if (i > 0) {
                 sb.append(' ');

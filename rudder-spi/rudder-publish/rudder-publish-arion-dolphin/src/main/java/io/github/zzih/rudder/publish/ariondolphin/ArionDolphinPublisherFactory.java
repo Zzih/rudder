@@ -23,20 +23,24 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 import io.github.zzih.arion.dolphin.client.ArionClient;
 
 @AutoService(PublisherFactory.class)
-public class ArionDolphinPublisherFactory implements PublisherFactory {
+public class ArionDolphinPublisherFactory implements PublisherFactory<ArionDolphinProperties> {
 
     public static final String PROVIDER = "ARION_DOLPHIN";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<ArionDolphinProperties> propertiesClass() {
+        return ArionDolphinProperties.class;
     }
 
     @Override
@@ -53,10 +57,8 @@ public class ArionDolphinPublisherFactory implements PublisherFactory {
     }
 
     @Override
-    public Publisher create(ProviderContext ctx, Map<String, String> config) {
-        String url = config.getOrDefault("url", "");
-        String token = config.getOrDefault("token", "");
-        ArionClient client = new ArionClient(url, token);
+    public Publisher create(ProviderContext ctx, ArionDolphinProperties props) {
+        ArionClient client = new ArionClient(props.url(), props.token());
         return new ArionDolphinPublisher(client);
     }
 }

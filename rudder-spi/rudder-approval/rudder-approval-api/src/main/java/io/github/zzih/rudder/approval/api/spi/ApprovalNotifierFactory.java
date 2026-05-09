@@ -21,19 +21,19 @@ import io.github.zzih.rudder.approval.api.ApprovalNotifier;
 import io.github.zzih.rudder.spi.api.ConfigurablePluginProviderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 /**
  * Approval notifier provider 工厂。实现需在
  * {@code META-INF/services/io.github.zzih.rudder.approval.api.spi.ApprovalNotifierFactory}
- * 中登记，由 {@code ApprovalPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ * 中登记,由 {@code ApprovalPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface ApprovalNotifierFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface ApprovalNotifierFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "approval";
     }
 
-    ApprovalNotifier create(ProviderContext ctx, Map<String, String> config);
+    ApprovalNotifier create(ProviderContext ctx, P props);
 }

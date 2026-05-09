@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(FileStorageFactory.class)
-public class S3FileStorageFactory implements FileStorageFactory {
+public class S3FileStorageFactory implements FileStorageFactory<S3FileStorageProperties> {
 
     @Override
     public String getProvider() {
         return "S3";
+    }
+
+    @Override
+    public Class<S3FileStorageProperties> propertiesClass() {
+        return S3FileStorageProperties.class;
     }
 
     @Override
@@ -62,12 +66,9 @@ public class S3FileStorageFactory implements FileStorageFactory {
     }
 
     @Override
-    public FileStorage create(ProviderContext ctx, Map<String, String> config) {
+    public FileStorage create(ProviderContext ctx, S3FileStorageProperties props) {
         return new S3FileStorage(
-                config.getOrDefault("region", ""),
-                config.getOrDefault("accessKeyId", ""),
-                config.getOrDefault("secretAccessKey", ""),
-                config.getOrDefault("bucket", ""),
-                config.getOrDefault("basePath", "/rudder"));
+                props.region(), props.accessKeyId(), props.secretAccessKey(),
+                props.bucket(), props.basePath());
     }
 }

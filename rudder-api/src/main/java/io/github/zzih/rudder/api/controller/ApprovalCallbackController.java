@@ -62,10 +62,10 @@ public class ApprovalCallbackController {
 
         Map<String, String> headers = extractHeaders(request);
 
-        String activeChannel = approvalConfigService.activeChannel();
-        if (!channel.equalsIgnoreCase(activeChannel)) {
+        String activeProvider = approvalConfigService.activeProvider();
+        if (!channel.equalsIgnoreCase(activeProvider)) {
             log.warn("Rejecting callback for channel={} (platform active={}); approval system has been switched",
-                    channel, activeChannel);
+                    channel, activeProvider);
             return ResponseEntity.status(HttpStatus.GONE).body(Result.fail(ConfigErrorCode.APPROVAL_CHANNEL_INACTIVE));
         }
         ApprovalNotifier notifier = approvalConfigService.required();

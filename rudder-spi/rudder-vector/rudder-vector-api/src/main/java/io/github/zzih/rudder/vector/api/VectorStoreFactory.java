@@ -22,28 +22,26 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.spi.api.model.TestResult;
 
-import java.util.Map;
-
 /**
- * VectorStore provider 工厂。
- * <p>
- * 通过 {@code META-INF/services/io.github.zzih.rudder.vector.api.VectorStoreFactory}
+ * VectorStore provider 工厂。通过 {@code META-INF/services/io.github.zzih.rudder.vector.api.VectorStoreFactory}
  * (由 {@code @AutoService} 生成)注册;由 Admin 后台 "AI Config → Vector" 驱动装配。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface VectorStoreFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface VectorStoreFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "vector";
     }
 
-    VectorStore create(ProviderContext ctx, Map<String, String> config);
+    VectorStore create(ProviderContext ctx, P props);
 
     /** 默认 testConnection: 创建实例 + 调 healthCheck()。 */
     @Override
-    default TestResult testConnection(ProviderContext ctx, Map<String, String> config) {
+    default TestResult testConnection(ProviderContext ctx, P props) {
         long start = System.currentTimeMillis();
-        try (VectorStore store = create(ctx, config)) {
+        try (VectorStore store = create(ctx, props)) {
             HealthStatus status = store.healthCheck();
             long elapsed = System.currentTimeMillis() - start;
             return status.state() == HealthStatus.State.HEALTHY

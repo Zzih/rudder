@@ -19,21 +19,24 @@ package io.github.zzih.rudder.approval.lark;
 
 import io.github.zzih.rudder.approval.api.ApprovalNotifier;
 import io.github.zzih.rudder.approval.api.spi.ApprovalNotifierFactory;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(ApprovalNotifierFactory.class)
-public class LarkApprovalNotifierFactory implements ApprovalNotifierFactory {
+public class LarkApprovalNotifierFactory implements ApprovalNotifierFactory<LarkApprovalProperties> {
 
     @Override
     public String getProvider() {
         return "LARK";
+    }
+
+    @Override
+    public Class<LarkApprovalProperties> propertiesClass() {
+        return LarkApprovalProperties.class;
     }
 
     @Override
@@ -79,16 +82,10 @@ public class LarkApprovalNotifierFactory implements ApprovalNotifierFactory {
     }
 
     @Override
-    public ApprovalNotifier create(ProviderContext ctx, Map<String, String> config) {
+    public ApprovalNotifier create(ProviderContext ctx, LarkApprovalProperties props) {
         return new LarkApprovalNotifier(
-                config.getOrDefault("appId", ""),
-                config.getOrDefault("appSecret", ""),
-                config.getOrDefault("approvalCode", ""),
-                config.getOrDefault("titleWidgetId", "title"),
-                config.getOrDefault("contentWidgetId", "content"),
-                config.getOrDefault("applicantWidgetId", ""),
-                JsonUtils.toMap(config.get("stageFieldMapping")),
-                config.getOrDefault("encryptKey", ""),
-                config.getOrDefault("verificationToken", ""));
+                props.appId(), props.appSecret(), props.approvalCode(),
+                props.titleWidgetId(), props.contentWidgetId(), props.applicantWidgetId(),
+                props.stageFieldMapping(), props.encryptKey(), props.verificationToken());
     }
 }

@@ -1,35 +1,39 @@
 ---
-description: Self-managed cluster, worker submits via local CLI
+description: Default Runtime, propagates env vars to worker-local task subprocesses
 ---
 
-## Local / Self-managed Cluster Runtime
+## Local Runtime
 
-The worker submits cluster jobs through local CLIs (`spark-submit` / `flink` / other engine CLIs). Use this for self-managed Hadoop/YARN/K8s clusters.
-SQL tasks run via JDBC against the corresponding Thrift Server / SQL Gateway (URL is taken from the datasource configuration).
+Default Runtime; takes over no TaskType. Sole responsibility: propagate the environment variables configured here to tasks that spawn local subprocesses on the worker.
 
-### Parameters
-- **workDir**: directory where temporary shell scripts are generated; must be writable by the worker. Leave blank to use `/tmp/rudder/tasks`
-- **Environment script**: a free-form shell snippet that is sourced before invoking the engine CLI. Use it to `export SPARK_HOME / FLINK_HOME / PATH` or
-  `source /etc/profile.d/xxx.sh`, etc. **One textbox covers every engine** — adding Ray, Trino, etc. later requires no schema change here.
+### Tasks that consume envVars
 
-### Script execution flow
-Rudder writes a temporary `rudder_*.sh` and runs it with `bash -l` (login shell):
-1. `bash -l` automatically loads `/etc/profile` + `~/.profile`
-2. Then sources the environment script you set above (if any)
-3. Finally invokes the engine CLI (`spark-submit` / `flink` / …), resolved from PATH
+Every task that spawns a local subprocess consumes the entries below:
 
-### Environment script template
-If your `~/.profile` already sets PATH correctly, you can leave it empty. Otherwise:
+- **Shell** — `bash -c <script>`
+- **Python** — `python3 <script>`
+- **SeaTunnel** — `seatunnel.sh --config ...`
+- **Spark JAR** — `spark-submit ...` (local client submitting to YARN/standalone)
+- **Flink JAR** — `flink run ...` (local client submitting to YARN/standalone)
 
-```bash
-# Engine roots (as needed)
-export SPARK_HOME=/opt/bigdata/spark
-export FLINK_HOME=/opt/bigdata/flink
-export HADOOP_HOME=/opt/bigdata/hadoop
+Injection path: `ProcessBuilder.environment().putAll(envVars)` — merged on top of the parent process; **same-named keys override the parent value**.
 
-# Append engine bin to PATH
-export PATH=$SPARK_HOME/bin:$FLINK_HOME/bin:$HADOOP_HOME/bin:$PATH
+### Tasks that do not consume envVars
 
-# Or source a unified cluster env script
-# source /etc/profile.d/bigdata.sh
+Tasks running over JDBC or in-process Java clients do not spawn subprocesses and are unaffected: Hive / MySQL / PostgreSQL / Trino / ClickHouse / Doris / StarRocks / HTTP / SQL tasks.
+
+Cloud Runtimes (AWS / Aliyun) submit Spark/Flink via cloud SDKs and likewise do not spawn local subprocesses.
+
+### Format
+
+One `KEY=VALUE` per line. Blank lines and lines starting with `#` are ignored. `$VAR` references inside VALUE are honoured.
+
 ```
+JAVA_HOME=/opt/jdk-21
+SPARK_HOME=/opt/bigdata/spark
+FLINK_HOME=/opt/bigdata/flink
+HADOOP_CONF_DIR=/etc/hadoop/conf
+PATH=$SPARK_HOME/bin:$FLINK_HOME/bin:$PATH
+```
+
+Spark/Flink JAR client subprocesses launch via `bash -l`, which sources `/etc/profile` and `~/.profile` first; the envVars here are injected at the subprocess `environment` layer and take precedence over login-shell defaults.

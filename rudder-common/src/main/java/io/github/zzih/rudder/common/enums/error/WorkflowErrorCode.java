@@ -38,6 +38,8 @@ public enum WorkflowErrorCode implements ErrorCode {
     PUBLISH_SERVICE_UNAVAILABLE(4010, "err.WorkflowErrorCode.PUBLISH_SERVICE_UNAVAILABLE"),
     PUBLISH_FAILED(4011, "err.WorkflowErrorCode.PUBLISH_FAILED"),
     WF_DAG_EMPTY(4012, "err.WorkflowErrorCode.WF_DAG_EMPTY"),
+    WF_LOCK_HELD_BY_OTHER(4013, "err.WorkflowErrorCode.WF_LOCK_HELD_BY_OTHER"),
+    WF_CONCURRENT_MODIFICATION(4014, "err.WorkflowErrorCode.WF_CONCURRENT_MODIFICATION"),
     VERSION_NOT_FOUND(4020, "err.WorkflowErrorCode.VERSION_NOT_FOUND");
 
     private final int code;

@@ -22,10 +22,10 @@ import lombok.Data;
 @Data
 public class PgVectorProperties {
 
-    private String host;
+    private String host = "127.0.0.1";
     private int port = 5432;
-    private String database;
+    private String database = "rudder";
     private String schema = "public";
-    private String username;
-    private String password;
+    private String username = "postgres";
+    private String password = "";
 }

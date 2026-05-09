@@ -19,23 +19,26 @@ package io.github.zzih.rudder.llm.ollama;
 
 import io.github.zzih.rudder.llm.api.LlmClient;
 import io.github.zzih.rudder.llm.api.spi.LlmClientFactory;
-import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(LlmClientFactory.class)
-public class OllamaLlmClientFactory implements LlmClientFactory {
+public class OllamaLlmClientFactory implements LlmClientFactory<OllamaProperties> {
 
     public static final String PROVIDER = "OLLAMA";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<OllamaProperties> propertiesClass() {
+        return OllamaProperties.class;
     }
 
     @Override
@@ -59,18 +62,7 @@ public class OllamaLlmClientFactory implements LlmClientFactory {
     }
 
     @Override
-    public LlmClient create(ProviderContext ctx, Map<String, String> config) {
-        OllamaProperties props = new OllamaProperties();
-        String baseUrl = config.get("baseUrl");
-        if (baseUrl != null && !baseUrl.isBlank()) {
-            props.setBaseUrl(baseUrl.trim());
-        }
-        String model = config.get("model");
-        if (model != null && !model.isBlank()) {
-            props.setModel(model.trim());
-        }
-        props.setNumPredict(AbstractConfigurablePluginRegistry.parseIntOrDefault(
-                config.get("numPredict"), props.getNumPredict()));
+    public LlmClient create(ProviderContext ctx, OllamaProperties props) {
         return new OllamaLlmClient(props);
     }
 }

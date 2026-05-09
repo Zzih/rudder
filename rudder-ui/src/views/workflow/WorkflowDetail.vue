@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { getWorkflowDefinition, listWorkflowDefinitionVersions, rollbackWorkflowDefinition, diffWorkflowDefinitionVersions, commitWorkflowDefinitionVersion } from '@/api/workflow'
+import {
+  getWorkflowDefinition, listWorkflowDefinitionVersions, rollbackWorkflowDefinition,
+  diffWorkflowDefinitionVersions, commitWorkflowDefinitionVersion,
+  acquireWorkflowLock, heartbeatWorkflowLock, releaseWorkflowLock,
+  type EditLockHolder,
+} from '@/api/workflow'
+import { useUserStore } from '@/stores/user'
 import { formatDate } from '@/utils/dateFormat'
 import { getProject } from '@/api/workspace'
 import { cardColor } from '@/utils/colorMeta'
@@ -24,6 +30,7 @@ interface Version {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const workspaceId = Number(route.params.workspaceId)
 const projectCode = route.params.projectCode as string
 const workflowDefinitionCode = route.params.workflowDefinitionCode as string
@@ -134,7 +141,7 @@ async function confirmSave() {
   }
   saving.value = true
   try {
-    // 一次请求发送所有字段：DAG + metadata + globalParams + schedule
+    // expectedHash 由 DagEditor 内部带,WF_CONCURRENT_MODIFICATION 等错误由响应拦截器 toast
     await dagEditorRef.value?.handleSave({
       name: saveForm.name,
       description: saveForm.description,
@@ -145,9 +152,8 @@ async function confirmSave() {
       globalParams: serializeGlobalParams(),
     })
     saveDialogVisible.value = false
-    ElMessage.success(t('common.success'))
     handleBack()
-  } catch { ElMessage.error(t('common.failed')) }
+  } catch { /* 拦截器已 toast 后端的具体错误 message */ }
   finally { saving.value = false }
 }
 
@@ -226,7 +232,84 @@ async function doCommit() {
   finally { committing.value = false }
 }
 
-onMounted(fetchWorkflow)
+// ===== 编辑锁 =====
+const lockHolder = ref<EditLockHolder | null>(null)
+const isMine = computed(() => lockHolder.value?.userId === userStore.userInfo?.userId)
+const readOnly = computed(() => !!lockHolder.value && !isMine.value)
+let heartbeatTimer: number | null = null
+let pollTimer: number | null = null
+
+async function tryAcquire(refreshOnTakeover = false) {
+  try {
+    const res: any = await acquireWorkflowLock(workspaceId, projectCode, workflowDefinitionCode)
+    const holder = res?.data as EditLockHolder | null
+    const me = userStore.userInfo
+    if (holder && me && holder.userId !== me.userId) {
+      lockHolder.value = holder
+      stopHeartbeat()
+      startPoll()
+      return
+    }
+    // 抢锁成功(后端返 null 或自己)
+    const wasReadOnly = readOnly.value
+    lockHolder.value = me
+      ? { userId: me.userId, username: me.username, acquiredAt: Date.now() }
+      : null
+    stopPoll()
+    startHeartbeat()
+    if (refreshOnTakeover && wasReadOnly) {
+      // 从只读切到编辑:可能数据被前持锁人改过,refetch 整页
+      ElMessage.success(t('workflow.lockTakenOver'))
+      await fetchWorkflow()
+      dagEditorRef.value?.reload()
+    }
+  } catch { /* 拦截器已 toast */ }
+}
+
+function startHeartbeat() {
+  stopHeartbeat()
+  heartbeatTimer = window.setInterval(async () => {
+    try {
+      const res: any = await heartbeatWorkflowLock(workspaceId, projectCode, workflowDefinitionCode)
+      if (res?.data === false) {
+        ElMessage.warning(t('workflow.lockLost'))
+        stopHeartbeat()
+        // 锁丢了,重新尝试抢
+        await tryAcquire(true)
+      }
+    } catch { /* ignore */ }
+  }, 30_000)
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer != null) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+}
+
+function startPoll() {
+  stopPoll()
+  pollTimer = window.setInterval(() => tryAcquire(true), 10_000)
+}
+
+function stopPoll() {
+  if (pollTimer != null) { clearInterval(pollTimer); pollTimer = null }
+}
+
+onMounted(async () => {
+  await fetchWorkflow()
+  await tryAcquire()
+})
+
+// SPA 路由跳转触发顺序:onBeforeRouteLeave → onBeforeUnmount,两钩子都会跑;released 旗标避免发 2 次 DELETE
+let released = false
+function teardown() {
+  stopHeartbeat(); stopPoll()
+  if (released || !isMine.value) return
+  released = true
+  releaseWorkflowLock(workspaceId, projectCode, workflowDefinitionCode).catch(() => { /* best-effort */ })
+}
+
+onBeforeUnmount(teardown)
+onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
 </script>
 
 <template>
@@ -267,13 +350,19 @@ onMounted(fetchWorkflow)
         </nav>
 
         <div class="wfd-bar__actions">
-          <el-button class="wfd-btn wfd-btn--run" size="small" @click="handleRun">
+          <span v-if="lockHolder" class="wfd-status" :class="readOnly ? 'is-readonly' : 'is-editing'">
+            <el-icon v-if="readOnly"><Lock /></el-icon>
+            <el-icon v-else><Edit /></el-icon>
+            <span v-if="readOnly">{{ t('workflow.lockHeldBy', { name: lockHolder.username }) }}</span>
+            <span v-else>{{ t('workflow.lockHeldByYou') }}</span>
+          </span>
+          <el-button class="wfd-btn wfd-btn--run" size="small" :disabled="readOnly" @click="handleRun">
             <el-icon><VideoPlay /></el-icon> {{ t('workflow.run') }}
           </el-button>
-          <el-button class="wfd-btn" size="small" @click="openSaveDialog">
+          <el-button class="wfd-btn" size="small" :disabled="readOnly" @click="openSaveDialog">
             <el-icon><FolderChecked /></el-icon> {{ t('ide.save') }}
           </el-button>
-          <el-button class="wfd-btn wfd-btn--commit" size="small" @click="handleCommit">
+          <el-button class="wfd-btn wfd-btn--commit" size="small" :disabled="readOnly" @click="handleCommit">
             <el-icon><Promotion /></el-icon> {{ t('ide.commitVersion') }}
           </el-button>
         </div>
@@ -282,7 +371,9 @@ onMounted(fetchWorkflow)
 
     <!-- ═══ Content ═══ -->
     <div class="wfd-content">
-      <DagEditor v-show="activeTab === 'editor'" ref="dagEditorRef" :workflow-definition-code="workflowDefinitionCode" />
+      <DagEditor v-show="activeTab === 'editor'" ref="dagEditorRef"
+                 :workflow-definition-code="workflowDefinitionCode"
+                 :read-only="readOnly" />
 
       <Transition name="wfd-fade" mode="out-in">
         <div v-if="activeTab === 'versions'" key="versions" class="wfd-panel">
@@ -455,6 +546,44 @@ onMounted(fetchWorkflow)
   flex-direction: column;
   height: 100%;
   background: var(--r-bg-panel);
+}
+
+/* ═══════════════════════════════════════
+   Lock status pill — inline 在 actions 行内,运行按钮左侧
+   ═══════════════════════════════════════ */
+.wfd-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  margin-right: 4px;
+  user-select: none;
+
+  .el-icon { font-size: 12px; }
+
+  &.is-readonly {
+    color: var(--r-warning);
+    background: var(--r-warning-bg);
+    border: 1px solid var(--r-warning-border);
+  }
+
+  &.is-editing {
+    color: var(--r-accent);
+    background: var(--r-accent-bg);
+    border: 1px solid var(--r-accent-border);
+    /* 心跳脉冲:轻量视觉提示锁是"活的" */
+    .el-icon { animation: wfd-status-pulse 2s ease-in-out infinite; }
+  }
+}
+
+@keyframes wfd-status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
 }
 
 /* ═══════════════════════════════════════
@@ -637,12 +766,23 @@ onMounted(fetchWorkflow)
   font-weight: 500;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 
+  /* 只读模式下统一灰禁 — 覆盖 success / accent-bg 等强色,避免"看起来还能点" */
+  &.is-disabled,
+  &:disabled {
+    background: var(--r-bg-hover) !important;
+    border-color: var(--r-border) !important;
+    color: var(--r-text-disabled) !important;
+    cursor: not-allowed;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
   &.wfd-btn--run {
     background: var(--r-success);
     border-color: var(--r-success);
     color: #fff;
 
-    &:hover {
+    &:hover:not(:disabled):not(.is-disabled) {
       box-shadow: 0 2px 14px rgb(34 197 94 / 0.35);
       transform: translateY(-1px);
     }
@@ -662,6 +802,7 @@ onMounted(fetchWorkflow)
       color: #fff;
     }
   }
+
 }
 
 /* ═══════════════════════════════════════

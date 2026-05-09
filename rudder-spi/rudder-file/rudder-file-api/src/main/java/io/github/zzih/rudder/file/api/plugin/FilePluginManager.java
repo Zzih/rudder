@@ -22,27 +22,25 @@ import io.github.zzih.rudder.file.api.spi.FileStorageFactory;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
-/**
- * File 插件注册表。**只暴露工厂能力**(create / validate / testConnection),不持
- * active 状态。当前生效的 FileStorage 由上层 {@code FileConfigService} 通过
- * {@link io.github.zzih.rudder.cache.GlobalCacheService} 管理。
- */
+/** File 插件注册表。 */
 @Component
-public class FilePluginManager extends AbstractConfigurablePluginRegistry<ProviderContext, FileStorageFactory> {
+public class FilePluginManager
+        extends
+            AbstractConfigurablePluginRegistry<ProviderContext, FileStorageFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public FilePluginManager(ProviderContext providerContext) {
-        super(FileStorageFactory.class, providerContext, "file");
+        super((Class) FileStorageFactory.class, providerContext, "file");
     }
 
-    /** 用 provider + 配置造一个 FileStorage 实例。无状态,纯工厂方法。 */
-    public FileStorage create(String provider, Map<String, String> config) {
-        FileStorageFactory factory = requireFactory(provider);
-        Map<String, String> merged = new HashMap<>(config != null ? config : Map.of());
-        return factory.create(providerContext, merged);
+    public FileStorage create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> FileStorage doCreate(FileStorageFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

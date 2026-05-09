@@ -38,6 +38,7 @@ public interface EngineRuntime extends AutoCloseable {
 
     String provider();
 
+    /** 注入 Worker 本机子进程 environment;同名 key 覆盖父进程值。 */
     default Map<String, String> envVars() {
         return Map.of();
     }

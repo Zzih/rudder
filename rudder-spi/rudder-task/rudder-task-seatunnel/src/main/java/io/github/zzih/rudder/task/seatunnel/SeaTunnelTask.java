@@ -20,6 +20,7 @@ package io.github.zzih.rudder.task.seatunnel;
 import io.github.zzih.rudder.common.enums.error.TaskErrorCode;
 import io.github.zzih.rudder.common.exception.TaskException;
 import io.github.zzih.rudder.common.param.Property;
+import io.github.zzih.rudder.common.utils.process.ProcessUtils;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.parser.TaskOutputParameterParser;
 import io.github.zzih.rudder.task.api.parser.VarPoolFilter;
@@ -27,25 +28,19 @@ import io.github.zzih.rudder.task.api.task.AbstractTask;
 import io.github.zzih.rudder.task.api.task.LocalTask;
 import io.github.zzih.rudder.task.api.task.enums.TaskStatus;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SeaTunnelTask extends AbstractTask implements LocalTask {
 
-    private static final String SEATUNNEL_HOME = System.getProperty(
-            "rudder.execution.seatunnel-home",
-            System.getenv().getOrDefault("SEATUNNEL_HOME", "/opt/bigdata/seatunnel"));
     private final SeaTunnelTaskParams params;
     private volatile TaskStatus status = TaskStatus.SUBMITTED;
-    private volatile Process process;
+    private volatile ProcessUtils.RunningProcess runningProcess;
     private final TaskOutputParameterParser outputParser = new TaskOutputParameterParser();
 
     public SeaTunnelTask(TaskExecutionContext ctx, SeaTunnelTaskParams params) {
@@ -68,51 +63,36 @@ public class SeaTunnelTask extends AbstractTask implements LocalTask {
 
         Path tempConfig = null;
         try {
-            // 将配置内容写入临时文件
             tempConfig = Files.createTempFile("seatunnel-", ".conf");
             Files.writeString(tempConfig, params.getContent());
             log.info("Config written to {}", tempConfig);
 
-            // 构建命令行
             List<String> command = buildCommand(tempConfig.toString());
             log.info("Command: {}", String.join(" ", command));
 
-            ProcessBuilder pb = new ProcessBuilder(command);
-            pb.redirectErrorStream(true);
-            process = pb.start();
+            runningProcess = ProcessUtils.start(
+                    command.toArray(new String[0]),
+                    ctx.getEnvVars(),
+                    line -> {
+                        log.info(line);
+                        outputParser.appendParseLog(line);
+                    });
+            ProcessUtils.Result result = runningProcess.waitFor(ctx.getTimeoutSeconds());
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    log.info(line);
-                    outputParser.appendParseLog(line);
-                }
-            }
-
-            boolean finished;
-            if (ctx.getTimeoutSeconds() > 0) {
-                finished = process.waitFor(ctx.getTimeoutSeconds(), TimeUnit.SECONDS);
-            } else {
-                process.waitFor();
-                finished = true;
-            }
-            if (!finished) {
-                process.destroyForcibly();
+            if (result.timedOut()) {
                 status = TaskStatus.TIMEOUT;
                 log.info("Status -> {}", TaskStatus.TIMEOUT);
                 throw new TaskException(TaskErrorCode.TASK_SEATUNNEL_TIMEOUT);
             }
-
-            int exitCode = process.exitValue();
-            if (exitCode == 0) {
+            if (result.isSuccess()) {
                 status = TaskStatus.SUCCESS;
                 log.info("SeaTunnel task completed successfully (exit code 0)");
                 log.info("Status -> {}", TaskStatus.SUCCESS);
             } else {
                 status = TaskStatus.FAILED;
-                log.error("SeaTunnel task failed with exit code: {}", exitCode);
+                log.error("SeaTunnel task failed with exit code: {}", result.exitCode());
                 log.info("Status -> {}", TaskStatus.FAILED);
-                throw new TaskException(TaskErrorCode.TASK_EXIT_CODE, exitCode);
+                throw new TaskException(TaskErrorCode.TASK_EXIT_CODE, result.exitCode());
             }
         } catch (TaskException e) {
             throw e;
@@ -135,10 +115,9 @@ public class SeaTunnelTask extends AbstractTask implements LocalTask {
         String deployMode = params.getDeployMode() != null ? params.getDeployMode() : "cluster";
 
         List<String> cmd = new ArrayList<>();
-        cmd.add(SEATUNNEL_HOME + "/bin/seatunnel.sh");
+        cmd.add("seatunnel.sh");
         cmd.add("--config");
         cmd.add(configPath);
-        // SeaTunnel 2.3.13: deploy mode 用 -m 参数，默认就是 cluster
         cmd.add("-m");
         cmd.add(deployMode);
         return cmd;
@@ -147,8 +126,8 @@ public class SeaTunnelTask extends AbstractTask implements LocalTask {
     @Override
     public void cancel() throws TaskException {
         status = TaskStatus.CANCELLED;
-        if (process != null && process.isAlive()) {
-            process.destroyForcibly();
+        if (runningProcess != null) {
+            runningProcess.destroy();
         }
     }
 

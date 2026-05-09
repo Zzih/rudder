@@ -23,26 +23,27 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.TestResult;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Rerank provider 工厂。实现在
  * {@code META-INF/services/io.github.zzih.rudder.rerank.api.spi.RerankClientFactory} 登记。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface RerankClientFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface RerankClientFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "rerank";
     }
 
-    RerankClient create(ProviderContext ctx, Map<String, String> config);
+    RerankClient create(ProviderContext ctx, P props);
 
-    /** 默认 testConnection: 创建实例 + 跑最小 rerank("ping", ["doc"]) 验证 endpoint + apiKey + model 都对。 */
+    /** 默认 testConnection: 创建实例 + 跑最小 rerank("ping",["doc"]) 验证 endpoint + apiKey + model。 */
     @Override
-    default TestResult testConnection(ProviderContext ctx, Map<String, String> config) {
+    default TestResult testConnection(ProviderContext ctx, P props) {
         long start = System.currentTimeMillis();
-        try (RerankClient client = create(ctx, config)) {
+        try (RerankClient client = create(ctx, props)) {
             List<?> result = client.rerank("ping", List.of("ok"), 1);
             long elapsed = System.currentTimeMillis() - start;
             if (result == null || result.isEmpty()) {

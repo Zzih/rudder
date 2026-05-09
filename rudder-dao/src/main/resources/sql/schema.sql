@@ -372,93 +372,32 @@ CREATE TABLE IF NOT EXISTS `t_r_approval_decision` (
     INDEX `idx_decider` (`decider_user_id`, `decided_at`)
 ) ENGINE=InnoDB COMMENT='审批决议(每条决议一行,多人留痕)';
 
-CREATE TABLE IF NOT EXISTS `t_r_approval_config` (
-    `id`             BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `channel`        VARCHAR(32) NOT NULL              COMMENT '审批渠道: LOCAL/LARK/KISSFLOW',
-    `channel_params` JSON                              COMMENT '渠道配置参数(JSON)',
-    `enabled`        TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`     BIGINT                            COMMENT '创建人ID',
-    `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`     BIGINT                            COMMENT '更新人ID',
-    `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='审批配置(平台级单例)';
-
-CREATE TABLE IF NOT EXISTS `t_r_publish_config` (
+-- 统一 SPI 配置表(File/Result/Runtime/Metadata/Version/Approval/Publish/Notification/
+-- LLM/Embedding/Vector/Rerank 共表, type 区分; 每个 type 平台级单 active)。
+CREATE TABLE IF NOT EXISTS `t_r_spi_config` (
     `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT '发布 provider: ARION_DOLPHIN/...',
+    `type`            VARCHAR(32) NOT NULL              COMMENT 'SPI 类型: FILE/RESULT/RUNTIME/METADATA/VERSION/APPROVAL/PUBLISH/NOTIFICATION/LLM/EMBEDDING/VECTOR/RERANK',
+    `provider`        VARCHAR(32) NOT NULL              COMMENT 'provider 标识(LOCAL/HDFS/CLAUDE/LARK 等)',
     `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
     `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
     `created_by`      BIGINT                            COMMENT '创建人ID',
     `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='发布配置(平台级单例)';
+    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY `uk_type_provider` (`type`, `provider`),
+    INDEX `idx_type_enabled` (`type`, `enabled`)
+) ENGINE=InnoDB COMMENT='SPI 配置(per (type,provider) 一行;saveDetail 隐式 disableOthers 保证 per type 单 active)';
 
--- AI provider 配置见下方 AI Platform 专用区段
-
-CREATE TABLE IF NOT EXISTS `t_r_metadata_config` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT '元数据 provider: JDBC/DATAHUB',
-    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
-    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`      BIGINT                            COMMENT '创建人ID',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='元数据配置(平台级单例)';
-
--- ==================== Runtime Config ====================
-
-CREATE TABLE IF NOT EXISTS `t_r_runtime_config` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT 'Runtime provider: LOCAL/ALIYUN/AWS',
-    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
-    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`      BIGINT                            COMMENT '创建人ID',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='Runtime 配置(平台级单例)';
-
--- ==================== Version Store Config ====================
-
-CREATE TABLE IF NOT EXISTS `t_r_version_config` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT '版本存储 provider: LOCAL/GIT',
-    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON), Git 模式需 url/token/org/defaultRepo',
-    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`      BIGINT                            COMMENT '创建人ID',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='版本存储配置(平台级单例)';
-
--- ==================== File Storage Config ====================
-
-CREATE TABLE IF NOT EXISTS `t_r_file_config` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT '文件存储 provider: LOCAL/HDFS/OSS/S3',
-    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
-    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`      BIGINT                            COMMENT '创建人ID',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='文件存储配置(平台级单例)';
-
--- ==================== Result Format Config ====================
-
-CREATE TABLE IF NOT EXISTS `t_r_result_config` (
-    `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`            VARCHAR(32) NOT NULL              COMMENT '结果格式 provider: json/csv/parquet/orc/avro',
-    `provider_params`     JSON                              COMMENT 'provider 配置参数(JSON)',
-    `default_query_rows`  INT                               COMMENT 'SQL 任务 setMaxRows 默认值; null/0 走代码默认 1000',
-    `enabled`             TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`          BIGINT                            COMMENT '创建人ID',
-    `created_at`          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`          BIGINT                            COMMENT '更新人ID',
-    `updated_at`          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='结果策略配置(平台级单例): 格式 provider + SQL 行数上限';
+-- RAG 链路参数配置(单 row, 不是 SPI 选型 —— 字段值是 chunk size/topK/reranker 等参数)
+CREATE TABLE IF NOT EXISTS `t_r_rag_pipeline_config` (
+    `id`            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `settings_json` JSON                              COMMENT 'RagPipelineSettings 序列化',
+    `enabled`       TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
+    `created_by`    BIGINT                            COMMENT '创建人ID',
+    `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`    BIGINT                            COMMENT '更新人ID',
+    `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB COMMENT='RAG 链路参数配置(平台级单 row)';
 
 -- ==================== Service Registry ====================
 
@@ -598,22 +537,6 @@ CREATE TABLE IF NOT EXISTS `t_r_ai_message` (
     INDEX `idx_session_created` (`session_id`, `created_at`),
     INDEX `idx_turn` (`turn_id`)
 ) ENGINE=InnoDB COMMENT='AI 消息(含 tool_call / tool_result)';
-
--- -------------------- AI Provider 配置(LLM / Embedding / Vector 共表,type 区分) --------------------
-
-CREATE TABLE IF NOT EXISTS `t_r_ai_config` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `type`            VARCHAR(16) NOT NULL              COMMENT '配置类型: LLM|EMBEDDING|VECTOR',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT 'provider 标识(CLAUDE/OPENAI/QDRANT 等)',
-    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
-    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`      BIGINT                            COMMENT '创建人ID',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX `idx_type_enabled` (`type`, `enabled`)
-) ENGINE=InnoDB COMMENT='AI 配置(LLM/Embedding/Vector 共表,type 区分;平台级单例 per type)';
-
 
 -- -------------------- Agent / Skill / MCP --------------------
 -- 使用量直接从 t_r_ai_message.prompt_tokens/completion_tokens/cost_cents 聚合,不单独维护预算表。
@@ -881,19 +804,6 @@ CREATE TABLE IF NOT EXISTS `t_r_redaction_rule` (
     `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX `idx_type_enabled` (`type`, `enabled`)
 ) ENGINE=InnoDB COMMENT='脱敏规则(匹配什么)';
-
--- ==================== Notification Module ====================
-
-CREATE TABLE IF NOT EXISTS `t_r_notification_config` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `provider`        VARCHAR(32) NOT NULL              COMMENT '通知 provider: LARK/DINGTALK/SLACK',
-    `provider_params` JSON                              COMMENT 'provider 配置参数(JSON)',
-    `enabled`         TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`      BIGINT NOT NULL                   COMMENT '创建人ID',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`      BIGINT                            COMMENT '更新人ID',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB COMMENT='通知配置(平台级单例)';
 
 -- ==================== Quick Link ====================
 

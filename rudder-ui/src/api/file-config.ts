@@ -6,3 +6,4 @@ const api = createSpiConfigApi('file')
 export const getFileProviderDefinitions = api.getProviderDefinitions
 export const getFileConfig = api.getConfig
 export const saveFileConfig = api.saveConfig
+export const listFileConfigs = api.listConfigs

@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(FileStorageFactory.class)
-public class LocalFileStorageFactory implements FileStorageFactory {
+public class LocalFileStorageFactory implements FileStorageFactory<LocalFileStorageProperties> {
 
     @Override
     public String getProvider() {
         return "LOCAL";
+    }
+
+    @Override
+    public Class<LocalFileStorageProperties> propertiesClass() {
+        return LocalFileStorageProperties.class;
     }
 
     @Override
@@ -46,8 +50,7 @@ public class LocalFileStorageFactory implements FileStorageFactory {
     }
 
     @Override
-    public FileStorage create(ProviderContext ctx, Map<String, String> config) {
-        String basePath = config.getOrDefault("basePath", "/rudder/files");
-        return new LocalFileStorage(basePath);
+    public FileStorage create(ProviderContext ctx, LocalFileStorageProperties props) {
+        return new LocalFileStorage(props.basePath());
     }
 }

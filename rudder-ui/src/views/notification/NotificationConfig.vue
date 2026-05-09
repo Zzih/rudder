@@ -4,6 +4,7 @@ import {
   getNotificationProviderDefinitions,
   getNotificationConfig,
   saveNotificationConfig,
+  listNotificationConfigs,
 } from '@/api/notification'
 </script>
 
@@ -13,6 +14,7 @@ import {
     enable-label-key="notification.enableNotification"
     :get-provider-definitions="getNotificationProviderDefinitions"
     :get-config="getNotificationConfig"
+    :list-configs="listNotificationConfigs"
     :save-config="saveNotificationConfig"
   />
 </template>

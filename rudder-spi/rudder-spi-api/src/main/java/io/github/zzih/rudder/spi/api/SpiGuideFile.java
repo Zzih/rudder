@@ -18,7 +18,7 @@
 package io.github.zzih.rudder.spi.api;
 
 /**
- * 从 classpath 的 {@code spi-guide/<family>-<provider>.<lang>.md} 解析出来的 provider 文案。
+ * 从 classpath 的 {@code spi-guide/<type>-<provider>.<lang>.md} 解析出来的 provider 文案。
  * <p>
  * Markdown 文件头允许带 YAML-like front-matter,解析后 {@link #description} = 第一行短说明,
  * {@link #body} = front-matter 之后的 guide 正文。
