@@ -35,7 +35,7 @@ import software.amazon.awssdk.services.kinesisanalyticsv2.KinesisAnalyticsV2Clie
 
 @Slf4j
 @AutoService(EngineRuntimeProvider.class)
-public class AwsRuntimeProvider implements EngineRuntimeProvider {
+public class AwsRuntimeProvider implements EngineRuntimeProvider<AwsRuntimeFormProperties> {
 
     private volatile EmrServerlessClient currentEmrClient;
     private volatile KinesisAnalyticsV2Client currentFlinkClient;
@@ -43,6 +43,11 @@ public class AwsRuntimeProvider implements EngineRuntimeProvider {
     @Override
     public String getProvider() {
         return AwsRuntime.PROVIDER_KEY;
+    }
+
+    @Override
+    public Class<AwsRuntimeFormProperties> propertiesClass() {
+        return AwsRuntimeFormProperties.class;
     }
 
     @Override
@@ -61,10 +66,10 @@ public class AwsRuntimeProvider implements EngineRuntimeProvider {
     }
 
     @Override
-    public EngineRuntime create(ProviderContext ctx, Map<String, String> config) {
-        Map<String, String> parsed = RuntimeConfigUtils.parseProperties(config.get("config"));
+    public EngineRuntime create(ProviderContext ctx, AwsRuntimeFormProperties form) {
+        Map<String, String> parsed = RuntimeConfigUtils.parseProperties(form.config());
         AwsRuntimeProperties props = buildProperties(parsed);
-        Map<String, String> envVars = RuntimeConfigUtils.parseProperties(config.get("envVars"));
+        Map<String, String> envVars = RuntimeConfigUtils.parseProperties(form.envVars());
         Region region = Region.of(props.getRegion());
 
         EmrServerlessClient emrClient = EmrServerlessClient.builder().region(region).build();
@@ -113,5 +118,4 @@ public class AwsRuntimeProvider implements EngineRuntimeProvider {
             setter.accept(value);
         }
     }
-
 }

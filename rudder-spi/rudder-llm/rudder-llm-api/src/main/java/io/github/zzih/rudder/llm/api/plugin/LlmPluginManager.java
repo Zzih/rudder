@@ -22,23 +22,25 @@ import io.github.zzih.rudder.llm.api.spi.LlmClientFactory;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
-/**
- * Llm 插件注册表。**只暴露工厂能力**（create / closeClient），不持 active 状态。
- * 当前生效的 LlmClient 由上层 {@code LlmConfigService} 管理。
- */
+/** LLM 插件注册表。 */
 @Component
-public class LlmPluginManager extends AbstractConfigurablePluginRegistry<ProviderContext, LlmClientFactory> {
+public class LlmPluginManager
+        extends
+            AbstractConfigurablePluginRegistry<ProviderContext, LlmClientFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public LlmPluginManager(ProviderContext providerContext) {
-        super(LlmClientFactory.class, providerContext, "ai");
+        super((Class) LlmClientFactory.class, providerContext, "llm");
     }
 
-    /** 用 provider + 配置造一个 LlmClient 实例。无状态，纯工厂方法。 */
-    public LlmClient create(String provider, Map<String, String> config) {
-        return requireFactory(provider).create(providerContext, config != null ? config : Map.of());
+    public LlmClient create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> LlmClient doCreate(LlmClientFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

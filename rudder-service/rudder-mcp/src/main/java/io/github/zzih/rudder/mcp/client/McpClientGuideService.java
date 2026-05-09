@@ -36,8 +36,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class McpClientGuideService {
 
-    /** SpiGuideLoader 的 family 段(会归一为小写 + 把下划线替换为连字符)。 */
-    static final String FAMILY = "mcp-client";
+    /** SpiGuideLoader 的 type 段(会归一为小写 + 把下划线替换为连字符)。 */
+    static final String TYPE = "mcp-client";
 
     public List<McpClientGuide> listAll(Locale locale) {
         return Arrays.stream(McpClient.values())
@@ -46,7 +46,7 @@ public class McpClientGuideService {
     }
 
     private McpClientGuide toGuide(McpClient client, Locale locale) {
-        SpiGuideFile file = SpiGuideLoader.load(FAMILY, client.id(), locale);
+        SpiGuideFile file = SpiGuideLoader.load(TYPE, client.id(), locale);
         McpClientGuide g = new McpClientGuide();
         g.setId(client.id());
         g.setLabel(client.label());

@@ -71,7 +71,7 @@ public class SparkJarTask extends AbstractTask implements JobTask {
 
             String[] appIdHolder = {null};
             String[] trackingUrlHolder = {null};
-            int exitCode = ShellRunner.executeShell(workDir(), envScript(), cmd, line -> {
+            int exitCode = ShellRunner.executeShell(workDir(), ctx.getEnvVars(), cmd, line -> {
                 log.info("[spark-submit] {}", line);
                 if (appIdHolder[0] == null) {
                     appIdHolder[0] = ShellRunner.extractYarnAppId(line);
@@ -136,10 +136,6 @@ public class SparkJarTask extends AbstractTask implements JobTask {
 
     private String workDir() {
         return ctx.getExecutePath() != null ? ctx.getExecutePath() : DEFAULT_WORK_DIR;
-    }
-
-    private String envScript() {
-        return System.getProperty("rudder.envScript");
     }
 
     private List<String> buildCommand(String jarPath) {

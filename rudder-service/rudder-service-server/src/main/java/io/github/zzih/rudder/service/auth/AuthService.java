@@ -21,7 +21,6 @@ import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode;
 import io.github.zzih.rudder.common.exception.AuthException;
-import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.entity.User;
 
@@ -85,18 +84,19 @@ public class AuthService {
 
     public AuthResult login(String username, String password) {
         log.info("用户登录, username={}", username);
+        // 三种失败统一返回 INVALID_CREDENTIALS,防止 user enumeration:具体原因仅落 log.warn 给运维
         User user = userDao.selectByUsername(username);
         if (user == null) {
             log.warn("登录失败: 用户不存在, username={}", username);
-            throw new NotFoundException(WorkspaceErrorCode.USER_NOT_FOUND);
+            throw new AuthException(WorkspaceErrorCode.INVALID_CREDENTIALS);
         }
         if (user.getPassword() == null || user.getPassword().isBlank()) {
             log.warn("登录失败: 密码未设置, username={}", username);
-            throw new AuthException(WorkspaceErrorCode.PASSWORD_ERROR);
+            throw new AuthException(WorkspaceErrorCode.INVALID_CREDENTIALS);
         }
         if (!passwordEncoder.matches(password, user.getPassword())) {
             log.warn("登录失败: 密码错误, username={}", username);
-            throw new AuthException(WorkspaceErrorCode.PASSWORD_ERROR);
+            throw new AuthException(WorkspaceErrorCode.INVALID_CREDENTIALS);
         }
         log.info("用户登录成功, username={}, userId={}", username, user.getId());
         return new AuthResult(generateToken(user), user);

@@ -17,6 +17,7 @@
 
 package io.github.zzih.rudder.service.workflow;
 
+import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.error.WorkflowErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
@@ -30,6 +31,7 @@ import io.github.zzih.rudder.dao.entity.Script;
 import io.github.zzih.rudder.dao.entity.TaskDefinition;
 import io.github.zzih.rudder.dao.entity.WorkflowDefinition;
 import io.github.zzih.rudder.dao.enums.SourceType;
+import io.github.zzih.rudder.service.coordination.lock.WorkflowEditLockService;
 import io.github.zzih.rudder.service.workflow.dag.DagGraph;
 import io.github.zzih.rudder.service.workflow.dag.DagNode;
 import io.github.zzih.rudder.service.workflow.dag.DagParser;
@@ -59,6 +61,7 @@ public class WorkflowDefinitionService {
     private final TaskDefinitionDao taskDefinitionDao;
     private final ScriptDao scriptDao;
     private final WorkflowVersionService workflowVersionService;
+    private final WorkflowEditLockService editLockService;
 
     @Transactional
     public WorkflowDefinition create(WorkflowDefinition wf) {
@@ -106,12 +109,37 @@ public class WorkflowDefinitionService {
 
     /**
      * 更新工作流定义。
+     *
+     * <p>双校验:1) 编辑锁 holder 必须是当前 user(他人持锁则 WF_LOCK_HELD_BY_OTHER);
+     * 2) {@code expectedHash} 必须等于 DB 现状的 contentHash(否则 WF_CONCURRENT_MODIFICATION)。
+     * MCP 等 server-side 调用方传 null 时跳过 hash 校验,但仍受锁校验保护。
      */
     @Transactional
     public WorkflowDefinition update(Long workspaceId, Long projectCode, Long code, WorkflowDefinition wf,
-                                     List<TaskDefinitionDTO> taskDTOs) {
+                                     List<TaskDefinitionDTO> taskDTOs, String expectedHash) {
         log.info("更新工作流, workspaceId={}, projectCode={}, code={}", workspaceId, projectCode, code);
-        WorkflowDefinition existing = getByCode(workspaceId, projectCode, code);
+
+        Long currentUserId = UserContext.getUserId();
+        editLockService.peek(code).ifPresent(holder -> {
+            if (!holder.userId().equals(currentUserId)) {
+                throw new BizException(WorkflowErrorCode.WF_LOCK_HELD_BY_OTHER, holder.username());
+            }
+        });
+
+        WorkflowDefinition existing = workflowDefinitionDao.selectForUpdateByCode(code);
+        if (existing == null
+                || !existing.getWorkspaceId().equals(workspaceId)
+                || !existing.getProjectCode().equals(projectCode)) {
+            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+        }
+        if (expectedHash != null) {
+            String currentHash = WorkflowHashUtils.compute(
+                    BeanConvertUtils.convert(existing, WorkflowDefinitionDTO.class),
+                    listTaskDefinitionDTOs(code));
+            if (!currentHash.equals(expectedHash)) {
+                throw new BizException(WorkflowErrorCode.WF_CONCURRENT_MODIFICATION);
+            }
+        }
 
         if (wf.getName() != null) {
             existing.setName(wf.getName());
@@ -434,10 +462,11 @@ public class WorkflowDefinitionService {
     }
 
     public WorkflowDefinitionDTO updateDetail(Long workspaceId, Long projectCode, Long code,
-                                              WorkflowDefinitionDTO body, List<TaskDefinitionDTO> taskDefs) {
+                                              WorkflowDefinitionDTO body, List<TaskDefinitionDTO> taskDefs,
+                                              String expectedHash) {
         WorkflowDefinition entity = BeanConvertUtils.convert(body, WorkflowDefinition.class);
         return BeanConvertUtils.convert(
-                update(workspaceId, projectCode, code, entity, taskDefs),
+                update(workspaceId, projectCode, code, entity, taskDefs, expectedHash),
                 WorkflowDefinitionDTO.class);
     }
 

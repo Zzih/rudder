@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(FileStorageFactory.class)
-public class HdfsFileStorageFactory implements FileStorageFactory {
+public class HdfsFileStorageFactory implements FileStorageFactory<HdfsFileStorageProperties> {
 
     @Override
     public String getProvider() {
         return "HDFS";
+    }
+
+    @Override
+    public Class<HdfsFileStorageProperties> propertiesClass() {
+        return HdfsFileStorageProperties.class;
     }
 
     @Override
@@ -50,9 +54,7 @@ public class HdfsFileStorageFactory implements FileStorageFactory {
     }
 
     @Override
-    public FileStorage create(ProviderContext ctx, Map<String, String> config) {
-        String defaultFs = config.getOrDefault("defaultFs", "hdfs://localhost:9000");
-        String basePath = config.getOrDefault("basePath", "/rudder");
-        return new HdfsFileStorage(defaultFs, basePath);
+    public FileStorage create(ProviderContext ctx, HdfsFileStorageProperties props) {
+        return new HdfsFileStorage(props.defaultFs(), props.basePath());
     }
 }

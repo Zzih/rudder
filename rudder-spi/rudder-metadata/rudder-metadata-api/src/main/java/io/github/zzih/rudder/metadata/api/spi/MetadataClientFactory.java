@@ -23,37 +23,29 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.spi.api.model.TestResult;
 
-import java.util.Map;
-
 /**
  * Metadata client provider 工厂。实现需在
  * {@code META-INF/services/io.github.zzih.rudder.metadata.api.spi.MetadataClientFactory}
  * 中登记,由 {@code MetadataPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface MetadataClientFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface MetadataClientFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "metadata";
     }
 
-    /**
-     * 根据平台配置页填入的参数构造 MetadataClient 实例。
-     * 无需配置的 provider(如 JDBC)可忽略 config。
-     */
-    MetadataClient create(ProviderContext ctx, Map<String, String> config);
+    MetadataClient create(ProviderContext ctx, P props);
 
-    /**
-     * 默认 testConnection: 创建实例 + 调 healthCheck()。Metadata 的查询方法都需要 DataSourceInfo,
-     * 而 testConnection 拿不到具体 datasource 上下文,所以只验证 client 自身能起来 (URL / token / endpoint)。
-     */
+    /** 默认 testConnection: 创建实例 + 调 healthCheck();metadata 的查询都要 DataSourceInfo,这里只验证客户端自身能起来。 */
     @Override
-    default TestResult testConnection(ProviderContext ctx, Map<String, String> config) {
+    default TestResult testConnection(ProviderContext ctx, P props) {
         long start = System.currentTimeMillis();
-        try (MetadataClient client = create(ctx, config)) {
+        try (MetadataClient client = create(ctx, props)) {
             HealthStatus status = client.healthCheck();
             long elapsed = System.currentTimeMillis() - start;
-            // healthCheck 默认 UNKNOWN(没 override 即"客户端能 new 出来就算通"),也算 success
             return status.state() == HealthStatus.State.UNHEALTHY
                     ? TestResult.failed(status.message() != null ? status.message() : "unhealthy", elapsed)
                     : TestResult.success(elapsed);

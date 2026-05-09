@@ -6,4 +6,5 @@ const api = createSpiConfigApi('ai-vector', { testEnabled: true })
 export const getAiVectorProviderDefinitions = api.getProviderDefinitions
 export const getAiVectorConfig = api.getConfig
 export const saveAiVectorConfig = api.saveConfig
+export const listAiVectorConfigs = api.listConfigs
 export const testAiVectorConfig = api.testConfig!

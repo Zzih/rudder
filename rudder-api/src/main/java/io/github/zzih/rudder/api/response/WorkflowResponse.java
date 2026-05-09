@@ -60,12 +60,15 @@ public class WorkflowResponse {
     private String timezone;
     private String scheduleStatus;
 
+    /** 内容指纹(SHA-256 hex);保存时回传,后端比对当前 DB 现状的 hash 实现乐观锁。 */
+    private String contentHash;
+
     public static WorkflowResponse from(WorkflowDefinitionDTO wf, WorkflowScheduleDTO schedule) {
-        return from(wf, schedule, null);
+        return from(wf, schedule, null, null);
     }
 
     public static WorkflowResponse from(WorkflowDefinitionDTO wf, WorkflowScheduleDTO schedule,
-                                        List<TaskDefinitionDTO> taskDefs) {
+                                        List<TaskDefinitionDTO> taskDefs, String contentHash) {
         WorkflowResponse vo = new WorkflowResponse();
         vo.setId(wf.getId());
         vo.setCode(wf.getCode());
@@ -79,6 +82,7 @@ public class WorkflowResponse {
         vo.setCreatedAt(wf.getCreatedAt());
         vo.setUpdatedAt(wf.getUpdatedAt());
         vo.setTaskDefinitions(taskDefs);
+        vo.setContentHash(contentHash);
         if (schedule != null) {
             vo.setCronExpression(schedule.getCronExpression());
             vo.setStartTime(schedule.getStartTime() != null ? schedule.getStartTime().toString() : null);

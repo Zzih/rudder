@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(MetadataClientFactory.class)
-public class OpenMetadataClientFactory implements MetadataClientFactory {
+public class OpenMetadataClientFactory implements MetadataClientFactory<OpenMetadataProperties> {
 
     @Override
     public String getProvider() {
         return "OPENMETADATA";
+    }
+
+    @Override
+    public Class<OpenMetadataProperties> propertiesClass() {
+        return OpenMetadataProperties.class;
     }
 
     @Override
@@ -49,9 +53,7 @@ public class OpenMetadataClientFactory implements MetadataClientFactory {
     }
 
     @Override
-    public MetadataClient create(ProviderContext ctx, Map<String, String> config) {
-        return new OpenMetadataClient(
-                config.get("url"),
-                config.get("token"));
+    public MetadataClient create(ProviderContext ctx, OpenMetadataProperties props) {
+        return new OpenMetadataClient(props.url(), props.token());
     }
 }

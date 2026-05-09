@@ -33,7 +33,7 @@ public class SqlTaskParams extends AbstractTaskParams {
     private String sql;
     private SqlType sqlType;
     private String executionMode;
-    /** Worker 在执行前从 ResultConfig.defaultQueryRows 覆盖,Script JSON 里的值不生效。 */
+    /** Worker 在执行前从 RESULT SPI 的 providerParams.defaultQueryRows 覆盖,Script JSON 里的值不生效。 */
     private int queryLimit;
     private List<String> preStatements;
     private List<String> postStatements;

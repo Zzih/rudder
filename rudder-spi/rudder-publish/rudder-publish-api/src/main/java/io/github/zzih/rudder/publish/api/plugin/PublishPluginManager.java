@@ -22,26 +22,25 @@ import io.github.zzih.rudder.publish.api.spi.PublisherFactory;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
-/**
- * Publish 插件注册表。**只暴露工厂能力**（create），不持 active 状态。
- * 当前生效的 Publisher 由上层 {@code PublishConfigService} 管理。
- * 未配置 active provider 时由配置服务抛 {@code PUBLISH_SERVICE_UNAVAILABLE}，本类无 fallback。
- */
+/** Publish 插件注册表。无 fallback,未配置时上层抛 PUBLISH_SERVICE_UNAVAILABLE。 */
 @Component
 public class PublishPluginManager
         extends
-            AbstractConfigurablePluginRegistry<ProviderContext, PublisherFactory> {
+            AbstractConfigurablePluginRegistry<ProviderContext, PublisherFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public PublishPluginManager(ProviderContext providerContext) {
-        super(PublisherFactory.class, providerContext, "publish");
+        super((Class) PublisherFactory.class, providerContext, "publish");
     }
 
-    /** 用 provider + 配置造一个 Publisher 实例。无状态，纯工厂方法。 */
-    public Publisher create(String provider, Map<String, String> config) {
-        return requireFactory(provider).create(providerContext, config != null ? config : Map.of());
+    public Publisher create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> Publisher doCreate(PublisherFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

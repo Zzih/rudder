@@ -17,7 +17,7 @@ import { getTaskIconUrl } from '@/utils/taskIconUrl'
 import { cv } from '@/utils/cssVar'
 import { useThemeStore } from '@/stores/theme'
 
-const props = defineProps<{ workflowDefinitionCode?: string | number }>()
+const props = defineProps<{ workflowDefinitionCode?: string | number; readOnly?: boolean }>()
 
 const { t } = useI18n()
 const route = useRoute()
@@ -566,6 +566,8 @@ function initGraph() {
     grid: { visible: true, type: 'dot', size: 16, args: { color: cv('--r-border'), thickness: 1 } },
     panning: { enabled: true, eventTypes: ['leftMouseDown'] },
     mousewheel: { enabled: true, factor: 1.05, modifiers: ['ctrl', 'meta'] },
+    // fn 形式让 X6 每次交互重评,响应 prop 变化(返回 false = 全禁)
+    interacting: () => !props.readOnly,
     connecting: {
       router: 'manhattan',
       connector: { name: 'rounded', args: { radius: 8 } },
@@ -601,18 +603,19 @@ function initGraph() {
     },
   })
 
-  // Double-click node → edit modal
+  // Double-click node → edit modal (readOnly 下 modal 内 input 已 disabled,只是查看)
   graph.on('node:dblclick', ({ node }) => {
     openModalForEdit(node.id)
   })
 
-  // Right-click node → context menu
+  // 右键菜单含删除/复制等修改操作,只读模式不展示
   graph.on('node:contextmenu', ({ e, node }) => {
+    if (props.readOnly) return
     showContextMenu(e.originalEvent as MouseEvent, 'node', node.id)
   })
 
-  // Right-click edge → context menu
   graph.on('edge:contextmenu', ({ e, edge }) => {
+    if (props.readOnly) return
     showContextMenu(e.originalEvent as MouseEvent, 'edge', edge.id)
   })
 
@@ -667,12 +670,13 @@ watch(() => themeStore.isDark, () => {
 
 // ===== Drag & Drop =====
 function handleDragStart(event: DragEvent, nodeType: TaskTypeDef) {
+  if (props.readOnly) { event.preventDefault(); return }
   event.dataTransfer?.setData('application/json', JSON.stringify(nodeType))
   event.dataTransfer!.effectAllowed = 'move'
 }
 
 async function handleDrop(event: DragEvent) {
-  if (!graph) return
+  if (!graph || props.readOnly) return
   const raw = event.dataTransfer?.getData('application/json')
   if (!raw) return
 
@@ -724,6 +728,9 @@ async function handleDrop(event: DragEvent) {
   openModalForNew(node.id, nodeType)
 }
 
+// 内容指纹:fetch 时存,save 时回传作为乐观锁;save 成功后 refetch 拿新 hash
+const contentHash = ref<string | null>(null)
+
 // ===== Workflow actions =====
 async function fetchWorkflow() {
   loading.value = true
@@ -733,6 +740,7 @@ async function fetchWorkflow() {
       listTaskDefinitions(workspaceId.value, projectCode.value, workflowDefinitionCode.value),
     ])
     workflowName.value = wfRes.data.name
+    contentHash.value = wfRes.data.contentHash ?? null
     // Restore saved DAG + task definitions onto canvas
     if (wfRes.data.dagJson && graph) {
       try {
@@ -1100,14 +1108,16 @@ async function handleSave(extraFields?: Record<string, any>) {
   saving.value = true
   try {
     const { dagJson, taskDefinitions } = serializeDag()
-    await updateWorkflowDefinition(workspaceId.value, projectCode.value, code, {
+    const res: any = await updateWorkflowDefinition(workspaceId.value, projectCode.value, code, {
       name,
       dagJson: JSON.stringify(dagJson),
       taskDefinitions,
+      expectedHash: contentHash.value,
       ...extraFields,
     })
+    contentHash.value = res?.data?.contentHash ?? null
     ElMessage.success(t('ide.saved'))
-  } catch { ElMessage.error(t('common.failed')) } finally { saving.value = false }
+  } finally { saving.value = false }
 }
 
 
@@ -1171,7 +1181,10 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
           </div>
           <div v-for="cat in nodeCategories" :key="cat.name" class="palette-group">
             <div class="palette-group__title">{{ categoryLabels[cat.name] ?? cat.name }}</div>
-            <div v-for="nt in cat.types" :key="nt.value" class="palette-item" draggable="true" @dragstart="handleDragStart($event, nt)">
+            <div v-for="nt in cat.types" :key="nt.value"
+                 class="palette-item" :class="{ 'is-disabled': props.readOnly }"
+                 :draggable="!props.readOnly"
+                 @dragstart="handleDragStart($event, nt)">
               <TaskIcon :type="nt.value" :size="20" />
               <span>{{ nt.label }}</span>
             </div>
@@ -1209,6 +1222,8 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
         </div>
       </template>
 
+      <!-- 只读时整段 fieldset disabled,native HTML 自动透传到所有 button / input -->
+      <fieldset :disabled="props.readOnly" class="modal-fieldset">
       <el-tabs type="border-card" class="node-tabs">
         <!-- Tab 1: Basic Config -->
         <el-tab-pane :label="t('workflow.sectionBasic')">
@@ -1315,7 +1330,7 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
 
         <!-- Tab 2: SQL Task Config -->
         <el-tab-pane v-if="editingTaskTypeDef?.needsDatasource && !formData.taskType.includes('JAR')" :label="t('workflow.sectionTask')">
-          <div class="ide-tab">
+          <el-form class="ide-tab" @submit.prevent>
             <div class="ide-tab__toolbar">
               <el-button type="primary" size="small" :loading="debugRunning" @click="handleDebugRun">
                 <el-icon><VideoPlay /></el-icon> {{ t('ide.run') }}
@@ -1354,7 +1369,7 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
             </div>
             <div class="ide-tab__section-label">SQL</div>
             <div class="ide-tab__editor">
-              <MonacoInput ref="ideEditorRef" v-model="formData.scriptContent" :task-type="formData.taskType" height="320px" />
+              <MonacoInput ref="ideEditorRef" v-model="formData.scriptContent" :task-type="formData.taskType" :read-only="props.readOnly" height="320px" />
             </div>
             <div class="stmt-block">
               <div class="stmt-block__header">
@@ -1390,7 +1405,7 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
                 </div>
               </div>
             </div>
-          </div>
+          </el-form>
         </el-tab-pane>
 
         <!-- Tab 2: JAR Task Config -->
@@ -1844,10 +1859,11 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
         </el-tab-pane>
 
       </el-tabs>
+      </fieldset>
 
       <template #footer>
-        <el-button @click="cancelModal">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="confirmModal">{{ t('common.confirm') }}</el-button>
+        <el-button @click="cancelModal">{{ t(props.readOnly ? 'common.back' : 'common.cancel') }}</el-button>
+        <el-button v-if="!props.readOnly" type="primary" @click="confirmModal">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
@@ -1925,6 +1941,12 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
     color: var(--r-text-primary);
   }
 
+  &.is-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    &:hover { background: transparent; border-color: transparent; color: var(--r-text-tertiary); }
+  }
+
   &:active {
     cursor: grabbing;
     background: var(--r-accent-bg);
@@ -1949,6 +1971,9 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
   display: flex; align-items: center; gap: 10px;
 }
 .modal-header__title { font-size: 16px; font-weight: 600; color: var(--r-text-primary); }
+
+/* fieldset 默认有 padding/border/min-width:min-content,reset 为透明容器 */
+.modal-fieldset { all: unset; display: contents; }
 
 .node-tabs {
   :deep(.el-tabs__header) { margin: 0; }

@@ -26,7 +26,6 @@ import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 import io.github.zzih.rudder.task.api.task.enums.TaskType;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,22 +52,21 @@ class LocalRuntimeProviderTest {
 
     @Test
     void create_with_blank_envVars_yields_empty_map() {
-        EngineRuntime r = provider.create(null, Map.of());
+        EngineRuntime r = provider.create(null, new LocalRuntimeFormProperties(""));
         assertEquals(Map.of(), r.envVars());
         assertEquals(LocalRuntime.PROVIDER_KEY, r.provider());
     }
 
     @Test
     void create_with_envVars_parses_KV_lines() {
-        Map<String, String> config = new HashMap<>();
-        config.put("envVars", """
+        String envVars = """
                 # comment line
                 JAVA_HOME=/opt/jdk-21
                 SPARK_HOME=/opt/bigdata/spark
 
                 HADOOP_CONF_DIR=/etc/hadoop/conf
-                """);
-        EngineRuntime r = provider.create(null, config);
+                """;
+        EngineRuntime r = provider.create(null, new LocalRuntimeFormProperties(envVars));
         Map<String, String> env = r.envVars();
         assertEquals("/opt/jdk-21", env.get("JAVA_HOME"));
         assertEquals("/opt/bigdata/spark", env.get("SPARK_HOME"));
@@ -78,7 +76,7 @@ class LocalRuntimeProviderTest {
 
     @Test
     void localRuntime_does_not_takeover_any_taskType() {
-        EngineRuntime r = provider.create(null, Map.of());
+        EngineRuntime r = provider.create(null, new LocalRuntimeFormProperties(""));
         for (TaskType t : TaskType.values()) {
             assertTrue(r.taskFactoryFor(t).isEmpty(),
                     "Local 不应接管任何 TaskType,但接管了: " + t);
@@ -87,7 +85,7 @@ class LocalRuntimeProviderTest {
 
     @Test
     void localRuntime_healthCheck_is_healthy() {
-        EngineRuntime r = provider.create(null, Map.of());
+        EngineRuntime r = provider.create(null, new LocalRuntimeFormProperties(""));
         assertEquals(HealthStatus.healthy(), r.healthCheck());
     }
 }

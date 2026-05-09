@@ -1,35 +1,39 @@
 ---
-description: 自建集群,worker 本地通过 CLI 提交集群任务
+description: 默认 Runtime,集中下发 Worker 本机子进程的环境变量
 ---
 
-## Local / 自建集群 Runtime
+## Local Runtime
 
-在 worker 节点本地通过 CLI 工具（`spark-submit` / `flink` / 其它引擎 CLI）提交集群任务，适用于自建 Hadoop/YARN/K8s 集群。
-SQL 任务通过 JDBC 连接对应的 Thrift Server 或 SQL Gateway 执行（URL 由数据源配置决定）。
+默认 Runtime,不接管任何 TaskType。唯一职责:把本页配置的环境变量下发到 Worker 本机起子进程的任务。
 
-### 参数
-- **workDir**：生成临时 shell 脚本的目录，需 worker 进程可写；留空用 `/tmp/rudder/tasks`
-- **环境变量脚本**：任意 shell 片段，在执行引擎 CLI 前 source。用它来 `export SPARK_HOME / FLINK_HOME / PATH` 或
-  `source /etc/profile.d/xxx.sh` 等，**一个文本框覆盖所有引擎**——未来新增 Ray、Trino 等集群任务也无需改动这里的 schema
+### 哪些任务消费 envVars
 
-### 脚本执行流程
-Rudder 生成临时 `rudder_*.sh` 文件，用 `bash -l` 登录 shell 执行：
-1. `bash -l` 自动加载 `/etc/profile` + `~/.profile`
-2. 再 source 上面填的环境变量脚本（如果有）
-3. 最后调用引擎 CLI（`spark-submit` / `flink` / …），从 PATH 解析
+凡是在 Worker 本机起子进程的任务,都会消费本页 envVars:
 
-### 环境变量脚本模板
-如 `~/.profile` 已经设好 PATH 可以整段留空。需要显式 override 时参考：
+- **Shell** —— `bash -c <script>`
+- **Python** —— `python3 <script>`
+- **SeaTunnel** —— `seatunnel.sh --config ...`
+- **Spark JAR** —— `spark-submit ...`(本机 client 提交到 YARN/standalone)
+- **Flink JAR** —— `flink run ...`(本机 client 提交到 YARN/standalone)
 
-```bash
-# 引擎根目录（按需）
-export SPARK_HOME=/opt/bigdata/spark
-export FLINK_HOME=/opt/bigdata/flink
-export HADOOP_HOME=/opt/bigdata/hadoop
+注入路径:`ProcessBuilder.environment().putAll(envVars)`,merge 到父进程之上,**同名 key 覆盖父进程值**。
 
-# 把引擎 bin 追加到 PATH
-export PATH=$SPARK_HOME/bin:$FLINK_HOME/bin:$HADOOP_HOME/bin:$PATH
+### 不消费 envVars 的任务
 
-# 或直接 source 集群统一环境脚本
-# source /etc/profile.d/bigdata.sh
+走 JDBC / 内嵌 Java 客户端的任务不起子进程,本页对其无效:Hive / MySQL / PostgreSQL / Trino / ClickHouse / Doris / StarRocks / HTTP / SQL 类任务。
+
+云端 Runtime(AWS / Aliyun)接管 Spark/Flink 后走云 SDK 提交,也不起本机子进程。
+
+### 配置格式
+
+一行一个 `KEY=VALUE`,空行与 `#` 注释行忽略,VALUE 内可引用 `$VAR`。
+
 ```
+JAVA_HOME=/opt/jdk-21
+SPARK_HOME=/opt/bigdata/spark
+FLINK_HOME=/opt/bigdata/flink
+HADOOP_CONF_DIR=/etc/hadoop/conf
+PATH=$SPARK_HOME/bin:$FLINK_HOME/bin:$PATH
+```
+
+Spark/Flink JAR 任务的 client 子进程通过 `bash -l` 启动,会先 source `/etc/profile` 与 `~/.profile`;本页 envVars 在子进程 environment 层注入,优先级高于 login shell。

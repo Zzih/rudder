@@ -29,7 +29,9 @@ public enum SpiErrorCode implements ErrorCode {
 
     PROVIDER_NOT_FOUND(9101, "err.SpiErrorCode.PROVIDER_NOT_FOUND"),
     PROVIDER_CONFIG_INVALID(9102, "err.SpiErrorCode.PROVIDER_CONFIG_INVALID"),
-    PROVIDER_EXECUTION_FAILED(9103, "err.SpiErrorCode.PROVIDER_EXECUTION_FAILED");
+    PROVIDER_EXECUTION_FAILED(9103, "err.SpiErrorCode.PROVIDER_EXECUTION_FAILED"),
+    PROVIDER_PARAMS_MALFORMED(9104, "err.SpiErrorCode.PROVIDER_PARAMS_MALFORMED"),
+    PROVIDER_PARAMS_INVALID(9105, "err.SpiErrorCode.PROVIDER_PARAMS_INVALID");
 
     private final int code;
     private final String message;

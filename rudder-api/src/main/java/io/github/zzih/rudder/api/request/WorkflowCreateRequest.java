@@ -45,6 +45,9 @@ public class WorkflowCreateRequest {
      */
     private List<TaskDefinitionDTO> taskDefinitions;
 
+    /** 乐观锁:GET 拿到的内容指纹,update 时回传校验。null 跳过校验(仅 server-side 内部用)。 */
+    private String expectedHash;
+
     // 调度配置（可选，随工作流一起保存）
     private String cronExpression;
     private String startTime;

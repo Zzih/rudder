@@ -18,12 +18,12 @@
 package io.github.zzih.rudder.result.parquet;
 
 import io.github.zzih.rudder.result.api.ResultFormat;
+import io.github.zzih.rudder.result.api.ResultProperties;
 import io.github.zzih.rudder.result.api.spi.ResultFormatFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
@@ -41,7 +41,7 @@ public class ParquetResultFormatFactory implements ResultFormatFactory {
     }
 
     @Override
-    public ResultFormat create(ProviderContext ctx, Map<String, String> config) {
+    public ResultFormat create(ProviderContext ctx, ResultProperties props) {
         return new ParquetResultFormat();
     }
 }

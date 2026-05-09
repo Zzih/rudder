@@ -29,7 +29,7 @@ import java.util.List;
  * <p>
  * 通过 {@link FileStorage} 读写，支持本地 / HDFS / S3 / OSS 等存储后端。
  * 由 {@code ResultPluginManager} 通过 {@link io.github.zzih.rudder.result.api.spi.ResultFormatFactory}
- * 注册并按 {@code t_r_result_config} 切换激活格式。
+ * 注册并按 {@code t_r_spi_config} 中 type=RESULT 行切换激活格式。
  *
  * <p>写出走流式 {@link #openWriter}：逐行 writeRow → close → upload，内存峰值不受总行数影响。
  */

@@ -58,6 +58,7 @@ public class ShellTask extends AbstractTask implements LocalTask {
         try {
             runningProcess = ProcessUtils.start(
                     new String[]{"/bin/bash", "-c", script},
+                    ctx.getEnvVars(),
                     line -> {
                         log.info(line);
                         outputParser.appendParseLog(line);

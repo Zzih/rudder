@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SpiConfigPage from '@/components/SpiConfigPage.vue'
-import { getAiVectorProviderDefinitions, getAiVectorConfig, saveAiVectorConfig, testAiVectorConfig } from '@/api/ai-vector-config'
+import { getAiVectorProviderDefinitions, getAiVectorConfig, saveAiVectorConfig, listAiVectorConfigs, testAiVectorConfig } from '@/api/ai-vector-config'
 </script>
 
 <template>
@@ -9,6 +9,7 @@ import { getAiVectorProviderDefinitions, getAiVectorConfig, saveAiVectorConfig, 
     enable-label-key="aiAdmin.vector.enable"
     :get-provider-definitions="getAiVectorProviderDefinitions"
     :get-config="getAiVectorConfig"
+    :list-configs="listAiVectorConfigs"
     :save-config="saveAiVectorConfig"
     :test-config="testAiVectorConfig"
   />

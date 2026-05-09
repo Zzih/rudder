@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { getWorkspace } from '@/api/workspace'
 import { listDatasources } from '@/api/datasource'
-import { getMe } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useDatasourceStore } from '@/stores/datasource'
@@ -81,17 +80,9 @@ async function init() {
   const wsId = workspaceId.value
   userStore.setWorkspace(wsId)
 
-  // Reset workspace-scoped stores to prevent stale data across workspace switches
   datasourceStore.setDatasources([])
   aiChatStore.reset()
 
-  // 1. Always fetch /me to get workspace-specific role (role changes per workspace)
-  try {
-    const { data } = await getMe()
-    userStore.setUserInfo(data)
-  } catch { /* ignore */ }
-
-  // 2. Load workspace
   try {
     const { data } = await getWorkspace(wsId)
     workspaceStore.setCurrent(data)
@@ -99,7 +90,7 @@ async function init() {
     ElMessage.error('Failed to load workspace')
   }
 
-  // 3. Load datasources — SUPER_ADMIN sees all, others filtered by workspace permission
+  // SUPER_ADMIN 看全量,其他角色按 workspace 权限过滤
   try {
     const params = isSuperAdmin.value ? {} : { workspaceId: wsId }
     const { data } = await listDatasources(params)

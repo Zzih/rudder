@@ -30,11 +30,11 @@ import lombok.Data;
 public class GenericProperties {
 
     /** API 鉴权 key。自部署服务可空。 */
-    private String apiKey;
+    private String apiKey = "";
 
     /** 完整 endpoint URL,如 {@code https://api.cohere.com/v2/rerank}。 */
-    private String endpoint;
+    private String endpoint = "";
 
     /** 模型 id,如 {@code rerank-v3.5} / {@code qwen3-rerank} / {@code bge-reranker-v2-m3}。 */
-    private String model;
+    private String model = "";
 }

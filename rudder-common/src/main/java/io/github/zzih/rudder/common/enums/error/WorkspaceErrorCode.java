@@ -39,6 +39,7 @@ public enum WorkspaceErrorCode implements ErrorCode {
     MEMBER_NOT_FOUND(1031, "err.WorkspaceErrorCode.MEMBER_NOT_FOUND"),
     INVALID_ROLE(1040, "err.WorkspaceErrorCode.INVALID_ROLE"),
     PASSWORD_ERROR(1050, "err.WorkspaceErrorCode.PASSWORD_ERROR"),
+    INVALID_CREDENTIALS(1051, "err.WorkspaceErrorCode.INVALID_CREDENTIALS"),
     TOKEN_EXPIRED(1060, "err.WorkspaceErrorCode.TOKEN_EXPIRED"),
     SSO_PROVIDER_NOT_ENABLED(1070, "err.WorkspaceErrorCode.SSO_PROVIDER_NOT_ENABLED"),
     SSO_PROVIDER_NOT_SUPPORTED(1071, "err.WorkspaceErrorCode.SSO_PROVIDER_NOT_SUPPORTED"),

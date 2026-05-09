@@ -18,20 +18,18 @@
 package io.github.zzih.rudder.version.local;
 
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
+import io.github.zzih.rudder.spi.api.model.NoProps;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 import io.github.zzih.rudder.version.api.VersionStore;
 import io.github.zzih.rudder.version.api.VersionStoreFactory;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
-/**
- * 本地内置版本存储工厂:storageRef 透传内容本身,平台 DB 同一张表存储,无额外配置参数。
- */
+/** 本地内置版本存储工厂:storageRef 透传内容本身,平台 DB 同一张表存储,无额外配置参数。 */
 @AutoService(VersionStoreFactory.class)
-public class LocalVersionStoreFactory implements VersionStoreFactory {
+public class LocalVersionStoreFactory implements VersionStoreFactory<NoProps> {
 
     public static final String PROVIDER = "LOCAL";
 
@@ -41,12 +39,17 @@ public class LocalVersionStoreFactory implements VersionStoreFactory {
     }
 
     @Override
+    public Class<NoProps> propertiesClass() {
+        return NoProps.class;
+    }
+
+    @Override
     public List<PluginParamDefinition> params() {
         return List.of();
     }
 
     @Override
-    public VersionStore create(ProviderContext ctx, Map<String, String> config) {
+    public VersionStore create(ProviderContext ctx, NoProps props) {
         return new LocalVersionStore();
     }
 }

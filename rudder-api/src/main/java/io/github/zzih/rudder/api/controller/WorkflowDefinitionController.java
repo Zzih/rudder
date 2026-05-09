@@ -27,6 +27,7 @@ import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
+import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.datatype.Direct;
 import io.github.zzih.rudder.common.enums.datatype.ResourceType;
@@ -35,8 +36,10 @@ import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.enums.TriggerType;
+import io.github.zzih.rudder.service.coordination.lock.WorkflowEditLockService;
 import io.github.zzih.rudder.service.version.VersionService;
 import io.github.zzih.rudder.service.workflow.WorkflowDefinitionService;
+import io.github.zzih.rudder.service.workflow.WorkflowHashUtils;
 import io.github.zzih.rudder.service.workflow.WorkflowInstanceService;
 import io.github.zzih.rudder.service.workflow.WorkflowScheduleService;
 import io.github.zzih.rudder.service.workflow.dto.TaskDefinitionDTO;
@@ -69,6 +72,7 @@ public class WorkflowDefinitionController {
     private final WorkflowScheduleService workflowScheduleService;
     private final WorkflowExecutor workflowExecutor;
     private final VersionService versionService;
+    private final WorkflowEditLockService editLockService;
 
     @PostMapping
     @RequireRole(RoleType.DEVELOPER)
@@ -106,7 +110,8 @@ public class WorkflowDefinitionController {
         WorkflowDefinitionDTO wf = workflowDefinitionService.getByCodeDetail(workspaceId, projectCode, code);
         WorkflowScheduleDTO schedule = workflowScheduleService.getByWorkflowDefinitionCodeDetail(wf.getCode());
         List<TaskDefinitionDTO> taskDefs = workflowDefinitionService.listTaskDefinitionDTOs(wf.getCode());
-        return Result.ok(WorkflowResponse.from(wf, schedule, taskDefs));
+        String hash = WorkflowHashUtils.compute(wf, taskDefs);
+        return Result.ok(WorkflowResponse.from(wf, schedule, taskDefs, hash));
     }
 
     @PutMapping("/{code}")
@@ -124,13 +129,14 @@ public class WorkflowDefinitionController {
             body.setGlobalParams(JsonUtils.toJson(request.getGlobalParams()));
         }
         WorkflowDefinitionDTO updated = workflowDefinitionService.updateDetail(
-                workspaceId, projectCode, code, body, request.getTaskDefinitions());
+                workspaceId, projectCode, code, body, request.getTaskDefinitions(), request.getExpectedHash());
         WorkflowScheduleDTO schedule = saveScheduleFromRequest(updated.getCode(), request);
         if (schedule == null) {
             schedule = workflowScheduleService.getByWorkflowDefinitionCodeDetail(updated.getCode());
         }
         List<TaskDefinitionDTO> taskDefs = workflowDefinitionService.listTaskDefinitionDTOs(updated.getCode());
-        return Result.ok(WorkflowResponse.from(updated, schedule, taskDefs));
+        String hash = WorkflowHashUtils.compute(updated, taskDefs);
+        return Result.ok(WorkflowResponse.from(updated, schedule, taskDefs, hash));
     }
 
     @GetMapping("/{code}/task-definitions")
@@ -245,5 +251,41 @@ public class WorkflowDefinitionController {
             schedule.setEndTime(LocalDateTime.parse(request.getEndTime().replace(" ", "T")));
         }
         return workflowScheduleService.saveOrUpdateDetail(workflowDefinitionCode, schedule);
+    }
+
+    // ==================== 编辑锁(纯 UX,数据安全靠 service.update 的 contentHash 校验) ====================
+
+    @GetMapping("/{code}/lock")
+    public Result<WorkflowEditLockService.Holder> peekLock(@PathVariable Long workspaceId,
+                                                           @PathVariable Long projectCode,
+                                                           @PathVariable Long code) {
+        return Result.ok(editLockService.peek(code).orElse(null));
+    }
+
+    @PostMapping("/{code}/lock")
+    @RequireRole(RoleType.DEVELOPER)
+    public Result<WorkflowEditLockService.Holder> acquireLock(@PathVariable Long workspaceId,
+                                                              @PathVariable Long projectCode,
+                                                              @PathVariable Long code) {
+        workflowDefinitionService.getByCodeDetail(workspaceId, projectCode, code);
+        Long userId = UserContext.getUserId();
+        return Result.ok(editLockService.tryAcquire(code, userId, UserContext.get().getUsername()).orElse(null));
+    }
+
+    @PostMapping("/{code}/lock/heartbeat")
+    @RequireRole(RoleType.DEVELOPER)
+    public Result<Boolean> heartbeatLock(@PathVariable Long workspaceId,
+                                         @PathVariable Long projectCode,
+                                         @PathVariable Long code) {
+        return Result.ok(editLockService.heartbeat(code, UserContext.getUserId()));
+    }
+
+    @DeleteMapping("/{code}/lock")
+    @RequireRole(RoleType.DEVELOPER)
+    public Result<Void> releaseLock(@PathVariable Long workspaceId,
+                                    @PathVariable Long projectCode,
+                                    @PathVariable Long code) {
+        editLockService.release(code, UserContext.getUserId());
+        return Result.ok();
     }
 }

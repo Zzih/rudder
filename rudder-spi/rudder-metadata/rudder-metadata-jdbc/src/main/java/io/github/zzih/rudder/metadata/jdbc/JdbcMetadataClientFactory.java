@@ -20,19 +20,24 @@ package io.github.zzih.rudder.metadata.jdbc;
 import io.github.zzih.rudder.metadata.api.MetadataClient;
 import io.github.zzih.rudder.metadata.api.spi.MetadataClientFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
+import io.github.zzih.rudder.spi.api.model.NoProps;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(MetadataClientFactory.class)
-public class JdbcMetadataClientFactory implements MetadataClientFactory {
+public class JdbcMetadataClientFactory implements MetadataClientFactory<NoProps> {
 
     @Override
     public String getProvider() {
         return "JDBC";
+    }
+
+    @Override
+    public Class<NoProps> propertiesClass() {
+        return NoProps.class;
     }
 
     @Override
@@ -41,7 +46,7 @@ public class JdbcMetadataClientFactory implements MetadataClientFactory {
     }
 
     @Override
-    public MetadataClient create(ProviderContext ctx, Map<String, String> config) {
+    public MetadataClient create(ProviderContext ctx, NoProps props) {
         return new JdbcMetadataClient();
     }
 }

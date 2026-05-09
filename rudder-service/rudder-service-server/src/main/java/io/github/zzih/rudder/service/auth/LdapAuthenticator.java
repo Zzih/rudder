@@ -20,7 +20,6 @@ package io.github.zzih.rudder.service.auth;
 import io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode;
 import io.github.zzih.rudder.common.exception.AuthException;
 import io.github.zzih.rudder.common.exception.BizException;
-import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.dao.entity.AuthSource;
 import io.github.zzih.rudder.dao.entity.User;
 import io.github.zzih.rudder.dao.enums.AuthSourceType;
@@ -80,7 +79,8 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Credenti
 
             SearchResultEntry userEntry = searchUser(conn, config, username);
             if (userEntry == null) {
-                throw new NotFoundException(WorkspaceErrorCode.LDAP_USER_NOT_FOUND);
+                // 与密码错误同一返回,防 user enumeration
+                throw new AuthException(WorkspaceErrorCode.INVALID_CREDENTIALS);
             }
 
             verifyPassword(conn, userEntry.getDN(), password);
@@ -148,7 +148,7 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Credenti
     private void verifyPassword(LDAPConnection conn, String userDn, String password) throws LDAPException {
         BindResult result = conn.bind(userDn, password);
         if (result.getResultCode() != ResultCode.SUCCESS) {
-            throw new AuthException(WorkspaceErrorCode.PASSWORD_ERROR);
+            throw new AuthException(WorkspaceErrorCode.INVALID_CREDENTIALS);
         }
     }
 

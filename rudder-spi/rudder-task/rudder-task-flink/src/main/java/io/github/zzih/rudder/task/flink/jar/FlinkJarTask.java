@@ -82,7 +82,7 @@ public class FlinkJarTask extends AbstractTask implements JobTask {
             String[] jobIdHolder = {null};
             String[] yarnAppIdHolder = {null};
             String[] trackingUrlHolder = {null};
-            int exitCode = ShellRunner.executeShell(workDir(), envScript(), cmd, line -> {
+            int exitCode = ShellRunner.executeShell(workDir(), ctx.getEnvVars(), cmd, line -> {
                 log.info("[flink] {}", line);
                 if (jobIdHolder[0] == null) {
                     Matcher m = JOB_ID_PATTERN.matcher(line);
@@ -165,10 +165,6 @@ public class FlinkJarTask extends AbstractTask implements JobTask {
 
     private String workDir() {
         return ctx.getExecutePath() != null ? ctx.getExecutePath() : DEFAULT_WORK_DIR;
-    }
-
-    private String envScript() {
-        return System.getProperty("rudder.envScript");
     }
 
     private static boolean isApplicationMode(String target) {

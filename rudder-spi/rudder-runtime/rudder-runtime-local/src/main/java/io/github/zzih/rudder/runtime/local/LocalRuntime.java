@@ -22,10 +22,7 @@ import io.github.zzih.rudder.runtime.api.AbstractEngineRuntime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Local runtime —— 不接管任何 TaskType,所有任务走 channel 默认工厂(原生 Task.handle())。
- * 仅暴露环境变量,由 Worker 注入到 ctx,供 Shell / Python / JAR 类任务读取。
- */
+/** 默认 Runtime,不接管任何 TaskType,只承载 envVars 暴露给本机子进程任务。 */
 public class LocalRuntime extends AbstractEngineRuntime {
 
     public static final String PROVIDER_KEY = "LOCAL";

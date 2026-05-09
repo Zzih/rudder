@@ -20,88 +20,44 @@ package io.github.zzih.rudder.service.config;
 import io.github.zzih.rudder.approval.api.ApprovalNotifier;
 import io.github.zzih.rudder.approval.api.plugin.ApprovalPluginManager;
 import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
-import io.github.zzih.rudder.common.exception.BizException;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.ApprovalConfigDao;
-import io.github.zzih.rudder.dao.entity.ApprovalConfig;
+import io.github.zzih.rudder.dao.dao.SpiConfigDao;
+import io.github.zzih.rudder.dao.enums.SpiType;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
+import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
-
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import lombok.RequiredArgsConstructor;
-
-/** Approval active 实例的访问入口。未配置时 fallback 到 LOCAL channel。 */
+/** Approval active 实例的访问入口。未配置时 fallback 到 LOCAL provider。 */
 @Service
-@RequiredArgsConstructor
-public class ApprovalConfigService {
+public class ApprovalConfigService extends AbstractConfigService<ApprovalNotifier> {
 
-    /** 缓存 channel + notifier 组合，避免 activeChannel 单独打 DB。 */
-    public record Active(String channel, ApprovalNotifier notifier) {
-    }
-
-    private final GlobalCacheService cache;
-    private final ApprovalConfigDao dao;
     private final ApprovalPluginManager pluginManager;
 
-    public ApprovalNotifier active() {
-        Active a = current();
-        return a == null ? null : a.notifier();
+    public ApprovalConfigService(GlobalCacheService cache, SpiConfigDao spiConfigDao,
+                                 ApprovalPluginManager pluginManager) {
+        super(cache, GlobalCacheKey.APPROVAL, ConfigErrorCode.APPROVAL_NOT_CONFIGURED, spiConfigDao, SpiType.APPROVAL);
+        this.pluginManager = pluginManager;
     }
 
-    public ApprovalNotifier required() {
-        ApprovalNotifier n = active();
-        if (n == null) {
-            throw new BizException(ConfigErrorCode.APPROVAL_NOT_CONFIGURED);
-        }
-        return n;
+    @Override
+    protected AbstractConfigurablePluginRegistry<?, ?> pluginManager() {
+        return pluginManager;
     }
 
-    public String activeChannel() {
-        Active a = current();
-        return a == null ? null : a.channel();
+    @Override
+    protected ApprovalNotifier buildInstance(String provider, String providerParamsJson) {
+        return pluginManager.create(provider, providerParamsJson);
     }
 
-    public void save(ApprovalConfig config) {
-        if (config.getId() != null) {
-            dao.updateById(config);
-        } else {
-            dao.insert(config);
-        }
-        cache.invalidate(GlobalCacheKey.APPROVAL);
+    @Override
+    protected HealthStatus healthOf(ApprovalNotifier instance) {
+        return instance.healthCheck();
     }
 
-    /** Controller 入口:DTO → entity 取-或-新建 → 灌字段 → save。 */
-    public void saveDetail(io.github.zzih.rudder.service.config.dto.ApprovalConfigDTO body) {
-        ApprovalConfig c = dao.selectActive();
-        if (c == null) {
-            c = new ApprovalConfig();
-        }
-        c.setChannel(body.getChannel());
-        c.setChannelParams(body.getChannelParams());
-        c.setEnabled(body.getEnabled() == null || body.getEnabled());
-        save(c);
-    }
-
-    public HealthStatus health() {
-        Active a = current();
-        return a == null ? HealthStatus.unknown() : a.notifier().healthCheck();
-    }
-
-    private Active current() {
-        return cache.getOrLoad(GlobalCacheKey.APPROVAL, this::build);
-    }
-
-    private Active build() {
-        ApprovalConfig c = dao.selectActive();
-        if (c != null && Boolean.TRUE.equals(c.getEnabled()) && c.getChannel() != null) {
-            Map<String, String> params = JsonUtils.toMap(c.getChannelParams());
-            return new Active(c.getChannel(), pluginManager.create(c.getChannel(), params));
-        }
-        return new Active(ApprovalPluginManager.FALLBACK_CHANNEL,
-                pluginManager.create(ApprovalPluginManager.FALLBACK_CHANNEL, Map.of()));
+    @Override
+    protected String fallbackProvider() {
+        return pluginManager.hasFallback() ? ApprovalPluginManager.FALLBACK_PROVIDER : null;
     }
 }

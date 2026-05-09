@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SpiConfigPage from '@/components/SpiConfigPage.vue'
-import { getAiLlmProviderDefinitions, getAiLlmConfig, saveAiLlmConfig, testAiLlmConfig } from '@/api/ai-llm-config'
+import { getAiLlmProviderDefinitions, getAiLlmConfig, saveAiLlmConfig, listAiLlmConfigs, testAiLlmConfig } from '@/api/ai-llm-config'
 </script>
 
 <template>
@@ -9,6 +9,7 @@ import { getAiLlmProviderDefinitions, getAiLlmConfig, saveAiLlmConfig, testAiLlm
     enable-label-key="aiAdmin.llm.enable"
     :get-provider-definitions="getAiLlmProviderDefinitions"
     :get-config="getAiLlmConfig"
+    :list-configs="listAiLlmConfigs"
     :save-config="saveAiLlmConfig"
     :test-config="testAiLlmConfig"
   />

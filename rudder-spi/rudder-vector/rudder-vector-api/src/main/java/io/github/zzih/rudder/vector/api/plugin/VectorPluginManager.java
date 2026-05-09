@@ -22,25 +22,25 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.vector.api.VectorStore;
 import io.github.zzih.rudder.vector.api.VectorStoreFactory;
 
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
-/**
- * Vector 插件注册表。**只暴露工厂能力**（create / closeStore），不持 active 状态。
- * 当前生效的 VectorStore 由上层 {@code VectorConfigService} 管理。
- */
+/** Vector 插件注册表。 */
 @Component
 public class VectorPluginManager
         extends
-            AbstractConfigurablePluginRegistry<ProviderContext, VectorStoreFactory> {
+            AbstractConfigurablePluginRegistry<ProviderContext, VectorStoreFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public VectorPluginManager(ProviderContext providerContext) {
-        super(VectorStoreFactory.class, providerContext, "vector");
+        super((Class) VectorStoreFactory.class, providerContext, "vector");
     }
 
-    /** 用 provider + 配置造一个 VectorStore 实例。无状态，纯工厂方法。 */
-    public VectorStore create(String provider, Map<String, String> config) {
-        return requireFactory(provider).create(providerContext, config != null ? config : Map.of());
+    public VectorStore create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> VectorStore doCreate(VectorStoreFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

@@ -18,21 +18,28 @@
 package io.github.zzih.rudder.result.api.spi;
 
 import io.github.zzih.rudder.result.api.ResultFormat;
+import io.github.zzih.rudder.result.api.ResultProperties;
 import io.github.zzih.rudder.spi.api.ConfigurablePluginProviderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 /**
- * Result format provider 工厂。实现需在 {@code META-INF/services/io.github.zzih.rudder.result.api.spi.ResultFormatFactory}
- * 中登记，由 {@code ResultPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ * Result format provider 工厂。所有 5 个 provider(PARQUET/CSV/JSON/ORC/AVRO)共用 {@link ResultProperties},
+ * 在 -api 模块统一定义,format 选型不影响参数 schema。
+ *
+ * <p>实现需在 {@code META-INF/services/io.github.zzih.rudder.result.api.spi.ResultFormatFactory}
+ * 中登记,由 {@code ResultPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
  */
-public interface ResultFormatFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface ResultFormatFactory extends ConfigurablePluginProviderFactory<ProviderContext, ResultProperties> {
 
     @Override
-    default String family() {
+    default String type() {
         return "result";
     }
 
-    ResultFormat create(ProviderContext ctx, Map<String, String> config);
+    @Override
+    default Class<ResultProperties> propertiesClass() {
+        return ResultProperties.class;
+    }
+
+    ResultFormat create(ProviderContext ctx, ResultProperties props);
 }

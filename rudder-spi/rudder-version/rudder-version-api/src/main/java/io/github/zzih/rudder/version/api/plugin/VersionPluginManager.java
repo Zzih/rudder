@@ -22,28 +22,25 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.version.api.VersionStore;
 import io.github.zzih.rudder.version.api.VersionStoreFactory;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
-/**
- * Version 插件注册表。**只暴露工厂能力**(create / closeStore),不持 active 状态。
- * 当前生效的 VersionStore 由上层 {@code VersionConfigService} 管理。
- */
+/** Version 插件注册表。 */
 @Component
 public class VersionPluginManager
         extends
-            AbstractConfigurablePluginRegistry<ProviderContext, VersionStoreFactory> {
+            AbstractConfigurablePluginRegistry<ProviderContext, VersionStoreFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public VersionPluginManager(ProviderContext providerContext) {
-        super(VersionStoreFactory.class, providerContext, "version");
+        super((Class) VersionStoreFactory.class, providerContext, "version");
     }
 
-    /** 用 provider + 配置造一个 VersionStore 实例。无状态,纯工厂方法。 */
-    public VersionStore create(String provider, Map<String, String> config) {
-        VersionStoreFactory factory = requireFactory(provider);
-        Map<String, String> merged = new HashMap<>(config != null ? config : Map.of());
-        return factory.create(providerContext, merged);
+    public VersionStore create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> VersionStore doCreate(VersionStoreFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

@@ -22,8 +22,7 @@ import lombok.Data;
 @Data
 public class ZhiPuProperties {
 
-    private String apiKey;
-
+    private String apiKey = "";
     private String baseUrl = "https://open.bigmodel.cn/api/paas/v4";
 
     /** embedding-3(默认 2048 维,支持 256/512/1024/2048)或 embedding-2(1024 维)。 */

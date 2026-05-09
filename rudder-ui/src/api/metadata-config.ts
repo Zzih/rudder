@@ -6,3 +6,4 @@ const api = createSpiConfigApi('metadata')
 export const getMetadataProviderDefinitions = api.getProviderDefinitions
 export const getMetadataConfig = api.getConfig
 export const saveMetadataConfig = api.saveConfig
+export const listMetadataConfigs = api.listConfigs

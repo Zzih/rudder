@@ -17,26 +17,29 @@
 
 package io.github.zzih.rudder.vector.pgvector;
 
-import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 import io.github.zzih.rudder.vector.api.VectorStore;
 import io.github.zzih.rudder.vector.api.VectorStoreFactory;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 /** PostgreSQL pgvector 扩展工厂。 */
 @AutoService(VectorStoreFactory.class)
-public class PgVectorStoreFactory implements VectorStoreFactory {
+public class PgVectorStoreFactory implements VectorStoreFactory<PgVectorProperties> {
 
     public static final String PROVIDER = "PGVECTOR";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<PgVectorProperties> propertiesClass() {
+        return PgVectorProperties.class;
     }
 
     @Override
@@ -69,14 +72,7 @@ public class PgVectorStoreFactory implements VectorStoreFactory {
     }
 
     @Override
-    public VectorStore create(ProviderContext ctx, Map<String, String> config) {
-        PgVectorProperties p = new PgVectorProperties();
-        p.setHost(config.getOrDefault("host", "127.0.0.1").trim());
-        p.setPort(AbstractConfigurablePluginRegistry.parseIntOrDefault(config.get("port"), 5432));
-        p.setDatabase(config.getOrDefault("database", "rudder").trim());
-        p.setSchema(config.getOrDefault("schema", "public").trim());
-        p.setUsername(config.getOrDefault("username", "postgres").trim());
-        p.setPassword(config.getOrDefault("password", ""));
-        return new PgVectorStore(p);
+    public VectorStore create(ProviderContext ctx, PgVectorProperties props) {
+        return new PgVectorStore(props);
     }
 }

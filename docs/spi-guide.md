@@ -4,7 +4,7 @@
 
 ## 一、SPI 一览
 
-| 模块 | Family | 工厂接口 | PluginManager |
+| 模块 | Type | 工厂接口 | PluginManager |
 |:---|:---|:---|:---|
 | `rudder-task` | `task` | `TaskChannelFactory` | `TaskPluginManager` |
 | `rudder-runtime` | `runtime` | `EngineRuntimeProvider` | `RuntimePluginManager` |
@@ -27,10 +27,10 @@
 ### 1. 模块命名
 
 ```
-rudder-spi/rudder-<family>/
-├── rudder-<family>-api          契约：interface + factory + PluginManager
-├── rudder-<family>-local        本地 / 兜底实现（可选）
-├── rudder-<family>-<provider>   每个外部服务一个独立模块
+rudder-spi/rudder-<type>/
+├── rudder-<type>-api          契约：interface + factory + PluginManager
+├── rudder-<type>-local        本地 / 兜底实现（可选）
+├── rudder-<type>-<provider>   每个外部服务一个独立模块
 ```
 
 不允许：
@@ -45,7 +45,7 @@ rudder-spi/rudder-<family>/
 ```java
 public interface FooFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
 
-    @Override default String family() { return "foo"; }
+    @Override default String type() { return "foo"; }
 
     Foo create(ProviderContext ctx, Map<String, String> config);
 }
@@ -56,7 +56,7 @@ public interface FooFactory extends ConfigurablePluginProviderFactory<ProviderCo
 - `getProvider()` — provider 名（如 `CLAUDE` / `AWS`），全大写
 - `params()` — 返回 `List<PluginParamDefinition>` 描述配置项 schema（label / type / required / placeholder / encrypted）
 - `validate(config)` — 配置合法性校验，返回 `ValidationResult`
-- `family()` — 所属 SPI family
+- `type()` — 所属 SPI type
 - `priority()` — 同 key 冲突时优先级（默认 0）
 - `metadata()` — 版本 / 描述 / 文档 URL（用于 UI 展示）
 
@@ -111,23 +111,23 @@ io.github.zzih.rudder.foo.bar.BarFooFactory
 
 ## 四、配置存储
 
-平台级 provider 配置存在 `t_r_<family>_config`：
+平台级 provider 配置存在统一表 `t_r_spi_config`，按 `type` 列区分：
 
 ```
-t_r_runtime_config
-  ( id, name, provider, params_json, enabled, deleted_at, created_at, updated_at )
+t_r_spi_config
+  ( id, type, provider, provider_params, enabled, created_by, created_at, updated_by, updated_at )
 ```
 
+- `type` = SPI 种类（如 `RUNTIME` / `LLM` / `APPROVAL`），与 `SpiType` enum 对齐
 - `provider` = `factory.getProvider()`，如 `AWS`
-- `params_json` = 用户在 UI 填写的 KV，结构由 `factory.params()` 决定
-- 同一个 family 可同时存在多条配置（如同时配两个 LLM provider 用于路由）
-- `enabled=true` 的配置才会被 PluginManager 实例化为 active client
+- `provider_params` = 用户在 UI 填写的 KV(JSON)，结构由 `factory.params()` 决定
+- 单 active 模式：每个 type 任意时刻最多一条 `enabled=1`，PluginManager 据此实例化 active client
 
 ## 五、热切换
 
-UI 改了某条 `t_r_<family>_config`：
+UI 改了某条 `t_r_spi_config`：
 
-1. 后端 `<Family>ConfigService.update(...)` 写库
+1. 后端 `<Type>ConfigService.saveDetail(...)` 写库
 2. 调 `pluginManager.refresh(...)` —— 用新 config 调 `factory.create(ctx, config)` 拿到新实例
 3. 用 `volatile` 引用做原子替换
 4. 旧实例：调 `closeResources()`（如 SDK 提供 close）然后丢给 GC
@@ -298,8 +298,8 @@ public class GcpSparkSqlTask extends SparkSqlTask {
 在 provider 模块 classpath 放 markdown：
 
 ```
-src/main/resources/spi-guide/<family>-<provider>.zh-CN.md
-src/main/resources/spi-guide/<family>-<provider>.en-US.md
+src/main/resources/spi-guide/<type>-<provider>.zh-CN.md
+src/main/resources/spi-guide/<type>-<provider>.en-US.md
 ```
 
 带 YAML front-matter：

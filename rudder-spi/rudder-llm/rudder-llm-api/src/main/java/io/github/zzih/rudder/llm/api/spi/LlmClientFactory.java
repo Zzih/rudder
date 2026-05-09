@@ -23,29 +23,26 @@ import io.github.zzih.rudder.spi.api.ConfigurablePluginProviderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.TestResult;
 
-import java.util.Map;
-
 /**
- * AI client provider 工厂。实现需在 {@code META-INF/services/io.github.zzih.rudder.llm.api.spi.LlmClientFactory}
+ * LLM client provider 工厂。实现需在 {@code META-INF/services/io.github.zzih.rudder.llm.api.spi.LlmClientFactory}
  * 中登记,由 {@code LlmPluginManager} 通过 {@link java.util.ServiceLoader} 发现。必须提供无参构造函数。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface LlmClientFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface LlmClientFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "llm";
     }
 
-    LlmClient create(ProviderContext ctx, Map<String, String> config);
+    LlmClient create(ProviderContext ctx, P props);
 
-    /**
-     * 跑一个最小 ping 验证 endpoint + apiKey + model 都对。所有 4 个 LLM provider 走同一套 complete(),
-     * 所以默认实现就够了;有特殊需求的 provider (比如想跳过 billing token) 自己 override。
-     */
+    /** 默认 testConnection: 跑 ping 验证 endpoint + apiKey + model 都对。 */
     @Override
-    default TestResult testConnection(ProviderContext ctx, Map<String, String> config) {
+    default TestResult testConnection(ProviderContext ctx, P props) {
         long start = System.currentTimeMillis();
-        try (LlmClient client = create(ctx, config)) {
+        try (LlmClient client = create(ctx, props)) {
             LlmCompleteRequest probe = new LlmCompleteRequest();
             probe.setPrompt("ping");
             client.complete(probe);

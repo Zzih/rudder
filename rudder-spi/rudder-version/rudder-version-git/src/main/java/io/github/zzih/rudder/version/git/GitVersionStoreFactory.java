@@ -24,24 +24,26 @@ import io.github.zzih.rudder.version.api.VersionStoreFactory;
 import io.github.zzih.rudder.version.git.client.GiteaClient;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Git 模式的 VersionStore 工厂。根据配置参数构造独立的 {@link GiteaClient} 实例。
- */
+/** Git 模式的 VersionStore 工厂。 */
 @Slf4j
 @AutoService(VersionStoreFactory.class)
-public class GitVersionStoreFactory implements VersionStoreFactory {
+public class GitVersionStoreFactory implements VersionStoreFactory<GiteaProperties> {
 
     public static final String PROVIDER = "GIT";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<GiteaProperties> propertiesClass() {
+        return GiteaProperties.class;
     }
 
     @Override
@@ -58,12 +60,7 @@ public class GitVersionStoreFactory implements VersionStoreFactory {
     }
 
     @Override
-    public VersionStore create(ProviderContext ctx, Map<String, String> config) {
-        GiteaProperties props = new GiteaProperties();
-        props.setEnabled(true);
-        props.setUrl(config.get("url"));
-        props.setToken(config.get("token"));
-
+    public VersionStore create(ProviderContext ctx, GiteaProperties props) {
         GiteaClient client = new GiteaClient(props, ctx.objectMapper());
         return new GitVersionStore(client);
     }

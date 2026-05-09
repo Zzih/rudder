@@ -29,7 +29,7 @@ public enum McpClient {
     CURSOR("cursor", "Cursor", "purple"),
     INSPECTOR("inspector", "MCP Inspector", "teal");
 
-    /** 文件名片段(也是前端展示的稳定 id),不含 family 前缀。 */
+    /** 文件名片段(也是前端展示的稳定 id),不含 type 前缀。 */
     private final String id;
     /** 用于前端卡片标题。 */
     private final String label;

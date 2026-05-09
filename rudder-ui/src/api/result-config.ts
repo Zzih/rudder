@@ -6,3 +6,4 @@ const api = createSpiConfigApi('result')
 export const getResultProviderDefinitions = api.getProviderDefinitions
 export const getResultConfig = api.getConfig
 export const saveResultConfig = api.saveConfig
+export const listResultConfigs = api.listConfigs

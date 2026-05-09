@@ -22,25 +22,25 @@ import io.github.zzih.rudder.embedding.api.spi.EmbeddingClientFactory;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 
-import java.util.Map;
-
 import org.springframework.stereotype.Component;
 
-/**
- * Embedding 插件注册表。**只暴露工厂能力**（create / closeClient），不持 active 状态。
- * 当前生效的 EmbeddingClient 由上层 {@code EmbeddingConfigService} 管理。
- */
+/** Embedding 插件注册表。 */
 @Component
 public class EmbeddingPluginManager
         extends
-            AbstractConfigurablePluginRegistry<ProviderContext, EmbeddingClientFactory> {
+            AbstractConfigurablePluginRegistry<ProviderContext, EmbeddingClientFactory<?>> {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public EmbeddingPluginManager(ProviderContext providerContext) {
-        super(EmbeddingClientFactory.class, providerContext, "embedding");
+        super((Class) EmbeddingClientFactory.class, providerContext, "embedding");
     }
 
-    /** 用 provider + 配置造一个 EmbeddingClient 实例。无状态，纯工厂方法。 */
-    public EmbeddingClient create(String provider, Map<String, String> config) {
-        return requireFactory(provider).create(providerContext, config != null ? config : Map.of());
+    public EmbeddingClient create(String provider, String providerParamsJson) {
+        return doCreate(requireFactory(provider), providerParamsJson);
+    }
+
+    private <P> EmbeddingClient doCreate(EmbeddingClientFactory<P> factory, String json) {
+        P props = deserializeProps(factory, json);
+        return factory.create(providerContext, props);
     }
 }

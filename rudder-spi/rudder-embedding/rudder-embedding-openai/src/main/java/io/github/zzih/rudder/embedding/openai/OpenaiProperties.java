@@ -22,11 +22,8 @@ import lombok.Data;
 @Data
 public class OpenaiProperties {
 
-    private String apiKey;
-
-    private String model = "gpt-4o";
-
+    private String apiKey = "";
+    private String model = "text-embedding-3-small";
     private String baseUrl = "https://api.openai.com";
-
-    private int maxTokens = 4096;
+    private int dimensions = 1536;
 }

@@ -11,8 +11,10 @@ import {
 import { listUsersSimple } from '@/api/admin'
 import { usePagination } from '@/composables/usePagination'
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm'
+import { usePermission } from '@/composables/usePermission'
 
 const { t } = useI18n()
+const { isSuperAdmin } = usePermission()
 
 interface MemberRow { id: number; workspaceId: number; userId: number; username: string; role: string }
 interface ProjectRow { id: number; code: string; name: string; description: string; createdBy: number; createdByUsername: string }
@@ -199,7 +201,7 @@ onMounted(fetchWorkspaces)
       <el-table-column :label="t('common.actions')" width="200" fixed="right">
         <template #default="{ row }">
           <el-button text size="small" @click="openDrawer(row)">{{ t('admin.manage') }}</el-button>
-          <el-button text size="small" type="danger" @click="handleDeleteWorkspace(row)">{{ t('common.delete') }}</el-button>
+          <el-button v-if="isSuperAdmin" text size="small" type="danger" @click="handleDeleteWorkspace(row)">{{ t('common.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>

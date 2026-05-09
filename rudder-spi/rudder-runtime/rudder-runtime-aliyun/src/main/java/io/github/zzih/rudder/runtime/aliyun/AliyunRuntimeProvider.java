@@ -31,19 +31,19 @@ import com.google.auto.service.AutoService;
 
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * 阿里云 Runtime provider(Serverless Spark + VVP Flink)。
- *
- * <p>tea-openapi {@code Client} 基类非 {@code AutoCloseable},切换 provider 时旧实例由 GC 回收
- * 内部 OkHttp 连接池,故 {@link #closeResources()} 默认 no-op。
- */
+/** 阿里云 Runtime provider(Serverless Spark + VVP Flink)。 */
 @Slf4j
 @AutoService(EngineRuntimeProvider.class)
-public class AliyunRuntimeProvider implements EngineRuntimeProvider {
+public class AliyunRuntimeProvider implements EngineRuntimeProvider<AliyunRuntimeFormProperties> {
 
     @Override
     public String getProvider() {
         return AliyunRuntime.PROVIDER_KEY;
+    }
+
+    @Override
+    public Class<AliyunRuntimeFormProperties> propertiesClass() {
+        return AliyunRuntimeFormProperties.class;
     }
 
     @Override
@@ -62,11 +62,11 @@ public class AliyunRuntimeProvider implements EngineRuntimeProvider {
     }
 
     @Override
-    public EngineRuntime create(ProviderContext ctx, Map<String, String> config) {
-        Map<String, String> parsed = RuntimeConfigUtils.parseProperties(config.get("config"));
+    public EngineRuntime create(ProviderContext ctx, AliyunRuntimeFormProperties form) {
+        Map<String, String> parsed = RuntimeConfigUtils.parseProperties(form.config());
         AliyunRuntimeProperties props = buildProperties(parsed);
         validate(props);
-        Map<String, String> envVars = RuntimeConfigUtils.parseProperties(config.get("envVars"));
+        Map<String, String> envVars = RuntimeConfigUtils.parseProperties(form.envVars());
 
         com.aliyun.ververica20220718.Client vvpClient = newVvpClient(props);
         com.aliyun.emr_serverless_spark20230808.Client sparkClient = newSparkClient(props);

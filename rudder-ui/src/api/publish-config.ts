@@ -6,3 +6,4 @@ const api = createSpiConfigApi('publish')
 export const getPublishProviderDefinitions = api.getProviderDefinitions
 export const getPublishConfig = api.getConfig
 export const savePublishConfig = api.saveConfig
+export const listPublishConfigs = api.listConfigs

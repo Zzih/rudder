@@ -64,6 +64,7 @@ public class PythonTask extends AbstractTask implements LocalTask {
 
             runningProcess = ProcessUtils.start(
                     new String[]{"python3", tempFile.toString()},
+                    ctx.getEnvVars(),
                     line -> {
                         log.info(line);
                         outputParser.appendParseLog(line);

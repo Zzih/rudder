@@ -23,26 +23,27 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.TestResult;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Embedding provider 工厂。实现在
  * {@code META-INF/services/io.github.zzih.rudder.embedding.api.spi.EmbeddingClientFactory} 登记。
+ *
+ * @param <P> provider 配置 POJO 类型
  */
-public interface EmbeddingClientFactory extends ConfigurablePluginProviderFactory<ProviderContext> {
+public interface EmbeddingClientFactory<P> extends ConfigurablePluginProviderFactory<ProviderContext, P> {
 
     @Override
-    default String family() {
+    default String type() {
         return "embedding";
     }
 
-    EmbeddingClient create(ProviderContext ctx, Map<String, String> config);
+    EmbeddingClient create(ProviderContext ctx, P props);
 
-    /** 默认 testConnection: 创建实例 + 跑一个最小 embed("ping") 验证 endpoint + apiKey + model 都对。 */
+    /** 默认 testConnection: 创建实例 + 跑一个最小 embed("ping") 验证 endpoint + apiKey + model。 */
     @Override
-    default TestResult testConnection(ProviderContext ctx, Map<String, String> config) {
+    default TestResult testConnection(ProviderContext ctx, P props) {
         long start = System.currentTimeMillis();
-        try (EmbeddingClient client = create(ctx, config)) {
+        try (EmbeddingClient client = create(ctx, props)) {
             List<float[]> result = client.embedBatch(List.of("ping"));
             long elapsed = System.currentTimeMillis() - start;
             if (result == null || result.isEmpty() || result.get(0) == null || result.get(0).length == 0) {

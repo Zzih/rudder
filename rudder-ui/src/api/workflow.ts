@@ -75,3 +75,27 @@ export function listPublishRecords(workspaceId: number, projectCode: number | st
 export function executePublish(workspaceId: number, projectCode: number | string, batchCode: string) {
   return request.post(`/workspaces/${workspaceId}/projects/${projectCode}/publish/records/${batchCode}/execute`)
 }
+
+// ===== 编辑锁 =====
+
+export interface EditLockHolder {
+  userId: number
+  username: string
+  acquiredAt: number
+}
+
+export function peekWorkflowLock(workspaceId: number, projectCode: number | string, code: number | string) {
+  return request.get(`/workspaces/${workspaceId}/projects/${projectCode}/workflow-definitions/${code}/lock`)
+}
+
+export function acquireWorkflowLock(workspaceId: number, projectCode: number | string, code: number | string) {
+  return request.post(`/workspaces/${workspaceId}/projects/${projectCode}/workflow-definitions/${code}/lock`)
+}
+
+export function heartbeatWorkflowLock(workspaceId: number, projectCode: number | string, code: number | string) {
+  return request.post(`/workspaces/${workspaceId}/projects/${projectCode}/workflow-definitions/${code}/lock/heartbeat`)
+}
+
+export function releaseWorkflowLock(workspaceId: number, projectCode: number | string, code: number | string) {
+  return request.delete(`/workspaces/${workspaceId}/projects/${projectCode}/workflow-definitions/${code}/lock`)
+}

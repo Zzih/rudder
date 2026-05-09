@@ -6,3 +6,4 @@ const api = createSpiConfigApi('runtime')
 export const getRuntimeProviderDefinitions = api.getProviderDefinitions
 export const getRuntimeConfig = api.getConfig
 export const saveRuntimeConfig = api.saveConfig
+export const listRuntimeConfigs = api.listConfigs

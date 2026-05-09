@@ -23,16 +23,20 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(NotificationSenderFactory.class)
-public class DingTalkNotificationSenderFactory implements NotificationSenderFactory {
+public class DingTalkNotificationSenderFactory implements NotificationSenderFactory<DingTalkProperties> {
 
     @Override
     public String getProvider() {
         return "DINGTALK";
+    }
+
+    @Override
+    public Class<DingTalkProperties> propertiesClass() {
+        return DingTalkProperties.class;
     }
 
     @Override
@@ -49,9 +53,7 @@ public class DingTalkNotificationSenderFactory implements NotificationSenderFact
     }
 
     @Override
-    public NotificationSender create(ProviderContext ctx, Map<String, String> config) {
-        return new DingTalkNotificationSender(
-                config.getOrDefault("webhookUrl", ""),
-                config.getOrDefault("secret", ""));
+    public NotificationSender create(ProviderContext ctx, DingTalkProperties props) {
+        return new DingTalkNotificationSender(props.webhookUrl(), props.secret());
     }
 }

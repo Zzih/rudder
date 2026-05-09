@@ -22,11 +22,8 @@ import lombok.Data;
 @Data
 public class DeepSeekProperties {
 
-    private String apiKey;
-
+    private String apiKey = "";
     private String model = "deepseek-chat";
-
     private String baseUrl = "https://api.deepseek.com";
-
     private int maxTokens = 4096;
 }

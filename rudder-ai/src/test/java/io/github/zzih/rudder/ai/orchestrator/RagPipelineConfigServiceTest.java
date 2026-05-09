@@ -24,9 +24,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.github.zzih.rudder.dao.dao.AiConfigDao;
-import io.github.zzih.rudder.dao.entity.AiConfig;
-import io.github.zzih.rudder.dao.enums.AiConfigType;
+import io.github.zzih.rudder.dao.dao.RagPipelineConfigDao;
+import io.github.zzih.rudder.dao.entity.RagPipelineConfig;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 
@@ -42,9 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-/**
- * 验证 RAG pipeline 配置加载/保存/容错。
- */
+/** 验证 RAG pipeline 配置加载/保存/容错。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RagPipelineConfigServiceTest {
@@ -53,7 +50,7 @@ class RagPipelineConfigServiceTest {
     private GlobalCacheService cache;
 
     @Mock
-    private AiConfigDao dao;
+    private RagPipelineConfigDao dao;
 
     private RagPipelineConfigService service;
 
@@ -68,7 +65,7 @@ class RagPipelineConfigServiceTest {
     @Test
     @DisplayName("DB 没 row → 返回 defaults (active() 永不 null)")
     void active_noDbRow_returnsDefaults() {
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(null);
+        when(dao.selectActive()).thenReturn(null);
 
         RagPipelineSettings result = service.active();
 
@@ -76,12 +73,11 @@ class RagPipelineConfigServiceTest {
     }
 
     @Test
-    @DisplayName("DB row 存在但 providerParams 空 → 返回 defaults")
+    @DisplayName("DB row 存在但 settings 空 → 返回 defaults")
     void active_emptyParams_returnsDefaults() {
-        AiConfig c = new AiConfig();
-        c.setType(AiConfigType.RAG_PIPELINE);
-        c.setProviderParams("");
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(c);
+        RagPipelineConfig c = new RagPipelineConfig();
+        c.setSettingsJson("");
+        when(dao.selectActive()).thenReturn(c);
 
         assertThat(service.active()).isEqualTo(RagPipelineSettings.defaults());
     }
@@ -89,9 +85,8 @@ class RagPipelineConfigServiceTest {
     @Test
     @DisplayName("正常路径: 解析 JSON 返回 RagPipelineSettings")
     void active_validJson_parsedCorrectly() {
-        AiConfig c = new AiConfig();
-        c.setType(AiConfigType.RAG_PIPELINE);
-        c.setProviderParams("""
+        RagPipelineConfig c = new RagPipelineConfig();
+        c.setSettingsJson("""
                 {
                   "rewriteEnabled": true,
                   "multiQueryEnabled": true,
@@ -107,7 +102,7 @@ class RagPipelineConfigServiceTest {
                   "augmenterAllowEmptyContext": true
                 }
                 """);
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(c);
+        when(dao.selectActive()).thenReturn(c);
 
         RagPipelineSettings result = service.active();
 
@@ -121,20 +116,19 @@ class RagPipelineConfigServiceTest {
     @DisplayName("缺字段的旧 JSON → Jackson 默认值 + record compact constructor 规范化")
     void active_partialJson_missingFieldsDefaultToFalse() {
         // 模拟老 row 只有部分字段(后续加的字段缺失)
-        AiConfig c = new AiConfig();
-        c.setType(AiConfigType.RAG_PIPELINE);
-        c.setProviderParams("""
+        RagPipelineConfig c = new RagPipelineConfig();
+        c.setSettingsJson("""
                 {
                   "rewriteEnabled": true,
                   "multiQueryCount": 0
                 }
                 """);
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(c);
+        when(dao.selectActive()).thenReturn(c);
 
         RagPipelineSettings result = service.active();
 
         assertThat(result.rewriteEnabled()).isTrue();
-        assertThat(result.multiQueryEnabled()).isFalse(); // 缺字段 → boolean default false
+        assertThat(result.multiQueryEnabled()).isFalse();
         assertThat(result.keywordEnricherEnabled()).isFalse();
         // compact constructor 把 0 normalize 成默认 3
         assertThat(result.multiQueryCount()).isEqualTo(3);
@@ -145,9 +139,9 @@ class RagPipelineConfigServiceTest {
     @Test
     @DisplayName("malformed JSON → 不抛异常,降级到 defaults")
     void active_malformedJson_fallsBackToDefaults() {
-        AiConfig c = new AiConfig();
-        c.setProviderParams("{not json}");
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(c);
+        RagPipelineConfig c = new RagPipelineConfig();
+        c.setSettingsJson("{not json}");
+        when(dao.selectActive()).thenReturn(c);
 
         assertThat(service.active()).isEqualTo(RagPipelineSettings.defaults());
     }
@@ -155,7 +149,7 @@ class RagPipelineConfigServiceTest {
     @Test
     @DisplayName("saveDetail: 没现有 row → 创建新行 + insert")
     void saveDetail_noExisting_inserts() {
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(null);
+        when(dao.selectActive()).thenReturn(null);
 
         RagPipelineSettings settings = new RagPipelineSettings(
                 true, false, 3, true,
@@ -163,28 +157,24 @@ class RagPipelineConfigServiceTest {
                 true, 5, false, false, true);
         service.saveDetail(settings);
 
-        ArgumentCaptor<AiConfig> captor = ArgumentCaptor.forClass(AiConfig.class);
+        ArgumentCaptor<RagPipelineConfig> captor = ArgumentCaptor.forClass(RagPipelineConfig.class);
         verify(dao, times(1)).insert(captor.capture());
-        AiConfig saved = captor.getValue();
-        assertThat(saved.getType()).isEqualTo(AiConfigType.RAG_PIPELINE);
-        assertThat(saved.getProvider()).isEqualTo("DEFAULT");
+        RagPipelineConfig saved = captor.getValue();
         assertThat(saved.getEnabled()).isTrue();
-        assertThat(saved.getProviderParams()).contains("\"rewriteEnabled\":true");
-        // 缓存失效广播
+        assertThat(saved.getSettingsJson()).contains("\"rewriteEnabled\":true");
         verify(cache).invalidate(GlobalCacheKey.RAG_PIPELINE);
     }
 
     @Test
     @DisplayName("saveDetail: 已有 row → updateById")
     void saveDetail_existingRow_updates() {
-        AiConfig existing = new AiConfig();
+        RagPipelineConfig existing = new RagPipelineConfig();
         existing.setId(42L);
-        existing.setType(AiConfigType.RAG_PIPELINE);
-        when(dao.selectActive(AiConfigType.RAG_PIPELINE)).thenReturn(existing);
+        when(dao.selectActive()).thenReturn(existing);
 
         service.saveDetail(RagPipelineSettings.defaults());
 
-        verify(dao, times(1)).updateById(any(AiConfig.class));
+        verify(dao, times(1)).updateById(any(RagPipelineConfig.class));
         verify(cache).invalidate(GlobalCacheKey.RAG_PIPELINE);
     }
 }

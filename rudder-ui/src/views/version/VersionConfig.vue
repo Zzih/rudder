@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SpiConfigPage from '@/components/SpiConfigPage.vue'
-import { getVersionProviderDefinitions, getVersionConfig, saveVersionConfig } from '@/api/version-config'
+import { getVersionProviderDefinitions, getVersionConfig, saveVersionConfig, listVersionConfigs } from '@/api/version-config'
 </script>
 
 <template>
@@ -9,6 +9,7 @@ import { getVersionProviderDefinitions, getVersionConfig, saveVersionConfig } fr
     enable-label-key="version.enableVersion"
     :get-provider-definitions="getVersionProviderDefinitions"
     :get-config="getVersionConfig"
+    :list-configs="listVersionConfigs"
     :save-config="saveVersionConfig"
   />
 </template>

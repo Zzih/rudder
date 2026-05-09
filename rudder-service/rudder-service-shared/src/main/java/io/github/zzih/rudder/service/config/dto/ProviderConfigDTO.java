@@ -27,7 +27,9 @@ public class ProviderConfigDTO {
 
     private Long id;
     private String provider;
-    private String providerParams;
+
+    private Object providerParams;
+
     private Boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

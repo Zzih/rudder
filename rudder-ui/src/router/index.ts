@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import i18n from '@/locales'
 import { useUserStore, type Role } from '@/stores/user'
 import { useTaskTypesStore } from '@/stores/taskTypes'
 import { ROLE_LEVEL } from '@/composables/usePermission'
+import { getMe } from '@/api/auth'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -157,6 +160,14 @@ router.beforeEach(async (to, _from, next) => {
     next({ path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} })
     return
   }
+  // 登录时给的 role 是无 ws 的兜底,跨 ws 时要按 ws-id 重取,否则 OWNER 会被错判 VIEWER 拦截。
+  if (Number.isFinite(workspaceId) && workspaceId > 0
+      && userStore.userInfo?.workspaceId !== workspaceId) {
+    try {
+      const { data } = await getMe()
+      userStore.setUserInfo(data)
+    } catch { /* 401/403 走响应拦截器 */ }
+  }
   // 沿 matched 链取最高 role 要求,父子路由 meta 都参与判断
   const requiredLevel = to.matched.reduce((max, r) => {
     const role = r.meta.requireRole as Role | undefined
@@ -168,6 +179,7 @@ router.beforeEach(async (to, _from, next) => {
     const userRole = userStore.userInfo?.role
     const userLevel = userRole ? ROLE_LEVEL[userRole] : -1
     if (userLevel < requiredLevel) {
+      ElMessage.warning(i18n.global.t('common.noPermission'))
       next('/workspaces')
       return
     }

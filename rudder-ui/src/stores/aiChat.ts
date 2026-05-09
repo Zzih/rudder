@@ -68,6 +68,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     activeSessionId.value = null
     messages.value = []
     streaming.value = false
+    streamingSessionId.value = null
     activeStreamId.value = null
     abortFetch.value = null
     initialized.value = false
@@ -167,6 +168,8 @@ export const useAiChatStore = defineStore('aiChat', () => {
   // ==================== STREAMING ====================
 
   const streaming = ref(false)
+  // 流属于哪个 session;UI 据此区分"取消我自己的流"和"切回别的会话点取消会误杀"
+  const streamingSessionId = ref<number | null>(null)
   const activeStreamId = ref<string | null>(null)
   const abortFetch = ref<null | (() => void)>(null)
 
@@ -183,6 +186,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     if (streaming.value) return
 
     streaming.value = true
+    streamingSessionId.value = sessionId
     // 立即乐观插 user + assistant,等 meta 事件回来用真实 id 替换 id 字段;
     // _tempKey 保留作稳定引用,供后续 token/done 事件定位消息。
     const tempUserKey = 'tmp-user-' + Date.now()
@@ -211,6 +215,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     }, () => {
       if (abortFetch.value !== myAbort) return
       streaming.value = false
+      streamingSessionId.value = null
       activeStreamId.value = null
       abortFetch.value = null
       currentAssistantKey.value = null
@@ -361,7 +366,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     // messages
     messages, currentAssistantKey,
     // streaming
-    streaming, activeStreamId, abortFetch,
+    streaming, streamingSessionId, activeStreamId, abortFetch,
     sendTurn, cancelCurrent, approveTool,
   }
 })

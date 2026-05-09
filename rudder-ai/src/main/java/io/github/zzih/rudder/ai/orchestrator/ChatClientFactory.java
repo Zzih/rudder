@@ -71,7 +71,8 @@ import lombok.extern.slf4j.Slf4j;
  * <p><b>防递归</b>: rewrite/expand 阶段会调用 LLM,这些 LLM 调用必须用**不带 RAG advisor**的 vanilla
  * {@link ChatClient.Builder} ({@link #vanillaChatClientBuilder}),否则会触发"重写 → 检索 → 重写"无限递归。
  *
- * <p>所有 RAG 链路开关 + Rerank provider 配置都在 admin UI({@code t_r_ai_config} 表),不读 yml。
+ * <p>所有 RAG 链路开关在 {@code t_r_rag_pipeline_config},Rerank provider 在 {@code t_r_spi_config}
+ * type=RERANK 行,均通过 admin UI 配置,不读 yml。
  */
 @Slf4j
 @Component

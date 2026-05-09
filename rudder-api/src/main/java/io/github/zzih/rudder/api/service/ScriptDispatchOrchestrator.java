@@ -72,6 +72,7 @@ public class ScriptDispatchOrchestrator {
 
         WorkflowDefinition update = new WorkflowDefinition();
         update.setDagJson(DagParser.serialize(graph));
-        workflowDefinitionService.update(workspaceId, projectCode, workflow.getCode(), update, allDefs);
+        // server-side 内部调用不带 expectedHash,只受锁校验保护
+        workflowDefinitionService.update(workspaceId, projectCode, workflow.getCode(), update, allDefs, null);
     }
 }

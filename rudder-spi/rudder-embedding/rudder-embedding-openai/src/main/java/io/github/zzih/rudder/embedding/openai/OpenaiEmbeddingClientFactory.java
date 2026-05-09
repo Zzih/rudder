@@ -19,24 +19,27 @@ package io.github.zzih.rudder.embedding.openai;
 
 import io.github.zzih.rudder.embedding.api.EmbeddingClient;
 import io.github.zzih.rudder.embedding.api.spi.EmbeddingClientFactory;
-import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 /** OpenAI 兼容 embedding provider 工厂。 */
 @AutoService(EmbeddingClientFactory.class)
-public class OpenaiEmbeddingClientFactory implements EmbeddingClientFactory {
+public class OpenaiEmbeddingClientFactory implements EmbeddingClientFactory<OpenaiProperties> {
 
     public static final String PROVIDER = "OPENAI";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<OpenaiProperties> propertiesClass() {
+        return OpenaiProperties.class;
     }
 
     @Override
@@ -64,12 +67,7 @@ public class OpenaiEmbeddingClientFactory implements EmbeddingClientFactory {
     }
 
     @Override
-    public EmbeddingClient create(ProviderContext ctx, Map<String, String> config) {
-        OpenaiProperties props = new OpenaiProperties();
-        props.setApiKey(config.getOrDefault("apiKey", ""));
-        props.setModel(config.getOrDefault("model", "text-embedding-3-small"));
-        props.setBaseUrl(config.getOrDefault("baseUrl", "https://api.openai.com"));
-        int dim = AbstractConfigurablePluginRegistry.parseIntOrDefault(config.get("dimensions"), 1536);
-        return new OpenaiEmbeddingClient(props, dim);
+    public EmbeddingClient create(ProviderContext ctx, OpenaiProperties props) {
+        return new OpenaiEmbeddingClient(props, props.getDimensions());
     }
 }

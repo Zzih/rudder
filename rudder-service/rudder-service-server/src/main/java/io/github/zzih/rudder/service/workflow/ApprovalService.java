@@ -158,7 +158,7 @@ public class ApprovalService {
             request.setApplicantEmail(applicant.getEmail());
         }
 
-        String channel = approvalConfigService.activeChannel();
+        String channel = approvalConfigService.activeProvider();
         String externalId = approvalConfigService.required().submitApproval(request);
         record.setChannel(channel);
         record.setExternalApprovalId(externalId);

@@ -19,23 +19,26 @@ package io.github.zzih.rudder.embedding.zhipu;
 
 import io.github.zzih.rudder.embedding.api.EmbeddingClient;
 import io.github.zzih.rudder.embedding.api.spi.EmbeddingClientFactory;
-import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(EmbeddingClientFactory.class)
-public class ZhiPuEmbeddingClientFactory implements EmbeddingClientFactory {
+public class ZhiPuEmbeddingClientFactory implements EmbeddingClientFactory<ZhiPuProperties> {
 
     public static final String PROVIDER = "ZHIPU";
 
     @Override
     public String getProvider() {
         return PROVIDER;
+    }
+
+    @Override
+    public Class<ZhiPuProperties> propertiesClass() {
+        return ZhiPuProperties.class;
     }
 
     @Override
@@ -63,19 +66,7 @@ public class ZhiPuEmbeddingClientFactory implements EmbeddingClientFactory {
     }
 
     @Override
-    public EmbeddingClient create(ProviderContext ctx, Map<String, String> config) {
-        ZhiPuProperties props = new ZhiPuProperties();
-        props.setApiKey(config.getOrDefault("apiKey", ""));
-        String model = config.get("model");
-        if (model != null && !model.isBlank()) {
-            props.setModel(model.trim());
-        }
-        String baseUrl = config.get("baseUrl");
-        if (baseUrl != null && !baseUrl.isBlank()) {
-            props.setBaseUrl(baseUrl.trim());
-        }
-        props.setDimensions(AbstractConfigurablePluginRegistry.parseIntOrDefault(
-                config.get("dimensions"), props.getDimensions()));
+    public EmbeddingClient create(ProviderContext ctx, ZhiPuProperties props) {
         return new ZhiPuEmbeddingClient(props);
     }
 }

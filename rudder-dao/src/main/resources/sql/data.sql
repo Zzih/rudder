@@ -13,32 +13,18 @@ INSERT IGNORE INTO `t_r_auth_source` (`id`, `name`, `type`, `enabled`, `is_syste
 VALUES (1, '本地账号', 'PASSWORD', 1, 1, 0, NULL, 1, NOW(), 1, NOW());
 
 -- ===================== 2. SPI Platform Configs =====================
--- 所有 SPI（AI / 审批 / 元数据 / 文件 / 通知 / 版本存储）走平台管理 UI 配置。
+-- 所有 SPI 走统一表 t_r_spi_config，按 type 区分(FILE / RESULT / RUNTIME / METADATA /
+-- VERSION / APPROVAL / PUBLISH / NOTIFICATION / LLM / EMBEDDING / VECTOR / RERANK)。
+-- default_query_rows 这类特殊字段编入 provider_params JSON。
 -- 启动种子 INSERT IGNORE 保证幂等；用户在 UI 修改后 DB 行更新，种子不会覆盖。
 
--- 元数据: JDBC（零配置，直接走数据源 JDBC 查询）
-INSERT IGNORE INTO `t_r_metadata_config` (`id`, `provider`, `provider_params`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-VALUES (1, 'JDBC', '{}', 1, 1, NOW(), 1, NOW());
-
--- 文件存储: LOCAL（默认本地目录，可在 UI 切换到 HDFS/OSS/S3）
-INSERT IGNORE INTO `t_r_file_config` (`id`, `provider`, `provider_params`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-VALUES (1, 'LOCAL', '{\"basePath\": \"/tmp/rudder/files\"}', 1, 1, NOW(), 1, NOW());
-
--- 结果格式: PARQUET（可在 UI 切换到 JSON/CSV/ORC/AVRO），SQL 任务默认拉 1000 行
-INSERT IGNORE INTO `t_r_result_config` (`id`, `provider`, `provider_params`, `default_query_rows`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-VALUES (1, 'PARQUET', '{}', 1000, 1, 1, NOW(), 1, NOW());
-
--- 审批: LOCAL（内置审批，无外部渠道依赖）
-INSERT IGNORE INTO `t_r_approval_config` (`id`, `channel`, `channel_params`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-VALUES (1, 'LOCAL', '{}', 1, 1, NOW(), 1, NOW());
-
--- 版本存储: LOCAL（快照写入 t_r_version_record，零配置）
--- INSERT IGNORE INTO `t_r_version_config` (`id`, `provider`, `provider_params`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
--- VALUES (1, 'LOCAL', '{}', 1, 1, NOW(), 1, NOW());
-
--- Runtime: LOCAL（自建集群，workDir 以外的字段留空走 bash -l 的 PATH 解析）
-INSERT IGNORE INTO `t_r_runtime_config` (`id`, `provider`, `provider_params`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-VALUES (1, 'LOCAL', '{"workDir":"/tmp/rudder/tasks"}', 1, 1, NOW(), 1, NOW());
+INSERT IGNORE INTO `t_r_spi_config` (`id`, `type`, `provider`, `provider_params`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
+VALUES
+  (1, 'METADATA', 'JDBC',    '{}',                                          1, 1, NOW(), 1, NOW()),
+  (2, 'FILE',     'LOCAL',   '{"basePath":"/tmp/rudder/files"}',            1, 1, NOW(), 1, NOW()),
+  (3, 'RESULT',   'PARQUET', '{"defaultQueryRows":1000}',                   1, 1, NOW(), 1, NOW()),
+  (4, 'APPROVAL', 'LOCAL',   '{}',                                          1, 1, NOW(), 1, NOW()),
+  (5, 'RUNTIME',  'LOCAL',   '{}',                                          1, 1, NOW(), 1, NOW());
 
 -- ===================== 3. 默认 AI Skills =====================
 -- 三个出厂 skill(平台级,所有 workspace 共享)。admin 可在 UI 修改/禁用/删除。

@@ -70,10 +70,6 @@ public class TaskExecutionContext {
      */
     private Long workflowInstanceId;
 
-    /**
-     * Active runtime 注入的环境变量(JAVA_HOME / PATH / SPARK_HOME / HADOOP_CONF_DIR 等)。
-     * Worker 在 {@code task.init(ctx)} 之前从 {@code RuntimeConfigService.envVars()} 灌入,
-     * Shell / Python / JAR 类任务可在 ProcessBuilder 里读取。
-     */
+    /** Active runtime 暴露的子进程环境变量,由 Worker 在 task.init 前从 RuntimeConfigService 灌入。 */
     private Map<String, String> envVars;
 }

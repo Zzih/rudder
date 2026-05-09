@@ -66,7 +66,7 @@ public class AliyunRuntime extends AbstractEngineRuntime {
 
 ```java
 public interface EngineRuntimeProvider extends ConfigurablePluginProviderFactory<ProviderContext> {
-    @Override default String family() { return "runtime"; }
+    @Override default String type() { return "runtime"; }
 
     EngineRuntime create(ProviderContext ctx, Map<String, String> config);
 

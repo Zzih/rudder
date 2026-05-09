@@ -76,6 +76,11 @@ watch(() => props.modelValue, (val) => {
   }
 })
 
+// readOnly 切换:editor 已创建后只能通过 updateOptions 改,不能重建
+watch(() => props.readOnly, (ro) => {
+  editor?.updateOptions({ readOnly: !!ro })
+})
+
 // Switch language when taskType changes
 watch(() => props.taskType, (tt) => {
   if (!editor || !tt) return

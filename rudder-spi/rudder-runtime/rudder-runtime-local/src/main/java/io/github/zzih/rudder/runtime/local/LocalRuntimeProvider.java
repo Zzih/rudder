@@ -24,12 +24,11 @@ import io.github.zzih.rudder.spi.api.context.ProviderContext;
 import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
 
 import java.util.List;
-import java.util.Map;
 
 import com.google.auto.service.AutoService;
 
 @AutoService(EngineRuntimeProvider.class)
-public class LocalRuntimeProvider implements EngineRuntimeProvider {
+public class LocalRuntimeProvider implements EngineRuntimeProvider<LocalRuntimeFormProperties> {
 
     private static final String ENV_VARS_PLACEHOLDER =
             "# 一行一个 KEY=VALUE,空行和 # 开头的注释行会被忽略。\n"
@@ -45,6 +44,11 @@ public class LocalRuntimeProvider implements EngineRuntimeProvider {
     }
 
     @Override
+    public Class<LocalRuntimeFormProperties> propertiesClass() {
+        return LocalRuntimeFormProperties.class;
+    }
+
+    @Override
     public List<PluginParamDefinition> params() {
         return List.of(
                 PluginParamDefinition.builder()
@@ -54,7 +58,7 @@ public class LocalRuntimeProvider implements EngineRuntimeProvider {
     }
 
     @Override
-    public EngineRuntime create(ProviderContext ctx, Map<String, String> config) {
-        return new LocalRuntime(RuntimeConfigUtils.parseProperties(config.get("envVars")));
+    public EngineRuntime create(ProviderContext ctx, LocalRuntimeFormProperties form) {
+        return new LocalRuntime(RuntimeConfigUtils.parseProperties(form.envVars()));
     }
 }

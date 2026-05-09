@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { renderSafeMarkdown } from '@/utils/safeMarkdown'
@@ -11,17 +11,18 @@ const props = defineProps<{
   enableLabelKey: string
   getProviderDefinitions: () => Promise<any>
   getConfig: () => Promise<any>
+  listConfigs: () => Promise<any>
   saveConfig: (data: { provider: string; providerParams?: string; enabled?: boolean; [key: string]: any }) => Promise<any>
-  /** 额外字段 key 列表，会从 config 回填到 form.extra 并在保存时一并提交 */
   extraFields?: string[]
-  /**
-   * 可选: 当前 SPI 暴露 /test 端点时传入,用于实时验证 endpoint+apiKey+model 配置正确。
-   * 不传则不显示"测试连接"按钮(向前兼容现有 Embedding/Vector/LLM 配置页)。
-   */
-  testConfig?: (data: { provider: string; config: Record<string, string> }) => Promise<any>
+  /** 不传则不显示"测试连接"按钮。 */
+  testConfig?: (data: { provider: string; providerParams: string }) => Promise<any>
 }>()
 
-const { t } = useI18n()
+const { t, te, locale } = useI18n()
+
+function tt(key: string, fallback: string): string {
+  return te(key) ? t(key) : t(fallback)
+}
 
 const loading = ref(false)
 const saving = ref(false)
@@ -41,13 +42,11 @@ const form = ref({
   extra: {} as Record<string, any>,
 })
 
-/** provider 短描述直接读后端 `ProviderMetadata.description`(在各 Factory 的 `metadata()` 里配)。前端不再维护 i18n key。 */
 function providerDesc(p: string): string {
   if (!p) return ''
   return providerDefs.value[p]?.metadata?.description ?? ''
 }
 
-/** 按 provider name 稳定取色 —— 新增 SPI 前端零改动。 */
 function providerMeta(p: string) {
   return colorMeta(providerColor(p))
 }
@@ -59,33 +58,46 @@ function providerMonogram(p: string): string {
   return str.slice(0, 2)
 }
 
+const configsByProvider = ref<Record<string, any>>({})
+
 function onProviderChange() {
+  const saved = configsByProvider.value[form.value.provider]
+  if (saved) {
+    form.value.providerParams = (saved.providerParams ?? {}) as Record<string, string>
+    form.value.enabled = saved.enabled !== false
+    return
+  }
   const defs = providerDefs.value[form.value.provider]?.params ?? []
   const next: Record<string, string> = {}
   for (const p of defs) {
     if (p.defaultValue) next[p.name] = p.defaultValue
   }
   form.value.providerParams = next
+  form.value.enabled = true
 }
 
 async function loadData() {
   loading.value = true
   try {
-    const [defRes, cfgRes] = await Promise.all([
+    const [defRes, cfgRes, listRes] = await Promise.all([
       props.getProviderDefinitions(),
       props.getConfig(),
+      props.listConfigs(),
     ])
     providerDefs.value = (defRes as any).data ?? {}
+    const all = ((listRes as any).data ?? []) as any[]
+    const map: Record<string, any> = {}
+    for (const row of all) {
+      if (row?.provider) map[row.provider] = row
+    }
+    configsByProvider.value = map
+
     const cfg = (cfgRes as any).data
     const firstProvider = Object.keys(providerDefs.value)[0] ?? ''
     if (cfg) {
       form.value.provider = cfg.provider || firstProvider
       form.value.enabled = cfg.enabled !== false
-      try {
-        form.value.providerParams = cfg.providerParams ? JSON.parse(cfg.providerParams) : {}
-      } catch {
-        form.value.providerParams = {}
-      }
+      form.value.providerParams = (cfg.providerParams ?? {}) as Record<string, string>
       if (props.extraFields) {
         for (const key of props.extraFields) {
           if (cfg[key] !== undefined) {
@@ -121,6 +133,17 @@ async function handleSave() {
       enabled: form.value.enabled,
       ...form.value.extra,
     })
+    // 与后端 disableOthers 同步本地 cache 的 enabled 状态。
+    const next: Record<string, any> = {}
+    for (const [p, row] of Object.entries(configsByProvider.value)) {
+      next[p] = { ...row, enabled: false }
+    }
+    next[form.value.provider] = {
+      provider: form.value.provider,
+      providerParams: { ...form.value.providerParams },
+      enabled: form.value.enabled,
+    }
+    configsByProvider.value = next
     ElMessage.success(t('common.success'))
   } catch { /* interceptor */ }
   finally { saving.value = false }
@@ -135,10 +158,9 @@ async function handleTest() {
   try {
     const res = (await props.testConfig({
       provider: form.value.provider,
-      config: form.value.providerParams,
+      providerParams: JSON.stringify(form.value.providerParams),
     })) as any
     const r = res?.data
-    // 兼容两种响应形态: 直接 TestResult 或 wrapper
     if (r?.success) {
       ElMessage.success(`${t('common.success')}${r.latencyMs != null ? ` · ${r.latencyMs}ms` : ''}`)
     } else {
@@ -149,6 +171,14 @@ async function handleTest() {
 }
 
 onMounted(loadData)
+
+// providerDefs 按 Accept-Language 头从后端按 locale 加载,切语言时重拉。
+watch(locale, async () => {
+  try {
+    const defRes = await props.getProviderDefinitions()
+    providerDefs.value = (defRes as any).data ?? {}
+  } catch { /* interceptor */ }
+})
 </script>
 
 <template>
@@ -208,6 +238,10 @@ onMounted(loadData)
                       :autosize="{ minRows: 5, maxRows: 16 }"
                       :placeholder="param.placeholder"
                     />
+                    <el-switch
+                      v-else-if="param.type === 'boolean'"
+                      v-model="form.providerParams[param.name]"
+                    />
                     <el-input
                       v-else
                       v-model="form.providerParams[param.name]"
@@ -258,7 +292,7 @@ onMounted(loadData)
       <aside class="spi-guide" :class="{ 'is-empty': !currentGuide }">
         <div v-if="currentGuide" class="spi-guide__scroll">
           <div class="spi-guide__head">
-            <span class="spi-guide__kicker">{{ t(i18nPrefix + '.setupGuide') }}</span>
+            <span class="spi-guide__kicker">{{ tt(i18nPrefix + '.setupGuide', 'common.setupGuide') }}</span>
             <span v-if="form.provider" class="spi-guide__issue">{{ form.provider }}</span>
           </div>
           <div class="spi-guide__prose" v-html="currentGuide" />
@@ -267,7 +301,7 @@ onMounted(loadData)
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z"/>
           </svg>
-          <span>{{ t(i18nPrefix + '.emptyTip') }}</span>
+          <span>{{ tt(i18nPrefix + '.emptyTip', 'common.emptyTip') }}</span>
         </div>
       </aside>
     </div>

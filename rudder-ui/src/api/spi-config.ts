@@ -35,15 +35,18 @@ export interface TestResult {
 export interface SpiConfigApi {
   getProviderDefinitions: () => Promise<any>
   getConfig: () => Promise<any>
+  /** 拉某 type 全量历史 row(每个 provider 一行,含 disabled),用于切 provider 卡片回填表单。 */
+  listConfigs: () => Promise<any>
   saveConfig: (data: { provider: string; providerParams?: string; enabled?: boolean }) => Promise<any>
   /** 可选: 部分 SPI 暴露 /test 端点,用于 admin UI 实时验证配置(连通性 / model 名 / apiKey)。 */
-  testConfig?: (data: { provider: string; config: Record<string, string> }) => Promise<any>
+  testConfig?: (data: { provider: string; providerParams: string }) => Promise<any>
 }
 
 export function createSpiConfigApi(basePath: string, opts?: { testEnabled?: boolean }): SpiConfigApi {
   const api: SpiConfigApi = {
     getProviderDefinitions: () => request.get(`/config/${basePath}/providers`),
     getConfig: () => request.get(`/config/${basePath}`),
+    listConfigs: () => request.get(`/config/${basePath}/configs`),
     saveConfig: (data) => request.post(`/config/${basePath}`, data),
   }
   if (opts?.testEnabled) {

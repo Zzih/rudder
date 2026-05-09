@@ -6,6 +6,7 @@ interface UserInfo {
   userId: number
   username: string
   role: Role
+  workspaceId?: number
 }
 
 function loadUserInfo(): UserInfo | null {

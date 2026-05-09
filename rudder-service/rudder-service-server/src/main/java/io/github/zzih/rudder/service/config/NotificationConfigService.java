@@ -17,49 +17,62 @@
 
 package io.github.zzih.rudder.service.config;
 
-import io.github.zzih.rudder.dao.dao.NotificationConfigDao;
-import io.github.zzih.rudder.dao.entity.NotificationConfig;
-import io.github.zzih.rudder.service.config.dto.NotificationConfigDTO;
+import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
+import io.github.zzih.rudder.dao.dao.SpiConfigDao;
+import io.github.zzih.rudder.dao.enums.SpiType;
+import io.github.zzih.rudder.notification.api.NotificationSender;
+import io.github.zzih.rudder.notification.api.plugin.NotificationPluginManager;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 import io.github.zzih.rudder.service.notification.NotificationService;
+import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 
 import org.springframework.stereotype.Service;
 
-import lombok.RequiredArgsConstructor;
-
-/** Notification active 配置的 server 侧入口：复用 {@link NotificationService} 的缓存做读，自己负责写入和失效。 */
+/**
+ * 读路径委托 {@link NotificationService}:共用 {@link GlobalCacheKey#NOTIFICATION},
+ * 该 key 的 cache value 已被 NotificationService 占为 {@link NotificationService.Active} record,
+ * 这里若再走基类 cache.getOrLoad 拿 NotificationSender 会触发 ClassCastException。
+ */
 @Service
-@RequiredArgsConstructor
-public class NotificationConfigService {
+public class NotificationConfigService extends AbstractConfigService<NotificationSender> {
 
-    private final GlobalCacheService cache;
-    private final NotificationConfigDao dao;
+    private final NotificationPluginManager pluginManager;
     private final NotificationService notificationService;
 
+    public NotificationConfigService(GlobalCacheService cache, SpiConfigDao spiConfigDao,
+                                     NotificationPluginManager pluginManager,
+                                     NotificationService notificationService) {
+        super(cache, GlobalCacheKey.NOTIFICATION, ConfigErrorCode.NOTIFICATION_NOT_CONFIGURED, spiConfigDao,
+                SpiType.NOTIFICATION);
+        this.pluginManager = pluginManager;
+        this.notificationService = notificationService;
+    }
+
+    @Override
+    public NotificationSender active() {
+        NotificationService.Active a = notificationService.current();
+        return a == null ? null : a.sender();
+    }
+
+    @Override
     public HealthStatus health() {
         return notificationService.health();
     }
 
-    public void save(NotificationConfig config) {
-        if (config.getId() != null) {
-            dao.updateById(config);
-        } else {
-            dao.insert(config);
-        }
-        cache.invalidate(GlobalCacheKey.NOTIFICATION);
+    @Override
+    protected AbstractConfigurablePluginRegistry<?, ?> pluginManager() {
+        return pluginManager;
     }
 
-    /** Controller 入口：DTO → entity 取-或-新建 → 灌字段 → save。 */
-    public void saveDetail(NotificationConfigDTO body) {
-        NotificationConfig c = dao.selectActive();
-        if (c == null) {
-            c = new NotificationConfig();
-        }
-        c.setProvider(body.getProvider());
-        c.setProviderParams(body.getProviderParams());
-        c.setEnabled(body.getEnabled() == null || body.getEnabled());
-        save(c);
+    @Override
+    protected NotificationSender buildInstance(String provider, String providerParamsJson) {
+        return pluginManager.create(provider, providerParamsJson);
+    }
+
+    @Override
+    protected HealthStatus healthOf(NotificationSender instance) {
+        return instance.healthCheck();
     }
 }

@@ -18,10 +18,10 @@
 package io.github.zzih.rudder.ai.orchestrator;
 
 /**
- * RAG 链路配置(对应 {@code t_r_ai_config} type=RAG_PIPELINE 行的 {@code provider_params} JSON)。
+ * RAG 链路配置(对应 {@code t_r_rag_pipeline_config} 行的 {@code settings_json})。
  *
  * <p>所有字段都是 admin UI 可控的链路开关。Rerank provider 的**凭证**(endpoint/apiKey/model)
- * 不在此处,在 type=RERANK 行。本类只负责 stage 级别的"用不用 rerank"以及"返回前几个"。
+ * 不在此处,在 {@code t_r_spi_config} type=RERANK 行。本类只负责 stage 级别的"用不用 rerank"以及"返回前几个"。
  *
  * <p><b>JSON 兼容性</b>: 新加字段时 DB 老 row 会缺该字段,Jackson 读 record 时缺字段 → Java 默认值
  * (boolean=false / int=0)。在 compact constructor 里把 0 类规范化掉,避免 0 被误用。

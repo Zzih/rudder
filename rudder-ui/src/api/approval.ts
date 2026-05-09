@@ -32,19 +32,23 @@ export interface ParamDefinition {
   placeholder: string
 }
 
-export interface ChannelDefinition {
+export interface ProviderDefinition {
   params: ParamDefinition[]
   guide: string
 }
 
-export function getApprovalChannelDefinitions() {
-  return request.get('/config/approval/channels')
+export function getApprovalProviderDefinitions() {
+  return request.get('/config/approval/providers')
 }
 
 export function getApprovalConfig() {
   return request.get('/config/approval')
 }
 
-export function saveApprovalConfig(data: { channel: string; channelParams?: string; enabled?: boolean }) {
+export function saveApprovalConfig(data: { provider: string; providerParams?: string; enabled?: boolean }) {
   return request.post('/config/approval', data)
+}
+
+export function listApprovalConfigs() {
+  return request.get('/config/approval/configs')
 }
