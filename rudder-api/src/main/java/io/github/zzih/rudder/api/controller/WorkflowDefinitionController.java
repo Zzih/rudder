@@ -250,7 +250,18 @@ public class WorkflowDefinitionController {
         if (request.getEndTime() != null && !request.getEndTime().isBlank()) {
             schedule.setEndTime(LocalDateTime.parse(request.getEndTime().replace(" ", "T")));
         }
+        if (request.getScheduleStatus() != null) {
+            schedule.setStatus(request.getScheduleStatus());
+        }
         return workflowScheduleService.saveOrUpdateDetail(workflowDefinitionCode, schedule);
+    }
+
+    /** 切换调度上线/下线;返回切换后的状态。 */
+    @PostMapping("/{code}/schedule/toggle")
+    public Result<WorkflowScheduleDTO> toggleSchedule(@PathVariable Long workspaceId,
+                                                      @PathVariable Long projectCode,
+                                                      @PathVariable Long code) {
+        return Result.ok(workflowScheduleService.toggleStatusDetail(code));
     }
 
     // ==================== 编辑锁(纯 UX,数据安全靠 service.update 的 contentHash 校验) ====================

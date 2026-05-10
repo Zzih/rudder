@@ -95,6 +95,6 @@ SET @SVG_GITHUB = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzI
 INSERT IGNORE INTO `t_r_quick_link`
   (`id`, `category`, `name`, `description`, `icon`, `url`, `target`, `sort_order`, `enabled`, `created_by`, `created_at`, `updated_by`, `updated_at`)
 VALUES
-  (1, 'DOC_LINK', 'API 文档',     'OpenAPI / Swagger UI', @SVG_DOC,    '/swagger-ui.html',                      '_blank', 0, 1, 1, NOW(), 1, NOW()),
+  (1, 'DOC_LINK', 'API 文档',     'OpenAPI / Scalar UI', @SVG_DOC,    '/scalar',                      '_blank', 0, 1, 1, NOW(), 1, NOW()),
   (2, 'DOC_LINK', '项目仓库',     'GitHub 源码与 Wiki',   @SVG_GITHUB, 'https://github.com/zzih/rudder',        '_blank', 1, 1, 1, NOW(), 1, NOW()),
   (3, 'DOC_LINK', '问题反馈',     'GitHub Issues',        @SVG_GITHUB, 'https://github.com/zzih/rudder/issues', '_blank', 2, 1, 1, NOW(), 1, NOW());

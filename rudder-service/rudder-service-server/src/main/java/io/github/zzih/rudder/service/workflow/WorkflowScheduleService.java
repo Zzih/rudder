@@ -46,6 +46,10 @@ public class WorkflowScheduleService {
         if (existing != null) {
             schedule.setId(existing.getId());
             schedule.setWorkflowDefinitionCode(workflowDefinitionCode);
+            // 入参未指定 status 时保留旧值,避免编辑表单未带该字段意外覆盖 ONLINE → null
+            if (schedule.getStatus() == null) {
+                schedule.setStatus(existing.getStatus());
+            }
             workflowScheduleDao.updateById(schedule);
             return schedule;
         } else {
@@ -58,6 +62,21 @@ public class WorkflowScheduleService {
         }
     }
 
+    /** 切换上下线; schedule 不存在时报错(无 cron 配置无法上线)。 */
+    public WorkflowSchedule toggleStatus(Long workflowDefinitionCode) {
+        WorkflowSchedule existing = getByWorkflowDefinitionCode(workflowDefinitionCode);
+        if (existing == null) {
+            throw new IllegalStateException("schedule not configured, cannot toggle");
+        }
+        existing.setStatus(existing.getStatus() == ScheduleStatus.ONLINE
+                ? ScheduleStatus.OFFLINE
+                : ScheduleStatus.ONLINE);
+        workflowScheduleDao.updateById(existing);
+        log.info("切换调度状态, workflowDefinitionCode={}, status={}",
+                workflowDefinitionCode, existing.getStatus());
+        return existing;
+    }
+
     // ==================== Detail variants — controller 调,DTO 入出 ====================
 
     public WorkflowScheduleDTO getByWorkflowDefinitionCodeDetail(Long workflowDefinitionCode) {
@@ -67,5 +86,9 @@ public class WorkflowScheduleService {
     public WorkflowScheduleDTO saveOrUpdateDetail(Long workflowDefinitionCode, WorkflowScheduleDTO body) {
         WorkflowSchedule entity = BeanConvertUtils.convert(body, WorkflowSchedule.class);
         return BeanConvertUtils.convert(saveOrUpdate(workflowDefinitionCode, entity), WorkflowScheduleDTO.class);
+    }
+
+    public WorkflowScheduleDTO toggleStatusDetail(Long workflowDefinitionCode) {
+        return BeanConvertUtils.convert(toggleStatus(workflowDefinitionCode), WorkflowScheduleDTO.class);
     }
 }

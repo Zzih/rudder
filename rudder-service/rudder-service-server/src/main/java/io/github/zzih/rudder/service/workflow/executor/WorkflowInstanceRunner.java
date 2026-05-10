@@ -264,7 +264,8 @@ public class WorkflowInstanceRunner implements Runnable {
         List<Property> varSnapshot = varPool.snapshot();
         ControlFlowContext ctx = new ControlFlowContext(
                 instance.getId(), varSnapshot, ancestorWorkflowDefinitionCodes, deps.subWorkflowExecutor());
-        AbstractControlFlowTask task = deps.controlFlowTaskFactory().create(taskType, taskDef, node, ctx);
+        AbstractControlFlowTask task = deps.controlFlowTaskFactory().create(
+                taskType, controlTask.getContent(), node, ctx);
 
         try (var ignored = TaskLogUtils.withTaskLog(controlTask.getId(), localLogPath)) {
             log.info("{} node {} ({}) started", taskType, node.getTaskCode(), node.getLabel());

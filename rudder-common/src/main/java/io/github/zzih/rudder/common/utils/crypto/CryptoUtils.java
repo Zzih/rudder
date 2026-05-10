@@ -41,9 +41,13 @@ public class CryptoUtils {
      * SHA-256 摘要，返回小写十六进制字符串。
      */
     public static String sha256Hex(String input) {
+        return sha256Hex(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** SHA-256 摘要(字节流入参),返回小写十六进制字符串。 */
+    public static String sha256Hex(byte[] bytes) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(bytes);
             return HexFormat.of().formatHex(hash);
         } catch (Exception e) {
             throw new RuntimeException("SHA-256 failed", e);

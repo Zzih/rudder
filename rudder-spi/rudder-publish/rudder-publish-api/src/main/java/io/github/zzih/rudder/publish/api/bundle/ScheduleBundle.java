@@ -38,4 +38,7 @@ public class ScheduleBundle {
     private LocalDateTime startTime;
 
     private LocalDateTime endTime;
+
+    /** 调度上下线状态: {@code ONLINE} / {@code OFFLINE}。接收侧据此决定是否在自身调度器中启用该 schedule。 */
+    private String status;
 }

@@ -51,11 +51,6 @@ public class TaskDefinition extends BaseEntity {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long scriptCode;
 
-    /**
-     * JSON: 控制节点配置（condition 表达式、子工作流 ID 等）。
-     */
-    private String configJson;
-
     private String description;
 
     /**

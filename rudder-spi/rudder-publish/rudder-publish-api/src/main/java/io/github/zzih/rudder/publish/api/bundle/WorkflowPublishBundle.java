@@ -17,8 +17,6 @@
 
 package io.github.zzih.rudder.publish.api.bundle;
 
-import io.github.zzih.rudder.common.param.Property;
-
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -26,18 +24,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** 单工作流发布载荷。所有 dao / 派生数据由业务侧装配完毕后传入。 */
+/**
+ * 单工作流发布载荷。项目归属、发起人、环境对象(数据源)放顶层,工作流本体放 {@link #workflow}。
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class WorkflowPublishBundle {
-
-    private Long workflowCode;
-
-    private String workflowName;
-
-    private String workflowDescription;
 
     private Long projectCode;
 
@@ -48,12 +42,14 @@ public class WorkflowPublishBundle {
     /** 发起发布的用户名。 */
     private String userName;
 
-    private List<TaskBundle> tasks;
+    /**
+     * 工作流引用到的数据源完整快照(已去重,含连接信息与明文凭证)。
+     * 接收侧每次发布前据此 upsert 自身数据源注册表,再处理 workflow 任务定义。
+     */
+    private List<DatasourceBundle> datasources;
 
-    private List<EdgeBundle> edges;
+    /** 工作流引用到的资源(已去重,JAR / 配置文件 等),字节内联在 {@link ResourceBundle#getContent}。 */
+    private List<ResourceBundle> resources;
 
-    /** nullable，未配置调度时为空。 */
-    private ScheduleBundle schedule;
-
-    private List<Property> globalParams;
+    private WorkflowBundle workflow;
 }

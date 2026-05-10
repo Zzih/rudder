@@ -11,6 +11,7 @@ export default {
     edit: 'Edit',
     delete: 'Delete',
     save: 'Save',
+    select: 'Select',
     search: 'Search...',
     actions: 'Actions',
     status: 'Status',
@@ -281,6 +282,14 @@ export default {
     emptyTip: 'Select a provider to view its setup guide',
   },
 
+  fileDialog: {
+    title: 'Select File',
+    root: 'Root',
+    empty: 'No files in this folder',
+    selectFirst: 'Please select a file first',
+    loadFailed: 'Failed to load file list',
+  },
+
   jar: {
     program: 'Program',
     mainClass: 'Main Class',
@@ -547,6 +556,12 @@ export default {
     remark: 'Remark',
     saveSettings: 'Save Workflow',
     scheduleConfig: 'Schedule Configuration',
+    scheduleEnabled: 'Enable schedule',
+    scheduleEnabledHint: 'Set Cron expression first',
+    scheduleOnline: 'Online',
+    scheduleOffline: 'Offline',
+    scheduleClickToOnline: 'Click to enable',
+    scheduleClickToOffline: 'Click to disable',
     cronExpr: 'Cron Expression',
     startTime: 'Start Time',
     endTime: 'End Time',

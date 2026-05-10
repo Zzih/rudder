@@ -24,7 +24,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** 单个任务在发布时的快照。scriptContent / configJson 均为原始 JSON 字符串，由 provider 自行解析。 */
+/** 单个任务在发布时的快照。scriptContent 为任务配置 JSON 原文，由 provider 自行解析。 */
 @Data
 @Builder
 @NoArgsConstructor
@@ -39,11 +39,7 @@ public class TaskBundle {
 
     private TaskType taskType;
 
-    /** 普通任务体（JSON）。控制流任务为 null。 */
     private String scriptContent;
-
-    /** 控制流任务专用配置（JSON）。普通任务为 null。 */
-    private String configJson;
 
     private Integer retryTimes;
 

@@ -110,7 +110,6 @@ public class WorkflowVersionService {
             taskConfig.put("name", td.getName());
             taskConfig.put("taskType", td.getTaskType() != null ? td.getTaskType().name() : null);
             taskConfig.put("scriptCode", td.getScriptCode());
-            taskConfig.put("configJson", td.getConfigJson());
             taskConfig.put("description", td.getDescription());
             taskConfig.put("inputParams", td.getInputParams());
             taskConfig.put("outputParams", td.getOutputParams());
@@ -212,7 +211,6 @@ public class WorkflowVersionService {
             ts.setScriptCode(td.getScriptCode());
             Script script = td.getScriptCode() != null ? scriptMap.get(td.getScriptCode()) : null;
             ts.setScriptContent(script != null ? script.getContent() : null);
-            ts.setConfigJson(td.getConfigJson());
             ts.setDescription(td.getDescription());
             ts.setInputParams(td.getInputParams());
             ts.setOutputParams(td.getOutputParams());
@@ -295,7 +293,6 @@ public class WorkflowVersionService {
         private String taskType;
         private Long scriptCode;
         private String scriptContent;
-        private String configJson;
         private String description;
         private String inputParams;
         private String outputParams;

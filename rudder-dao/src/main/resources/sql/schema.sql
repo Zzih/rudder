@@ -205,7 +205,6 @@ CREATE TABLE IF NOT EXISTS `t_r_task_definition` (
     `name`            VARCHAR(128)                      COMMENT '任务名称/标签',
     `task_type`       VARCHAR(32) NOT NULL              COMMENT '任务类型: MYSQL/HIVE_SQL/CONDITION/SUB_WORKFLOW等',
     `script_code`     BIGINT DEFAULT NULL               COMMENT '关联脚本code(脚本类任务)',
-    `config_json`     TEXT DEFAULT NULL                  COMMENT 'JSON: 任务配置(DS兼容格式: dependence/conditionResult/switchResult/workflowDefinitionCode等)',
     `description`     VARCHAR(512) DEFAULT NULL          COMMENT '任务描述',
     `input_params`    TEXT DEFAULT NULL                  COMMENT 'JSON: 输入参数映射',
     `output_params`   TEXT DEFAULT NULL                  COMMENT 'JSON: 输出参数映射',

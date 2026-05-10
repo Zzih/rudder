@@ -13,6 +13,7 @@ import TaskIcon from '@/components/TaskIcon.vue'
 import MonacoInput from '@/components/MonacoInput.vue'
 import HttpTaskEditor from '@/views/ide/HttpTaskEditor.vue'
 import { defaultHttpParams } from '@/views/ide/httpParams'
+import FileSelectDialog from '@/components/FileSelectDialog.vue'
 import { getTaskIconUrl } from '@/utils/taskIconUrl'
 import { cv } from '@/utils/cssVar'
 import { useThemeStore } from '@/stores/theme'
@@ -200,6 +201,12 @@ const formData = reactive({
   inputParams: [] as Property[],
   outputParams: [] as Property[],
 })
+
+// JAR 任务的文件选择器
+const showJarPicker = ref(false)
+function onJarSelected(path: string) {
+  formData.jarPath = path
+}
 
 const editingTaskTypeDef = computed(() => taskTypes.value.find(tt => tt.value === formData.taskType))
 const isStreamCapable = computed(() => editingTaskTypeDef.value?.executionModes?.includes('STREAMING') ?? false)
@@ -1421,7 +1428,11 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
               </el-col>
               <el-col :span="12">
                 <el-form-item :label="t('jar.jarPath')" required>
-                  <el-input v-model="formData.jarPath" placeholder="/jars/my-app.jar" />
+                  <el-input v-model="formData.jarPath" placeholder="/jars/my-app.jar" readonly>
+                    <template #append>
+                      <el-button @click="showJarPicker = true">{{ t('common.select') }}</el-button>
+                    </template>
+                  </el-input>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -1882,6 +1893,13 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
       </div>
       <div v-if="ctxMenu.visible" class="dag-ctx-overlay" @click="hideContextMenu" @contextmenu.prevent="hideContextMenu" />
     </Teleport>
+
+    <FileSelectDialog
+      v-model="showJarPicker"
+      :current-path="formData.jarPath"
+      :extensions="['.jar']"
+      @select="onJarSelected"
+    />
   </div>
 </template>
 
