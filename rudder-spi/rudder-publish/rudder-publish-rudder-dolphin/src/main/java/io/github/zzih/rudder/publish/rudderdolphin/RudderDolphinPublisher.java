@@ -15,41 +15,41 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.publish.ariondolphin;
+package io.github.zzih.rudder.publish.rudderdolphin;
 
+import io.github.zzih.rudder.dolphin.client.RudderDolphinClient;
 import io.github.zzih.rudder.publish.api.Publisher;
 import io.github.zzih.rudder.publish.api.bundle.ProjectPublishBundle;
 import io.github.zzih.rudder.publish.api.bundle.WorkflowPublishBundle;
 
-import io.github.zzih.arion.dolphin.client.ArionClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class ArionDolphinPublisher implements Publisher {
+public class RudderDolphinPublisher implements Publisher {
 
-    private final ArionClient arionClient;
+    private final RudderDolphinClient rudderDolphinClient;
 
     @Override
     public String getProvider() {
-        return ArionDolphinPublisherFactory.PROVIDER;
+        return RudderDolphinPublisherFactory.PROVIDER;
     }
 
     @Override
     public void publishWorkflow(WorkflowPublishBundle bundle) {
-        log.info("发布工作流到 arion-dolphin, project={}, workflowCode={}, name={}",
+        log.info("发布工作流到 rudder-dolphin, project={}, workflowCode={}, name={}",
                 bundle.getProjectName(),
                 bundle.getWorkflow() != null ? bundle.getWorkflow().getCode() : null,
                 bundle.getWorkflow() != null ? bundle.getWorkflow().getName() : null);
-        // arionClient.publishWorkflow(bundle);
+        // rudderDolphinClient.publishWorkflow(bundle);
     }
 
     @Override
     public void publishProject(ProjectPublishBundle bundle) {
-        log.info("发布项目到 arion-dolphin, project={}, workflows={}",
+        log.info("发布项目到 rudder-dolphin, project={}, workflows={}",
                 bundle.getProjectName(),
                 bundle.getWorkflows() != null ? bundle.getWorkflows().size() : 0);
-        // arionClient.publishProject(bundle);
+        // rudderDolphinClient.publishProject(bundle);
     }
 }

@@ -1,20 +1,20 @@
 ---
-description: 通过 Arion 网关发布到 DolphinScheduler
+description: 通过 Rudder-Dolphin 网关发布到 DolphinScheduler
 ---
 
-## Arion-Dolphin 发布接入指南
+## Rudder-Dolphin 发布接入指南
 
-将 Rudder 的工作流定义、任务、脚本、调度推送至 DolphinScheduler。中间通过 Arion 网关代理转发，
-Rudder 只与 Arion 通信，不直接访问 DolphinScheduler。
+将 Rudder 的工作流定义、任务、脚本、调度推送至 DolphinScheduler。中间通过 Rudder-Dolphin 网关代理转发，
+Rudder 只与 Rudder-Dolphin 通信，不直接访问 DolphinScheduler。
 
-### 1. 准备 Arion 网关
-1. 部署 Arion 网关服务，确保其可访问目标 DolphinScheduler 集群的 OpenAPI
-2. 记录网关基础地址（形如 `http://arion.example.com` 或带端口 `http://10.0.0.1:12348`）
+### 1. 准备 Rudder-Dolphin 网关
+1. 部署 Rudder-Dolphin 网关服务，确保其可访问目标 DolphinScheduler 集群的 OpenAPI
+2. 记录网关基础地址（形如 `http://rudder-dolphin.example.com` 或带端口 `http://10.0.0.1:12348`）
 3. 若网关启用了鉴权，在网关侧创建调用方 Token 并记录
 
 ### 2. 同名规则
 - **项目名**：Rudder 中的项目名将作为 DolphinScheduler 的 Project 名直接使用，
-  发布时若 DS 中不存在同名 Project，Arion 会自动创建
+  发布时若 DS 中不存在同名 Project，Rudder-Dolphin 会自动创建
 - **工作流名 / 任务名**：作为 DS 中 ProcessDefinition / TaskDefinition 的名称直接使用，
   请保证在同一项目内唯一
 - **用户名**：发布时使用当前操作用户的用户名作为 DS 用户，请提前在 DS 中创建对应用户
@@ -51,7 +51,7 @@ DS 端不存在该 ID 时，发布会失败。建议先在 DS 中创建 / 同步
 
 ### 6. 填写配置
 将下列信息填入字段后保存：
-- **URL**：Arion 网关基础地址（必填）
-- **Token**：Arion 鉴权 Token（如网关未启用鉴权可留空）
+- **URL**：Rudder-Dolphin 网关基础地址（必填）
+- **Token**：Rudder-Dolphin 鉴权 Token（如网关未启用鉴权可留空）
 
 保存后，工作流发布走该 provider 推送，可在 DS Web UI 中查看发布结果。

@@ -168,8 +168,8 @@ JWT 过期时间硬编码 `12h`（`43200000` ms），改需要直接改 `applica
 
 | 变量 | 默认 |
 |:---|:---|
-| `ARION_DOLPHIN_CLIENT_URL` | `http://127.0.0.1:12348` |
-| `ARION_DOLPHIN_CLIENT_TOKEN` | 空 |
+| `RUDDER_DOLPHIN_CLIENT_URL` | `http://127.0.0.1:12348` |
+| `RUDDER_DOLPHIN_CLIENT_TOKEN` | 空 |
 
 > 集成方式与发布流程见 [dolphinscheduler.md](dolphinscheduler.md)。
 

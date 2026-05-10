@@ -1,19 +1,19 @@
 ---
-description: Publish to DolphinScheduler through the Arion gateway
+description: Publish to DolphinScheduler through the Rudder-Dolphin gateway
 ---
 
-## Arion-Dolphin Publish Setup
+## Rudder-Dolphin Publish Setup
 
 Pushes Rudder workflow definitions, tasks, scripts, and schedules to DolphinScheduler. Traffic is
-proxied through the Arion gateway; Rudder talks to Arion only and never to DolphinScheduler directly.
+proxied through the Rudder-Dolphin gateway; Rudder talks to Rudder-Dolphin only and never to DolphinScheduler directly.
 
-### 1. Prepare the Arion gateway
-1. Deploy the Arion gateway and ensure it can reach the target DolphinScheduler cluster's OpenAPI
-2. Record the gateway base URL (e.g. `http://arion.example.com` or `http://10.0.0.1:12348`)
+### 1. Prepare the Rudder-Dolphin gateway
+1. Deploy the Rudder-Dolphin gateway and ensure it can reach the target DolphinScheduler cluster's OpenAPI
+2. Record the gateway base URL (e.g. `http://rudder-dolphin.example.com` or `http://10.0.0.1:12348`)
 3. If the gateway enforces auth, mint a caller token there and record it
 
 ### 2. Naming rules
-- **Project name**: the Rudder project name is used as-is for the DolphinScheduler project. Arion
+- **Project name**: the Rudder project name is used as-is for the DolphinScheduler project. Rudder-Dolphin
   auto-creates the project if it does not exist
 - **Workflow / task name**: used as-is for the DS `ProcessDefinition` / `TaskDefinition` name. Keep
   them unique inside a project
@@ -54,8 +54,8 @@ fails if the ID is unknown to DS. Provision or sync the datasource on the DS sid
 
 ### 6. Fill in the configuration
 Paste the following into the form and save:
-- **URL**: Arion gateway base URL (required)
-- **Token**: Arion bearer token (leave blank if the gateway is unauthenticated)
+- **URL**: Rudder-Dolphin gateway base URL (required)
+- **Token**: Rudder-Dolphin bearer token (leave blank if the gateway is unauthenticated)
 
 Once saved, workflow publishes go through this provider and the result can be inspected in the
 DolphinScheduler web UI.

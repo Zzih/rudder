@@ -48,7 +48,7 @@
         <lombok.version>1.18.44</lombok.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <rudder.version>${revision}</rudder.version>
-        <arion.version>0.1.0-SNAPSHOT</arion.version>
+        <rudder-dolphin.version>0.1.0-SNAPSHOT</rudder-dolphin.version>
 
         <!-- Dependencies -->
         <mybatis-plus.version>3.5.15</mybatis-plus.version>
@@ -383,7 +383,7 @@
             </dependency>
             <dependency>
                 <groupId>io.github.zzih</groupId>
-                <artifactId>rudder-publish-arion-dolphin</artifactId>
+                <artifactId>rudder-publish-rudder-dolphin</artifactId>
                 <version>${rudder.version}</version>
             </dependency>
             <dependency>
@@ -417,11 +417,11 @@
                 <version>${rudder.version}</version>
             </dependency>
 
-            <!-- ==================== Arion Client ==================== -->
+            <!-- ==================== Rudder-Dolphin Client ==================== -->
             <dependency>
                 <groupId>io.github.zzih</groupId>
-                <artifactId>arion-dolphin-client</artifactId>
-                <version>${arion.version}</version>
+                <artifactId>rudder-dolphin-client</artifactId>
+                <version>${rudder-dolphin.version}</version>
             </dependency>
 
             <!-- ==================== Nashorn Sandbox (JS engine for Switch) ==================== -->

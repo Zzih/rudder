@@ -27,7 +27,6 @@ import io.github.zzih.rudder.spi.api.model.HealthStatus;
  */
 public interface Publisher extends AutoCloseable {
 
-    /** Provider 标识，例如 "ARION_DOLPHIN"。 */
     String getProvider();
 
     /** 单工作流发布。 */

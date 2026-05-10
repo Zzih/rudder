@@ -262,7 +262,7 @@ public class WorkflowPublishService {
     /**
      * 执行发布：用户在审批通过后手动触发，将工作流发布到目标环境。
      * 仅 APPROVED 状态的批次可以执行发布。
-     * 根据 publishType 区分工作流级别和项目级别，调用不同的 Arion 接口。
+     * 根据 publishType 区分工作流级别和项目级别。
      */
     @Transactional
     public void executePublish(Long batchCode) {
