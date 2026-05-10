@@ -9,8 +9,8 @@
         <version>${revision}</version>
     </parent>
 
-    <artifactId>rudder-publish-arion-dolphin</artifactId>
-    <name>Rudder Publish Arion-Dolphin</name>
+    <artifactId>rudder-publish-rudder-dolphin</artifactId>
+    <name>Rudder Publish Rudder-Dolphin</name>
 
     <dependencies>
         <dependency>
@@ -19,7 +19,7 @@
         </dependency>
         <dependency>
             <groupId>io.github.zzih</groupId>
-            <artifactId>arion-dolphin-client</artifactId>
+            <artifactId>rudder-dolphin-client</artifactId>
         </dependency>
         <dependency>
             <groupId>com.google.auto.service</groupId>

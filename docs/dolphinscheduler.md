@@ -19,9 +19,9 @@ Rudder 内置 Cron 调度依赖 Server 进程稳定，不具备：
 ┌──────────────────────────────────────┐
 │  Rudder (IDE / 编排 / 数据源 / 元数据) │
 │                                       │
-│  发布按钮  ──────►  ArionDolphinPublishService
+│  发布按钮  ──────►  RudderDolphinPublisher
 │                                ↓
-│                        Arion 网关 (HTTP) ←── ARION_DOLPHIN_CLIENT_URL
+│                        Rudder-Dolphin 网关 (HTTP) ←── RUDDER_DOLPHIN_CLIENT_URL
 │                                ↓
 │                    DolphinScheduler API
 │                                ↓
@@ -29,7 +29,7 @@ Rudder 内置 Cron 调度依赖 Server 进程稳定，不具备：
 └──────────────────────────────────────┘
 ```
 
-`Arion` 是 Rudder 团队维护的 DS 发布网关（Spring Boot 应用，独立部署），把 Rudder 的工作流定义翻译成 DS 的 Project / Workflow / Schedule。
+`Rudder-Dolphin` 是 Rudder 团队维护的 DS 发布网关（Spring Boot 应用，独立部署），把 Rudder 的工作流定义翻译成 DS 的 Project / Workflow / Schedule。
 
 ## 配置
 
@@ -37,10 +37,10 @@ Rudder 内置 Cron 调度依赖 Server 进程稳定，不具备：
 
 | 变量 | 默认 | 说明 |
 |:---|:---|:---|
-| `ARION_DOLPHIN_CLIENT_URL` | `http://127.0.0.1:12348` | Arion 网关 URL |
-| `ARION_DOLPHIN_CLIENT_TOKEN` | 空 | Arion 网关鉴权 token |
+| `RUDDER_DOLPHIN_CLIENT_URL` | `http://127.0.0.1:12348` | Rudder-Dolphin 网关 URL |
+| `RUDDER_DOLPHIN_CLIENT_TOKEN` | 空 | Rudder-Dolphin 网关鉴权 token |
 
-`ArionDolphinPublishService` 由 `@ConditionalOnProperty(prefix = "arion-dolphin.client", name = "url")` 守护——**不配 URL 就不加载 bean，发布按钮变灰**。
+`RudderDolphinPublisher` 由 `@ConditionalOnProperty(prefix = "rudder-dolphin.client", name = "url")` 守护——**不配 URL 就不加载 bean，发布按钮变灰**。
 
 ## 发布流程
 
@@ -57,7 +57,7 @@ Rudder 内置 Cron 调度依赖 Server 进程稳定，不具备：
 ### 单工作流发布
 
 ```java
-arionDolphinPublishService.publish(workflow, userName);
+rudderDolphinPublisher.publish(workflow, userName);
 ```
 
 构造 `WorkflowPublishRequest`：
@@ -76,7 +76,7 @@ arionDolphinPublishService.publish(workflow, userName);
 ### 项目级批量发布
 
 ```java
-arionDolphinPublishService.publishProject(workflows, userName, ...);
+rudderDolphinPublisher.publishProject(workflows, userName, ...);
 ```
 
 一次请求包含 project 下多个 workflow，适合：
@@ -145,7 +145,7 @@ DS 端的「上线 / 下线」开关由 Rudder 通过 `WorkflowSchedule.status (
 
 ## 审批联动
 
-如果该 Workspace 配了审批渠道（`t_r_approval_config`，飞书 / Slack / KissFlow），发布前会先创建 `t_r_approval_record`，等审批通过才调 Arion；否则直接发布。审批触发的回调由 `ApprovalCallbackController` 接收，详见 SPI 设计。
+如果该 Workspace 配了审批渠道（`t_r_approval_config`，飞书 / Slack / KissFlow），发布前会先创建 `t_r_approval_record`，等审批通过才调 Rudder-Dolphin；否则直接发布。审批触发的回调由 `ApprovalCallbackController` 接收，详见 SPI 设计。
 
 ## 双写一致性
 
@@ -153,8 +153,8 @@ Rudder 与 DS 之间没有事务边界。可能的不一致：
 
 | 场景 | 表现 | 处置 |
 |:---|:---|:---|
-| Arion 调用成功后 Rudder 落库失败 | DS 已上线，Rudder `PUBLISH_FAILED` | 重试发布按钮（DS 端被覆盖即可） |
-| Arion 部分成功（项目级批量） | 部分 workflow 在 DS，部分没 | Arion 自身做幂等 / 回滚 |
+| Rudder-Dolphin 调用成功后 Rudder 落库失败 | DS 已上线，Rudder `PUBLISH_FAILED` | 重试发布按钮（DS 端被覆盖即可） |
+| Rudder-Dolphin 部分成功（项目级批量） | 部分 workflow 在 DS，部分没 | Rudder-Dolphin 自身做幂等 / 回滚 |
 | DS 端被人手工改了 | 与 Rudder 草稿出现漂移 | 下次发布会全量覆盖 |
 
 **约定**：以 Rudder 为唯一编辑入口，DS 端只做执行。
@@ -163,13 +163,13 @@ Rudder 与 DS 之间没有事务边界。可能的不一致：
 
 ### 健康检查
 
-- Arion `/healthz` —— 网关存活
+- Rudder-Dolphin `/healthz` —— 网关存活
 - DS Master / Worker —— DS 自身体系
-- `arionClient` 调用失败时 Rudder 日志：`io.github.zzih.rudder.service.workflow.ArionDolphinPublishService` 打 ERROR
+- `rudderDolphinClient` 调用失败时 Rudder 日志：`io.github.zzih.rudder.publish.rudderdolphin.RudderDolphinPublisher` 打 ERROR
 
 ### 多套 DS
 
-一个 Arion 网关只对接一套 DS。多 DS（如 prod / staging 分集群）需要独立部署多个 Arion，Rudder 通过环境差异化配置 `ARION_DOLPHIN_CLIENT_URL`。
+一个 Rudder-Dolphin 网关只对接一套 DS。多 DS（如 prod / staging 分集群）需要独立部署多个 Rudder-Dolphin，Rudder 通过环境差异化配置 `RUDDER_DOLPHIN_CLIENT_URL`。
 
 ### 回滚
 
@@ -183,16 +183,16 @@ Rudder 与 DS 之间没有事务边界。可能的不一致：
 
 | 症状 | 排查 |
 |:---|:---|
-| 发布按钮不可点 | `arion-dolphin.client.url` 未配，`ArionDolphinPublishService` 没装载 |
-| `401 Unauthorized` from Arion | `ARION_DOLPHIN_CLIENT_TOKEN` 未配 / 错配 |
-| DS 端 workflow 字段不全 | Arion 版本与 Rudder 不匹配；升级 `arion.version` |
+| 发布按钮不可点 | `rudder-dolphin.client.url` 未配，`RudderDolphinPublisher` 没装载 |
+| `401 Unauthorized` from Rudder-Dolphin | `RUDDER_DOLPHIN_CLIENT_TOKEN` 未配 / 错配 |
+| DS 端 workflow 字段不全 | Rudder-Dolphin 版本与 Rudder 不匹配；升级 `rudder-dolphin.version` |
 | Cron 在 DS 上不触发 | `WorkflowSchedule.status=OFFLINE`；或 `start_time` 大于当前时间 |
 | 任务类型 `SUB_PROCESS` 找不到目标 | 子工作流没在同一 DS 项目里发布；批量发布或单独先发布子流 |
 | 时区错乱 | DS Worker 的 `TZ` 与 Rudder `WorkflowSchedule.timezone` 不一致；统一为 `Asia/Shanghai` |
 
 ## 仅用内置 Cron 的姿势
 
-不配 `ARION_DOLPHIN_CLIENT_URL` 即可：
+不配 `RUDDER_DOLPHIN_CLIENT_URL` 即可：
 
 - 工作流发布只更新 `published_version_id`
 - 调度由 Rudder Server 内部 Quartz 触发

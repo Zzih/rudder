@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.publish.ariondolphin;
+package io.github.zzih.rudder.publish.rudderdolphin;
 
-public record ArionDolphinProperties(String url, String token) {
+public record RudderDolphinProperties(String url, String token) {
 
-    public ArionDolphinProperties {
+    public RudderDolphinProperties {
         if (url == null) {
             url = "";
         }

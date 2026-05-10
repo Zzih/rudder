@@ -174,7 +174,7 @@ rudder-service-server/.../service/
 ├── workflow/    DAG 编排：DagParser / WorkflowInstanceRunner / CompletionEventRouter / VarPoolManager
 │   ├── controlflow/  CONDITION / SWITCH / SUB_WORKFLOW / DEPENDENT 本地编排（不进 SPI）
 │   ├── executor/     WorkflowExecutor / ResumeStateReconciler / WorkflowOrphanReaper
-│   ├── ApprovalService / WorkflowPublishService / ArionDolphinPublishService
+│   ├── ApprovalService / WorkflowPublishService（RudderDolphinPublisher 见 rudder-spi/rudder-publish/rudder-publish-rudder-dolphin）
 │   └── WorkflowScheduleService（Quartz）
 ├── workspace/   用户 / Workspace / 项目 / 审计 / SSO（OIDC + LDAP）
 ├── config/      仅 Server 端的 *ConfigService（含 LlmConfigService / EmbeddingConfigService / ...）

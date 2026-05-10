@@ -67,7 +67,7 @@
 
         <!-- Publish provider -->
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-publish-api</artifactId><version>${revision}</version></dependency>
-        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-publish-arion-dolphin</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-publish-rudder-dolphin</artifactId><version>${revision}</version></dependency>
 
         <!-- Version store provider -->
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-version-local</artifactId><version>${revision}</version></dependency>
