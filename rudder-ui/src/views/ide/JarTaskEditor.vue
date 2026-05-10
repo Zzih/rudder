@@ -132,9 +132,9 @@ function removeEngineParam(idx: number) {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('jar.jarPath')" required>
-            <el-input v-model="form.jarPath" placeholder="/jars/my-app.jar" @change="emitChange">
+            <el-input v-model="form.jarPath" placeholder="/jars/my-app.jar" readonly @change="emitChange">
               <template #append>
-                <el-button @click="showFilePicker = true">选择</el-button>
+                <el-button @click="showFilePicker = true">{{ t('common.select') }}</el-button>
               </template>
             </el-input>
           </el-form-item>

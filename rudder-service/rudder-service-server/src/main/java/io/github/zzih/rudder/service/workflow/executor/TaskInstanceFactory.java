@@ -72,11 +72,6 @@ public class TaskInstanceFactory {
         if (script != null) {
             task.setScriptCode(script.getCode());
             task.setContent(script.getContent());
-            // 控制流节点缺 configJson 时从 Script 补齐（每次都是同一个 script，无需重复查）
-            if (taskDef.getTaskType().isControlFlow()
-                    && (taskDef.getConfigJson() == null || taskDef.getConfigJson().isBlank())) {
-                taskDef.setConfigJson(script.getContent());
-            }
         }
         return task;
     }
@@ -96,20 +91,6 @@ public class TaskInstanceFactory {
         return StoragePathUtils.logPath(
                 workspaceName, null, instance.getWorkflowDefinitionCode(),
                 instance.getId(), task.getName(), task.getId());
-    }
-
-    /**
-     * 控制流节点且 configJson 为空时，从关联 Script 回填。单独暴露给 Runner 的控制流路径使用；
-     * {@link #buildForNode} 已在同一次 Script 查询中内联做了这件事，所以它不会被两次触发。
-     */
-    public void ensureConfigJson(TaskDefinition taskDef) {
-        if (taskDef.getTaskType().isControlFlow() && taskDef.getScriptCode() != null
-                && (taskDef.getConfigJson() == null || taskDef.getConfigJson().isBlank())) {
-            Script script = scriptDao.selectByCode(taskDef.getScriptCode());
-            if (script != null) {
-                taskDef.setConfigJson(script.getContent());
-            }
-        }
     }
 
     private TaskInstance buildTerminal(DagNode node, TaskDefinition taskDef, WorkflowInstance instance,

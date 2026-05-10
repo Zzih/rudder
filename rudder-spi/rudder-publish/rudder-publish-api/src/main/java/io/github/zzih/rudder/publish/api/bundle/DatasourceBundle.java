@@ -17,39 +17,41 @@
 
 package io.github.zzih.rudder.publish.api.bundle;
 
-import java.util.List;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 项目级批量发布载荷。一次发布共享同一 batchCode,由业务侧持有。
- * 项目归属、发起人、跨工作流去重后的数据源都放顶层,工作流本体只放纯定义。
+ * 数据源完整快照。随每次工作流发布 piggyback 在 {@code WorkflowBundle.datasources} 中,
+ * 接收侧据此 upsert 自身数据源注册表,实现"发布即环境就绪"。
+ *
+ * <p>{@code credential} 为明文 JSON,依赖 HTTPS 传输保护。
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProjectPublishBundle {
+public class DatasourceBundle {
 
-    private Long projectCode;
+    /** 与 {@code TaskBundle.scriptContent.dataSourceId} 对齐的 join key。 */
+    private Long id;
 
-    private String projectName;
+    private String name;
 
-    private String projectDescription;
+    /** STARROCKS / MYSQL / HIVE / TRINO / ... */
+    private String type;
 
-    private String userName;
+    private String host;
 
-    /**
-     * 项目内所有工作流引用到的数据源(跨工作流去重)完整快照。
-     * 接收侧发布前一次性 upsert,而后处理 {@link #workflows} 中的任务定义。
-     */
-    private List<DatasourceBundle> datasources;
+    private Integer port;
 
-    /** 项目内所有工作流引用到的资源(跨工作流去重),字节内联在 {@link ResourceBundle#getContent}。 */
-    private List<ResourceBundle> resources;
+    /** JDBC URL host/port 后那一段:MySQL/PG → database,Hive → default schema,Trino → catalog。 */
+    private String defaultPath;
 
-    private List<WorkflowBundle> workflows;
+    /** 额外连接参数 JSON。 */
+    private String params;
+
+    /** 凭证 JSON 明文(如 {"username":"x","password":"y"})。 */
+    private String credential;
 }

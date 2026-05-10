@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
-import { listWorkflowDefinitions, createWorkflowDefinition, deleteWorkflowDefinition, publishWorkflowDefinition, runWorkflowDefinition, listWorkflowDefinitionVersions } from '@/api/workflow'
+import { listWorkflowDefinitions, createWorkflowDefinition, deleteWorkflowDefinition, publishWorkflowDefinition, runWorkflowDefinition, listWorkflowDefinitionVersions, toggleWorkflowSchedule } from '@/api/workflow'
 import { formatDate } from '@/utils/dateFormat'
 import { usePermission } from '@/composables/usePermission'
 
@@ -53,6 +53,18 @@ async function fetchWorkflows() {
   }
   catch { ElMessage.error(t('common.failed')) }
   finally { loading.value = false }
+}
+
+async function toggleSchedule(row: WorkflowDefinition) {
+  if (!canEdit.value || !row.cronExpression) return
+  const prev = row.scheduleStatus
+  row.scheduleStatus = prev === 'ONLINE' ? 'OFFLINE' : 'ONLINE'
+  try {
+    const res: any = await toggleWorkflowSchedule(workspaceId, projectCode, row.code)
+    row.scheduleStatus = res.data?.status ?? row.scheduleStatus
+  } catch {
+    row.scheduleStatus = prev
+  }
 }
 
 function handleSearch() { pageNum.value = 1; fetchWorkflows() }
@@ -166,10 +178,28 @@ onMounted(fetchWorkflows)
               <span class="wf-desc">{{ row.description || '-' }}</span>
             </td>
             <td class="wf-td">
-              <template v-if="row.cronExpression">
+              <div v-if="row.cronExpression" class="wf-sched-cell">
                 <code class="wf-cron">{{ row.cronExpression }}</code>
-                <span :class="['wf-sched-dot', row.scheduleStatus === 'ONLINE' ? 'wf-sched-dot--on' : 'wf-sched-dot--off']" />
-              </template>
+                <el-tooltip
+                  :content="canEdit
+                    ? (row.scheduleStatus === 'ONLINE' ? t('workflow.scheduleClickToOffline') : t('workflow.scheduleClickToOnline'))
+                    : (row.scheduleStatus === 'ONLINE' ? t('workflow.scheduleOnline') : t('workflow.scheduleOffline'))"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    class="wf-sched-btn"
+                    :class="row.scheduleStatus === 'ONLINE' ? 'wf-sched-btn--on' : 'wf-sched-btn--off'"
+                    :disabled="!canEdit"
+                    @click.stop="toggleSchedule(row)"
+                  >
+                    <span class="wf-sched-btn__dot" />
+                    <span class="wf-sched-btn__label">
+                      {{ row.scheduleStatus === 'ONLINE' ? t('workflow.scheduleOnline') : t('workflow.scheduleOffline') }}
+                    </span>
+                  </button>
+                </el-tooltip>
+              </div>
               <span v-else class="wf-desc">-</span>
             </td>
             <td class="wf-td" style="text-align: center">
@@ -381,6 +411,13 @@ onMounted(fetchWorkflows)
   max-width: 240px;
 }
 
+.wf-sched-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .wf-cron {
   font-size: 11px;
   font-family: var(--r-font-mono);
@@ -389,18 +426,61 @@ onMounted(fetchWorkflows)
   padding: 2px 7px;
   border-radius: 4px;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.wf-sched-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-left: 6px;
+.wf-sched-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  height: 22px;
+  flex: none;
+  border: 1px solid var(--r-border);
+  border-radius: 999px;
+  background: var(--r-bg-overlay);
+  font-size: var(--r-font-xs);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
   vertical-align: middle;
 
-  &--on { background: var(--r-success); box-shadow: 0 0 0 2px var(--r-success-bg); }
-  &--off { background: var(--r-text-disabled); }
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  &:not(:disabled):hover {
+    background: var(--r-bg-hover);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  &--on {
+    color: var(--r-success);
+    border-color: var(--r-success-bg);
+    background: var(--r-success-bg);
+
+    .wf-sched-btn__dot { background: var(--r-success); }
+
+    &:not(:disabled):hover { filter: brightness(0.97); }
+  }
+
+  &--off {
+    color: var(--r-text-muted);
+
+    .wf-sched-btn__dot { background: var(--r-text-disabled); }
+  }
 }
 
 .wf-status {

@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.api.request;
 
 import io.github.zzih.rudder.common.param.Property;
+import io.github.zzih.rudder.dao.enums.ScheduleStatus;
 import io.github.zzih.rudder.service.workflow.dto.TaskDefinitionDTO;
 
 import java.util.List;
@@ -53,4 +54,6 @@ public class WorkflowCreateRequest {
     private String startTime;
     private String endTime;
     private String timezone;
+    /** null 时新建走 OFFLINE 默认,更新时保留旧值。 */
+    private ScheduleStatus scheduleStatus;
 }

@@ -35,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
  * {
  *   "dagJson": "{\"nodes\":[...], \"edges\":[...]}",  // string or object
  *   "taskDefinitions": [
- *     { "code": 123, "name": "task_name", "taskType": "HIVE", "scriptContent": "...", "configJson": "..." }
+ *     { "code": 123, "name": "task_name", "taskType": "HIVE", "scriptContent": "..." }
  *   ]
  * }
  * </pre>
@@ -276,7 +276,6 @@ public final class DagDiffComputer {
                     st.name = textOf(t, "name");
                     st.taskType = textOf(t, "taskType");
                     st.scriptContent = textOf(t, "scriptContent");
-                    st.configJson = textOf(t, "configJson");
                     snap.tasks.add(st);
                 }
             }
@@ -331,8 +330,7 @@ public final class DagDiffComputer {
         if (oldTask == null || newTask == null) {
             return oldTask != newTask;
         }
-        return !Objects.equals(oldTask.scriptContent, newTask.scriptContent)
-                || !Objects.equals(oldTask.configJson, newTask.configJson);
+        return !Objects.equals(oldTask.scriptContent, newTask.scriptContent);
     }
 
     // ==================== Internal Data Classes ====================
@@ -362,6 +360,5 @@ public final class DagDiffComputer {
         String name;
         String taskType;
         String scriptContent;
-        String configJson;
     }
 }

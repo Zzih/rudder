@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -53,6 +53,12 @@ const saveForm = reactive({
   startTime: '',
   endTime: '',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  scheduleStatus: 'OFFLINE' as 'ONLINE' | 'OFFLINE',
+})
+
+// 没有 cron 时强制 OFFLINE,避免遗留态在用户清空 cron 后仍以 ONLINE 提交
+watch(() => saveForm.cronExpression, (v) => {
+  if (!v) saveForm.scheduleStatus = 'OFFLINE'
 })
 
 // Global params (Property format)
@@ -112,6 +118,7 @@ async function fetchWorkflow() {
     saveForm.startTime = d?.startTime || ''
     saveForm.endTime = d?.endTime || ''
     saveForm.timezone = d?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+    saveForm.scheduleStatus = d?.scheduleStatus === 'ONLINE' ? 'ONLINE' : 'OFFLINE'
     if (d?.globalParams && Array.isArray(d.globalParams)) {
       globalParams.value = d.globalParams
     }
@@ -149,6 +156,7 @@ async function confirmSave() {
       startTime: saveForm.startTime || undefined,
       endTime: saveForm.endTime || undefined,
       timezone: saveForm.timezone || undefined,
+      scheduleStatus: saveForm.cronExpression ? saveForm.scheduleStatus : undefined,
       globalParams: serializeGlobalParams(),
     })
     saveDialogVisible.value = false
@@ -481,6 +489,17 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
           </el-collapse-item>
           <el-collapse-item :title="t('workflow.scheduleConfig')" name="schedule">
             <div class="save-form__section">
+              <div class="schedule-toggle">
+                <el-switch
+                  :model-value="saveForm.scheduleStatus === 'ONLINE'"
+                  :disabled="!saveForm.cronExpression"
+                  @update:model-value="(v: boolean | string | number) => saveForm.scheduleStatus = v ? 'ONLINE' : 'OFFLINE'"
+                />
+                <span class="schedule-toggle__label">{{ t('workflow.scheduleEnabled') }}</span>
+                <span v-if="!saveForm.cronExpression" class="schedule-toggle__hint">
+                  {{ t('workflow.scheduleEnabledHint') }}
+                </span>
+              </div>
               <el-form-item :label="t('workflow.cronExpr')" style="margin-bottom: 12px">
                 <el-input :model-value="saveForm.cronExpression" readonly>
                   <template #prefix><el-icon><Timer /></el-icon></template>
@@ -1026,6 +1045,24 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
   border-radius: 10px;
   padding: 16px;
   border: 1px solid var(--r-border);
+}
+
+.schedule-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--r-space-2);
+  margin-bottom: var(--r-space-3);
+
+  &__label {
+    font-size: var(--r-font-base);
+    color: var(--r-text-primary);
+  }
+
+  &__hint {
+    font-size: var(--r-font-xs);
+    color: var(--r-text-muted);
+    margin-left: var(--r-space-2);
+  }
 }
 
 /* ── Global params ── */

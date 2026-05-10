@@ -18,9 +18,6 @@
 package io.github.zzih.rudder.service.workflow.executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.zzih.rudder.dao.dao.ScriptDao;
@@ -57,7 +54,7 @@ class TaskInstanceFactoryTest {
     @DisplayName("buildForNode 从 taskDef/node/instance 复制快照字段")
     void buildForNode_snapshotFields() {
         DagNode node = node(101L, "ingest-users");
-        TaskDefinition def = taskDef(101L, TaskType.MYSQL, null, null);
+        TaskDefinition def = taskDef(101L, TaskType.MYSQL, null);
         WorkflowInstance instance = instance(7L, 42L, 3L);
 
         TaskInstance task = factory.buildForNode(node, def, InstanceStatus.PENDING, instance);
@@ -75,7 +72,7 @@ class TaskInstanceFactoryTest {
     @DisplayName("buildForNode 在 scriptCode 存在时加载脚本内容")
     void buildForNode_loadsScriptContent() {
         DagNode node = node(101L, "label");
-        TaskDefinition def = taskDef(101L, TaskType.MYSQL, 555L, null);
+        TaskDefinition def = taskDef(101L, TaskType.MYSQL, 555L);
         Script script = new Script();
         script.setCode(555L);
         script.setContent("SELECT 1");
@@ -91,7 +88,7 @@ class TaskInstanceFactoryTest {
     @DisplayName("buildSkipped 标记 SKIPPED 状态且 startedAt = finishedAt")
     void buildSkipped_timestamps() {
         TaskInstance task = factory.buildSkipped(
-                node(1L, "n"), taskDef(1L, TaskType.MYSQL, null, null), instance(7L, 42L, 3L));
+                node(1L, "n"), taskDef(1L, TaskType.MYSQL, null), instance(7L, 42L, 3L));
 
         assertThat(task.getStatus()).isEqualTo(InstanceStatus.SKIPPED);
         assertThat(task.getStartedAt()).isNotNull();
@@ -102,47 +99,11 @@ class TaskInstanceFactoryTest {
     @DisplayName("buildUpstreamFailed 写入错误信息并置为 FAILED")
     void buildUpstreamFailed_errorMessage() {
         TaskInstance task = factory.buildUpstreamFailed(
-                node(1L, "n"), taskDef(1L, TaskType.MYSQL, null, null), instance(7L, 42L, 3L));
+                node(1L, "n"), taskDef(1L, TaskType.MYSQL, null), instance(7L, 42L, 3L));
 
         assertThat(task.getStatus()).isEqualTo(InstanceStatus.FAILED);
         assertThat(task.getErrorMessage()).isEqualTo("Upstream task failed");
         assertThat(task.getFinishedAt()).isNotNull();
-    }
-
-    @Test
-    @DisplayName("ensureConfigJson 为带 scriptCode 的控制流节点回填 configJson")
-    void ensureConfigJson_backfillsForControlFlow() {
-        TaskDefinition def = taskDef(10L, TaskType.CONDITION, 555L, null);
-        Script script = new Script();
-        script.setCode(555L);
-        script.setContent("{\"condition\":\"x > 0\"}");
-        when(scriptDao.selectByCode(555L)).thenReturn(script);
-
-        factory.ensureConfigJson(def);
-
-        assertThat(def.getConfigJson()).isEqualTo("{\"condition\":\"x > 0\"}");
-    }
-
-    @Test
-    @DisplayName("ensureConfigJson 在 configJson 已存在时不覆盖")
-    void ensureConfigJson_preservesExistingConfig() {
-        TaskDefinition def = taskDef(10L, TaskType.CONDITION, 555L, "{\"already\":\"here\"}");
-
-        factory.ensureConfigJson(def);
-
-        assertThat(def.getConfigJson()).isEqualTo("{\"already\":\"here\"}");
-        verify(scriptDao, never()).selectByCode(eq(555L));
-    }
-
-    @Test
-    @DisplayName("ensureConfigJson 对非控制流任务不触发")
-    void ensureConfigJson_skipsNonControlFlow() {
-        TaskDefinition def = taskDef(10L, TaskType.MYSQL, 555L, null);
-
-        factory.ensureConfigJson(def);
-
-        assertThat(def.getConfigJson()).isNull();
-        verify(scriptDao, never()).selectByCode(eq(555L));
     }
 
     @Test
@@ -167,13 +128,12 @@ class TaskInstanceFactoryTest {
         return n;
     }
 
-    private static TaskDefinition taskDef(Long code, TaskType type, Long scriptCode, String configJson) {
+    private static TaskDefinition taskDef(Long code, TaskType type, Long scriptCode) {
         TaskDefinition def = new TaskDefinition();
         def.setCode(code);
         def.setName("def-" + code);
         def.setTaskType(type);
         def.setScriptCode(scriptCode);
-        def.setConfigJson(configJson);
         return def;
     }
 

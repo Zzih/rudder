@@ -20,7 +20,6 @@ package io.github.zzih.rudder.service.workflow.executor.controlflow;
 import io.github.zzih.rudder.dao.dao.TaskInstanceDao;
 import io.github.zzih.rudder.dao.dao.WorkflowDefinitionDao;
 import io.github.zzih.rudder.dao.dao.WorkflowInstanceDao;
-import io.github.zzih.rudder.dao.entity.TaskDefinition;
 import io.github.zzih.rudder.service.workflow.controlflow.AbstractControlFlowTask;
 import io.github.zzih.rudder.service.workflow.controlflow.condition.ConditionTask;
 import io.github.zzih.rudder.service.workflow.controlflow.dependent.DependentTask;
@@ -46,9 +45,8 @@ public class ControlFlowTaskFactory {
     private final WorkflowDefinitionDao workflowDefinitionDao;
     private final WorkflowInstanceDao workflowInstanceDao;
 
-    public AbstractControlFlowTask create(TaskType taskType, TaskDefinition taskDef, DagNode node,
+    public AbstractControlFlowTask create(TaskType taskType, String configJson, DagNode node,
                                           ControlFlowContext ctx) {
-        String configJson = taskDef.getConfigJson();
         return switch (taskType) {
             case CONDITION -> new ConditionTask(ctx.workflowInstanceId(), configJson, taskInstanceDao);
             case SWITCH -> new SwitchTask(node.getTaskCode(), configJson, ctx.varPoolSnapshot());

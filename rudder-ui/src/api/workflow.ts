@@ -28,6 +28,10 @@ export function runWorkflowDefinition(workspaceId: number, projectCode: number |
   return request.post(`/workspaces/${workspaceId}/projects/${projectCode}/workflow-definitions/${code}/run`, data)
 }
 
+export function toggleWorkflowSchedule(workspaceId: number, projectCode: number | string, code: number | string) {
+  return request.post(`/workspaces/${workspaceId}/projects/${projectCode}/workflow-definitions/${code}/schedule/toggle`)
+}
+
 export function getWorkflowInstance(workspaceId: number, workflowDefinitionCode: number | string, id: number) {
   return request.get(`/workspaces/${workspaceId}/workflow-instances/${id}`, { params: { workflowDefinitionCode } })
 }

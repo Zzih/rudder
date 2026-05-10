@@ -17,6 +17,8 @@
 
 package io.github.zzih.rudder.publish.api.bundle;
 
+import io.github.zzih.rudder.common.param.Property;
+
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -25,31 +27,30 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 项目级批量发布载荷。一次发布共享同一 batchCode,由业务侧持有。
- * 项目归属、发起人、跨工作流去重后的数据源都放顶层,工作流本体只放纯定义。
+ * 工作流本体。不含项目归属与发起人信息(那些由 {@link WorkflowPublishBundle} /
+ * {@link ProjectPublishBundle} 顶层承载,避免批量发布时重复)。
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProjectPublishBundle {
+public class WorkflowBundle {
 
-    private Long projectCode;
+    private Long code;
 
-    private String projectName;
+    private String name;
 
-    private String projectDescription;
+    private String description;
 
-    private String userName;
+    /** DAG 原文 JSON,含节点 label / position 等视觉信息,由 provider 自行解析。 */
+    private String dagJson;
 
-    /**
-     * 项目内所有工作流引用到的数据源(跨工作流去重)完整快照。
-     * 接收侧发布前一次性 upsert,而后处理 {@link #workflows} 中的任务定义。
-     */
-    private List<DatasourceBundle> datasources;
+    private List<TaskBundle> tasks;
 
-    /** 项目内所有工作流引用到的资源(跨工作流去重),字节内联在 {@link ResourceBundle#getContent}。 */
-    private List<ResourceBundle> resources;
+    private List<EdgeBundle> edges;
 
-    private List<WorkflowBundle> workflows;
+    /** nullable,未配置调度时为空。 */
+    private ScheduleBundle schedule;
+
+    private List<Property> globalParams;
 }

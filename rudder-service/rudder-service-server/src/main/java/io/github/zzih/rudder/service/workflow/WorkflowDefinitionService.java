@@ -176,6 +176,8 @@ public class WorkflowDefinitionService {
 
         }
 
+        // 编辑后强制重新发布:publishedVersionId 非 null 表示当前内容 = 已发布版本
+        existing.setPublishedVersionId(null);
         workflowDefinitionDao.updateById(existing);
         return existing;
     }
@@ -193,11 +195,12 @@ public class WorkflowDefinitionService {
 
         WorkflowVersionService.WorkflowSnapshot snapshot = parseSnapshot(snapshotContent);
 
-        // 1. 覆盖 DAG + globalParams
+        // 1. 覆盖 DAG + globalParams; 回滚等同编辑,需重新发布
         existing.setDagJson(snapshot.getDagJson());
         if (snapshot.getGlobalParams() != null) {
             existing.setGlobalParams(snapshot.getGlobalParams());
         }
+        existing.setPublishedVersionId(null);
         workflowDefinitionDao.updateById(existing);
 
         // 2. 物理删除当前工作流所有任务定义，从快照重建
@@ -281,7 +284,6 @@ public class WorkflowDefinitionService {
 
     private void applyTaskSnapshot(TaskDefinition td, WorkflowVersionService.TaskSnapshot ts) {
         td.setName(ts.getName());
-        td.setConfigJson(ts.getConfigJson());
         td.setDescription(ts.getDescription());
         td.setInputParams(ts.getInputParams());
         td.setOutputParams(ts.getOutputParams());

@@ -29,14 +29,17 @@ import io.github.zzih.rudder.common.i18n.I18n;
 import io.github.zzih.rudder.common.param.Property;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
+import io.github.zzih.rudder.common.utils.crypto.CryptoUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.common.utils.naming.CodeGenerateUtils;
+import io.github.zzih.rudder.dao.dao.DatasourceDao;
 import io.github.zzih.rudder.dao.dao.ProjectDao;
 import io.github.zzih.rudder.dao.dao.PublishRecordDao;
 import io.github.zzih.rudder.dao.dao.ScriptDao;
 import io.github.zzih.rudder.dao.dao.TaskDefinitionDao;
 import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.dao.WorkflowDefinitionDao;
+import io.github.zzih.rudder.dao.entity.Datasource;
 import io.github.zzih.rudder.dao.entity.Project;
 import io.github.zzih.rudder.dao.entity.PublishRecord;
 import io.github.zzih.rudder.dao.entity.Script;
@@ -48,15 +51,21 @@ import io.github.zzih.rudder.dao.enums.PublishStatus;
 import io.github.zzih.rudder.dao.enums.PublishType;
 import io.github.zzih.rudder.dao.projection.PublishBatchDetailRow;
 import io.github.zzih.rudder.dao.projection.PublishBatchRow;
+import io.github.zzih.rudder.datasource.service.CredentialService;
+import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.notification.api.model.ApprovalSubmittedMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
 import io.github.zzih.rudder.notification.api.model.UserRef;
 import io.github.zzih.rudder.publish.api.Publisher;
+import io.github.zzih.rudder.publish.api.bundle.DatasourceBundle;
 import io.github.zzih.rudder.publish.api.bundle.EdgeBundle;
 import io.github.zzih.rudder.publish.api.bundle.ProjectPublishBundle;
+import io.github.zzih.rudder.publish.api.bundle.ResourceBundle;
 import io.github.zzih.rudder.publish.api.bundle.ScheduleBundle;
 import io.github.zzih.rudder.publish.api.bundle.TaskBundle;
+import io.github.zzih.rudder.publish.api.bundle.WorkflowBundle;
 import io.github.zzih.rudder.publish.api.bundle.WorkflowPublishBundle;
+import io.github.zzih.rudder.service.config.FileConfigService;
 import io.github.zzih.rudder.service.config.PublishConfigService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.version.VersionService;
@@ -66,6 +75,7 @@ import io.github.zzih.rudder.service.workflow.dag.DagParser;
 import io.github.zzih.rudder.service.workflow.dto.ApprovalRecordDTO;
 import io.github.zzih.rudder.service.workflow.dto.PublishBatchDTO;
 import io.github.zzih.rudder.service.workflow.dto.PublishRecordDTO;
+import io.github.zzih.rudder.task.api.task.enums.TaskType;
 import io.github.zzih.rudder.version.api.model.VersionRecord;
 
 import java.time.LocalDateTime;
@@ -100,6 +110,9 @@ public class WorkflowPublishService {
     private final ProjectDao projectDao;
     private final TaskDefinitionDao taskDefinitionDao;
     private final ScriptDao scriptDao;
+    private final DatasourceDao datasourceDao;
+    private final CredentialService credentialService;
+    private final FileConfigService fileConfigService;
     private final ApprovalService approvalService;
     private final WorkflowVersionService workflowVersionService;
     private final WorkflowScheduleService workflowScheduleService;
@@ -297,22 +310,42 @@ public class WorkflowPublishService {
         try {
             if (first.getPublishType() == PublishType.PROJECT) {
                 Project project = projectDao.selectByCode(first.getProjectCode());
-                List<WorkflowPublishBundle> wfBundles = new ArrayList<>(workflows.size());
+                List<WorkflowBundle> wfBundles = new ArrayList<>(workflows.size());
+                Set<Long> dsIds = new java.util.LinkedHashSet<>();
+                Set<String> resourcePaths = new java.util.LinkedHashSet<>();
                 for (WorkflowDefinition wf : workflows) {
-                    wfBundles.add(buildWorkflowBundle(wf, project, userName));
+                    WorkflowBundle wb = buildWorkflowBundle(wf);
+                    wfBundles.add(wb);
+                    dsIds.addAll(extractDatasourceIds(wb.getTasks()));
+                    resourcePaths.addAll(extractResourcePaths(wb.getTasks()));
                 }
+                List<ResourceBundle> resources = loadResourceBundles(resourcePaths);
                 ProjectPublishBundle projectBundle = ProjectPublishBundle.builder()
                         .projectCode(first.getProjectCode())
                         .projectName(project != null ? project.getName() : "unknown")
                         .projectDescription(project != null ? project.getDescription() : null)
                         .userName(userName)
+                        .datasources(loadDatasourceBundles(dsIds))
+                        .resources(resources)
                         .workflows(wfBundles)
                         .build();
                 publisher.publishProject(projectBundle);
             } else {
                 WorkflowDefinition wf = workflows.get(0);
                 Project project = projectDao.selectByCode(wf.getProjectCode());
-                publisher.publishWorkflow(buildWorkflowBundle(wf, project, userName));
+                WorkflowBundle wb = buildWorkflowBundle(wf);
+                List<ResourceBundle> resources =
+                        loadResourceBundles(extractResourcePaths(wb.getTasks()));
+                WorkflowPublishBundle bundle = WorkflowPublishBundle.builder()
+                        .projectCode(wf.getProjectCode())
+                        .projectName(project != null ? project.getName() : null)
+                        .projectDescription(project != null ? project.getDescription() : null)
+                        .userName(userName)
+                        .datasources(loadDatasourceBundles(extractDatasourceIds(wb.getTasks())))
+                        .resources(resources)
+                        .workflow(wb)
+                        .build();
+                publisher.publishWorkflow(bundle);
             }
         } catch (BizException e) {
             log.error("发布失败, batchCode={}, publishType={}", batchCode, first.getPublishType(), e);
@@ -325,19 +358,41 @@ public class WorkflowPublishService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        Map<Long, WorkflowDefinition> wfByCode = workflows.stream()
+                .collect(Collectors.toMap(WorkflowDefinition::getCode, Function.identity()));
         for (PublishRecord record : records) {
             record.setStatus(PublishStatus.PUBLISHED);
             record.setPublishedAt(now);
             publishRecordDao.updateById(record);
+
+            // 把已发布版本 id 回写到工作流主表,用于列表上"已发布 / 草稿"判定
+            WorkflowDefinition wf = wfByCode.get(record.getWorkflowDefinitionCode());
+            if (wf != null && record.getVersionNo() != null) {
+                Long versionId = resolveVersionId(wf.getCode(), record.getVersionNo());
+                if (versionId != null) {
+                    wf.setPublishedVersionId(versionId);
+                    workflowDefinitionDao.updateById(wf);
+                }
+            }
         }
     }
 
+    /** versionNo + workflowCode → version_record.id。找不到时返回 null,不阻断发布主流程。 */
+    private Long resolveVersionId(Long workflowCode, Integer versionNo) {
+        List<VersionRecord> all = versionService.list(
+                io.github.zzih.rudder.common.enums.datatype.ResourceType.WORKFLOW, workflowCode);
+        return all.stream()
+                .filter(v -> versionNo.equals(v.getVersionNo()))
+                .map(VersionRecord::getId)
+                .findFirst()
+                .orElse(null);
+    }
+
     /**
-     * 把工作流相关资源（task / script / dag / schedule / globalParams / project）拢成中性 bundle，
-     * 交给 Publisher SPI 自行翻译到具体调度器格式。
+     * 把工作流本体(task / script / dag / schedule / globalParams)拢成中性 bundle,
+     * 交给 Publisher SPI 自行翻译到具体调度器格式。项目归属与发起人由调用方在外层包装。
      */
-    private WorkflowPublishBundle buildWorkflowBundle(WorkflowDefinition workflow, Project project,
-                                                      String userName) {
+    private WorkflowBundle buildWorkflowBundle(WorkflowDefinition workflow) {
         DagGraph dag = DagParser.parse(workflow.getDagJson());
 
         List<TaskDefinition> taskDefs =
@@ -361,13 +416,14 @@ public class WorkflowPublishService {
                 continue;
             }
             Script script = td.getScriptCode() != null ? scriptMap.get(td.getScriptCode()) : null;
+            String scriptContent = script != null ? script.getContent() : null;
+            scriptContent = rewriteControlFlowRefs(td.getTaskType(), scriptContent);
             tasks.add(TaskBundle.builder()
                     .taskCode(td.getCode())
                     .name(td.getName())
                     .description(td.getDescription())
                     .taskType(td.getTaskType())
-                    .scriptContent(script != null ? script.getContent() : null)
-                    .configJson(td.getConfigJson())
+                    .scriptContent(scriptContent)
                     .retryTimes(td.getRetryTimes())
                     .retryInterval(td.getRetryInterval())
                     .timeout(td.getTimeout())
@@ -390,6 +446,7 @@ public class WorkflowPublishService {
                     .timezone(schedule.getTimezone())
                     .startTime(schedule.getStartTime())
                     .endTime(schedule.getEndTime())
+                    .status(schedule.getStatus() != null ? schedule.getStatus().name() : null)
                     .build();
         }
 
@@ -398,19 +455,224 @@ public class WorkflowPublishService {
                         ? JsonUtils.toList(workflow.getGlobalParams(), Property.class)
                         : List.of();
 
-        return WorkflowPublishBundle.builder()
-                .workflowCode(workflow.getCode())
-                .workflowName(workflow.getName())
-                .workflowDescription(workflow.getDescription())
-                .projectCode(workflow.getProjectCode())
-                .projectName(project != null ? project.getName() : null)
-                .projectDescription(project != null ? project.getDescription() : null)
-                .userName(userName)
+        return WorkflowBundle.builder()
+                .code(workflow.getCode())
+                .name(workflow.getName())
+                .description(workflow.getDescription())
+                .dagJson(workflow.getDagJson())
                 .tasks(tasks)
                 .edges(edges)
                 .schedule(scheduleBundle)
                 .globalParams(globalParams != null ? globalParams : List.of())
                 .build();
+    }
+
+    /** 扫 SQL 任务 scriptContent,提取所有 dataSourceId。 */
+    private Set<Long> extractDatasourceIds(List<TaskBundle> tasks) {
+        Set<Long> ids = new java.util.LinkedHashSet<>();
+        for (TaskBundle task : tasks) {
+            if (task.getTaskType() == null || !task.getTaskType().isSql()) {
+                continue;
+            }
+            String content = task.getScriptContent();
+            if (content == null || content.isBlank()) {
+                continue;
+            }
+            try {
+                Map<String, Object> parsed = JsonUtils.fromJson(content, Map.class);
+                Object raw = parsed != null ? parsed.get("dataSourceId") : null;
+                if (raw instanceof Number n) {
+                    ids.add(n.longValue());
+                }
+            } catch (Exception ignore) {
+                // scriptContent 非 JSON 或缺字段时忽略,该 task 由 server 端按 null 处理
+            }
+        }
+        return ids;
+    }
+
+    /** 按 id 集合查 Datasource,装配 DatasourceBundle(含 credential 解密)。 */
+    private List<DatasourceBundle> loadDatasourceBundles(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return datasourceDao.selectByIds(new ArrayList<>(ids)).stream()
+                .map(this::toDatasourceBundle)
+                .toList();
+    }
+
+    private DatasourceBundle toDatasourceBundle(Datasource d) {
+        return DatasourceBundle.builder()
+                .id(d.getId())
+                .name(d.getName())
+                .type(d.getDatasourceType())
+                .host(d.getHost())
+                .port(d.getPort())
+                .defaultPath(d.getDefaultPath())
+                .params(d.getParams())
+                .credential(decryptCredential(d.getCredential()))
+                .build();
+    }
+
+    /** 解密失败不阻断发布,credential 走空,接收侧自行决定如何容忍(可拒绝该数据源 upsert)。 */
+    private String decryptCredential(String encrypted) {
+        if (encrypted == null || encrypted.isBlank()) {
+            return null;
+        }
+        try {
+            return JsonUtils.toJson(credentialService.decrypt(encrypted));
+        } catch (Exception e) {
+            log.warn("数据源凭证解密失败,wire 上 credential 置空: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 控制流引用 code → name 翻译。接收侧拿不到 Rudder 内部 code,只能按业务身份(name)在 DS 自身找实体。
+     *
+     * <ul>
+     *   <li>{@code SUB_WORKFLOW}: {@code workflowDefinitionCode} → {@code workflowDefinitionName}</li>
+     *   <li>{@code DEPENDENT} dependItem: {@code projectCode} → {@code projectName},
+     *       {@code definitionCode} → {@code workflowDefinitionName}, {@code depTaskCode} → {@code depTaskName}</li>
+     * </ul>
+     *
+     * 找不到对应实体时记 warn 但保留 task 继续发布(name 字段置 null,接收侧自行决定如何处理)。
+     */
+    @SuppressWarnings("unchecked")
+    private String rewriteControlFlowRefs(TaskType taskType, String scriptContent) {
+        if (scriptContent == null || scriptContent.isBlank() || taskType == null) {
+            return scriptContent;
+        }
+        if (taskType != TaskType.SUB_WORKFLOW && taskType != TaskType.DEPENDENT) {
+            return scriptContent;
+        }
+        Map<String, Object> root;
+        try {
+            root = JsonUtils.fromJson(scriptContent, Map.class);
+        } catch (Exception e) {
+            log.warn("rewriteControlFlowRefs 解析 scriptContent 失败 taskType={}: {}", taskType, e.getMessage());
+            return scriptContent;
+        }
+        if (root == null) {
+            return scriptContent;
+        }
+        if (taskType == TaskType.SUB_WORKFLOW) {
+            Object code = root.remove("workflowDefinitionCode");
+            if (code instanceof Number n) {
+                root.put("workflowDefinitionName",
+                        resolveName(n.longValue(), "workflow", workflowDefinitionDao::selectByCode,
+                                WorkflowDefinition::getName));
+            }
+        } else { // DEPENDENT
+            Object dep = root.get("dependence");
+            if (dep instanceof Map<?, ?> depMap) {
+                Object list = depMap.get("dependTaskList");
+                if (list instanceof List<?> taskList) {
+                    for (Object t : taskList) {
+                        if (!(t instanceof Map<?, ?> tm)) {
+                            continue;
+                        }
+                        Object items = tm.get("dependItemList");
+                        if (!(items instanceof List<?> itemList)) {
+                            continue;
+                        }
+                        for (Object it : itemList) {
+                            if (!(it instanceof Map<?, ?> raw)) {
+                                continue;
+                            }
+                            Map<String, Object> item = (Map<String, Object>) raw;
+                            Object pc = item.remove("projectCode");
+                            if (pc instanceof Number pn) {
+                                item.put("projectName", resolveName(pn.longValue(), "project",
+                                        projectDao::selectByCode, Project::getName));
+                            }
+                            Object dc = item.remove("definitionCode");
+                            if (dc instanceof Number dn) {
+                                item.put("workflowDefinitionName", resolveName(dn.longValue(),
+                                        "workflow", workflowDefinitionDao::selectByCode,
+                                        WorkflowDefinition::getName));
+                            }
+                            Object tc = item.remove("depTaskCode");
+                            if (tc instanceof Number tn) {
+                                item.put("depTaskName", resolveName(tn.longValue(), "task",
+                                        taskDefinitionDao::selectByCode, TaskDefinition::getName));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return JsonUtils.toJson(root);
+    }
+
+    /** 通用 code → name 查找,实体不存在时记 warn 返回 null,调用方据此决定是否原样保留旧引用。 */
+    private <T> String resolveName(Long code, String kind, java.util.function.Function<Long, T> finder,
+                                   java.util.function.Function<T, String> nameOf) {
+        if (code == null) {
+            return null;
+        }
+        T entity = finder.apply(code);
+        if (entity == null) {
+            log.warn("rewriteControlFlowRefs 找不到 {} code={}, name 置 null", kind, code);
+            return null;
+        }
+        return nameOf.apply(entity);
+    }
+
+    /** 扫 JAR 类任务 scriptContent.jarPath, 收集所有引用到的 storage 相对路径(去重)。 */
+    private Set<String> extractResourcePaths(List<TaskBundle> tasks) {
+        Set<String> paths = new java.util.LinkedHashSet<>();
+        for (TaskBundle task : tasks) {
+            if (task.getTaskType() == null) {
+                continue;
+            }
+            switch (task.getTaskType()) {
+                case SPARK_JAR, FLINK_JAR -> {
+                    String content = task.getScriptContent();
+                    if (content == null || content.isBlank()) {
+                        continue;
+                    }
+                    try {
+                        Map<String, Object> parsed = JsonUtils.fromJson(content, Map.class);
+                        Object jar = parsed != null ? parsed.get("jarPath") : null;
+                        if (jar instanceof String s && !s.isBlank()) {
+                            paths.add(s);
+                        }
+                    } catch (Exception ignore) {
+                        // scriptContent 非 JSON 时忽略
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+        return paths;
+    }
+
+    /** 读 storage 字节并装入 ResourceBundle。大文件场景待 dedup / 流式上传落地。 */
+    private List<ResourceBundle> loadResourceBundles(Set<String> paths) {
+        if (paths == null || paths.isEmpty()) {
+            return List.of();
+        }
+        FileStorage storage = fileConfigService.required();
+        List<ResourceBundle> list = new ArrayList<>(paths.size());
+        for (String path : paths) {
+            try (var in = storage.download(path)) {
+                byte[] content = in.readAllBytes();
+                String name = path.substring(path.lastIndexOf('/') + 1);
+                list.add(ResourceBundle.builder()
+                        .path(path)
+                        .name(name)
+                        .size((long) content.length)
+                        .sha256(CryptoUtils.sha256Hex(content))
+                        .content(content)
+                        .build());
+            } catch (Exception e) {
+                throw new BizException(WorkflowErrorCode.PUBLISH_FAILED,
+                        "读取资源失败 path=" + path + ": " + e.getMessage());
+            }
+        }
+        return list;
     }
 
     private void markAllFailed(List<PublishRecord> records) {

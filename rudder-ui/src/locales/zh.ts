@@ -11,6 +11,7 @@ export default {
     edit: '编辑',
     delete: '删除',
     save: '保存',
+    select: '选择',
     search: '搜索...',
     actions: '操作',
     status: '状态',
@@ -285,6 +286,14 @@ export default {
     emptyTip: '选择 provider 查看接入指南',
   },
 
+  fileDialog: {
+    title: '选择文件',
+    root: '根目录',
+    empty: '当前目录无可选文件',
+    selectFirst: '请先选择一个文件',
+    loadFailed: '加载文件列表失败',
+  },
+
   jar: {
     program: '程序配置',
     mainClass: '主类',
@@ -553,6 +562,12 @@ export default {
     createdBy: '创建人',
     saveSettings: '保存工作流',
     scheduleConfig: '定时调度配置',
+    scheduleEnabled: '启用调度',
+    scheduleEnabledHint: '需先配置 Cron 表达式',
+    scheduleOnline: 'Online',
+    scheduleOffline: 'Offline',
+    scheduleClickToOnline: '点击启用调度',
+    scheduleClickToOffline: '点击停用调度',
     cronExpr: 'Cron 表达式',
     startTime: '开始时间',
     endTime: '结束时间',

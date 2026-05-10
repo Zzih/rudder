@@ -17,39 +17,35 @@
 
 package io.github.zzih.rudder.publish.api.bundle;
 
-import java.util.List;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 项目级批量发布载荷。一次发布共享同一 batchCode,由业务侧持有。
- * 项目归属、发起人、跨工作流去重后的数据源都放顶层,工作流本体只放纯定义。
+ * 资源(JAR / 配置文件 等)。Bundle 中直接携带字节,接收侧自行决定怎么落盘 / 同步到 DS。
+ *
+ * <p>Jackson 默认以 Base64 字符串序列化 {@code byte[]},适用于中小文件。
+ * 大文件场景的 dedup / 流式优化暂不实现,后续再视实际负载调整。
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProjectPublishBundle {
+public class ResourceBundle {
 
-    private Long projectCode;
+    /** Rudder FileStorage 中的相对路径(如 {@code "demo-jars/spark/foo.jar"})。 */
+    private String path;
 
-    private String projectName;
+    /** 文件名(如 {@code "foo.jar"}),通常由 path 末段提取。接收侧可据此命名 DS 资源中心的条目。 */
+    private String name;
 
-    private String projectDescription;
+    /** 字节数。 */
+    private Long size;
 
-    private String userName;
+    /** 内容 SHA-256 hex(64 字符)。接收侧拿到 {@code content} 后应再次计算并比对,防网络损坏静默落盘。 */
+    private String sha256;
 
-    /**
-     * 项目内所有工作流引用到的数据源(跨工作流去重)完整快照。
-     * 接收侧发布前一次性 upsert,而后处理 {@link #workflows} 中的任务定义。
-     */
-    private List<DatasourceBundle> datasources;
-
-    /** 项目内所有工作流引用到的资源(跨工作流去重),字节内联在 {@link ResourceBundle#getContent}。 */
-    private List<ResourceBundle> resources;
-
-    private List<WorkflowBundle> workflows;
+    /** 文件字节内容。Jackson 序列化为 Base64 字符串。 */
+    private byte[] content;
 }
