@@ -17,6 +17,8 @@
 
 package io.github.zzih.rudder.common.utils.bean;
 
+import io.github.zzih.rudder.common.utils.json.JsonUtils;
+
 import java.lang.reflect.Constructor;
 import java.util.Collections;
 import java.util.List;
@@ -61,6 +63,14 @@ public final class BeanConvertUtils {
         return sourceList.stream()
                 .map(source -> convert(source, targetClass))
                 .toList();
+    }
+
+    /** 源/目标的嵌套字段或枚举来自不同包(同构镜像)时用此方法;{@link #convert} 走 Spring 浅拷贝会静默跳过跨类型字段。 */
+    public static <T> T convertViaJson(Object source, Class<T> targetClass) {
+        if (source == null) {
+            return null;
+        }
+        return JsonUtils.convertValue(source, targetClass);
     }
 
     /**
