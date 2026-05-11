@@ -1,9 +1,9 @@
-FROM alpine:3 AS extract
+FROM docker.io/library/alpine:3 AS extract
 WORKDIR /build
 COPY ./rudder-dist/target/rudder-*-bin.tar.gz .
 RUN tar -zxf rudder-*-bin.tar.gz --strip-components=1 && rm rudder-*-bin.tar.gz
 
-FROM eclipse-temurin:21-jre
+FROM docker.io/library/eclipse-temurin:21-jre
 
 ENV DOCKER=true
 ENV TZ=Asia/Shanghai
