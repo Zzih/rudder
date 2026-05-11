@@ -17,9 +17,11 @@
 
 package io.github.zzih.rudder.publish.rudderdolphin;
 
+import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.dolphin.client.RudderDolphinClient;
 import io.github.zzih.rudder.publish.api.Publisher;
 import io.github.zzih.rudder.publish.api.bundle.ProjectPublishBundle;
+import io.github.zzih.rudder.publish.api.bundle.WorkflowBundle;
 import io.github.zzih.rudder.publish.api.bundle.WorkflowPublishBundle;
 
 import lombok.RequiredArgsConstructor;
@@ -38,11 +40,13 @@ public class RudderDolphinPublisher implements Publisher {
 
     @Override
     public void publishWorkflow(WorkflowPublishBundle bundle) {
+        WorkflowBundle workflow = bundle.getWorkflow();
         log.info("发布工作流到 rudder-dolphin, project={}, workflowCode={}, name={}",
                 bundle.getProjectName(),
-                bundle.getWorkflow() != null ? bundle.getWorkflow().getCode() : null,
-                bundle.getWorkflow() != null ? bundle.getWorkflow().getName() : null);
-        // rudderDolphinClient.publishWorkflow(bundle);
+                workflow != null ? workflow.getCode() : null,
+                workflow != null ? workflow.getName() : null);
+        rudderDolphinClient.publishWorkflow(BeanConvertUtils.convertViaJson(
+                bundle, io.github.zzih.rudder.dolphin.client.model.WorkflowPublishBundle.class));
     }
 
     @Override
@@ -50,6 +54,7 @@ public class RudderDolphinPublisher implements Publisher {
         log.info("发布项目到 rudder-dolphin, project={}, workflows={}",
                 bundle.getProjectName(),
                 bundle.getWorkflows() != null ? bundle.getWorkflows().size() : 0);
-        // rudderDolphinClient.publishProject(bundle);
+        rudderDolphinClient.publishProject(BeanConvertUtils.convertViaJson(
+                bundle, io.github.zzih.rudder.dolphin.client.model.ProjectPublishBundle.class));
     }
 }
