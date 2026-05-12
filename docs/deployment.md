@@ -144,7 +144,7 @@ volumes:
 ### 注意
 
 - 容器之间走 service name 互访（如 `mysql`、`redis`）
-- Server↔Execution 跨容器走 RPC，要保证 `RUDDER_RPC_PORT` 在容器网络可达
+- Server↔Execution 跨容器走 RPC，要保证 `RUDDER_API_RPC_PORT` / `RUDDER_EXECUTION_RPC_PORT` 在容器网络可达
 - 任务工作目录 `RUDDER_EXECUTION_WORK_DIR` 需要挂载持久卷或挂宿主机目录（默认 `/tmp/rudder/tasks`，容器重启丢失）
 
 ## 三、多副本水平扩展
@@ -187,7 +187,7 @@ server {
 
 - Server 派发任务时按算法（轮询 / 负载 / workspace 亲和）选 ONLINE Execution
 - 加 / 减 Execution 不需要重启 Server，注册到 `t_r_service_registry` 即可被发现
-- 同机部署多 Execution 时务必区分 `RUDDER_EXECUTION_PORT` 与 `RUDDER_RPC_PORT`
+- 同机部署多 Execution 时务必区分 `RUDDER_EXECUTION_PORT` 与 `RUDDER_EXECUTION_RPC_PORT`
 
 ### RPC `auth-secret`
 

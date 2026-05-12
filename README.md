@@ -307,8 +307,8 @@ rudder-<version>/
 
 | 进程 | HTTP | RPC | 关键 env |
 |:-----|:----:|:----:|:--------|
-| Server (rudder-api) | `RUDDER_API_PORT` (5680) | `RUDDER_RPC_PORT` (5690) | `RUDDER_REDIS_HOST/PORT/PASSWORD/DB`、`RUDDER_RPC_AUTH_SECRET`(≥32B)、`RUDDER_SSO_*` |
-| Execution (rudder-execution) | `RUDDER_EXECUTION_PORT` (5681) | `RUDDER_RPC_PORT` (5691) | 同上 |
+| Server (rudder-api) | `RUDDER_API_PORT` (5680) | `RUDDER_API_RPC_PORT` (5690) | `RUDDER_REDIS_HOST/PORT/PASSWORD/DB`、`RUDDER_RPC_AUTH_SECRET`(≥32B)、`RUDDER_SSO_*` |
+| Execution (rudder-execution) | `RUDDER_EXECUTION_PORT` (5681) | `RUDDER_EXECUTION_RPC_PORT` (5691) | 同上 |
 
 - MySQL / Redis 走标准 Spring 配置(`spring.datasource.*` / `spring.data.redis.*`)
 - RPC `auth-secret` Server / Execution 必须一致
