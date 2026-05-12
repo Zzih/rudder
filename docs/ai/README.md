@@ -1,6 +1,6 @@
 # Rudder AI 模块操作文档
 
-> 底层统一基于 **Spring AI 2.0.0-M4**(`ChatClient` + `Advisor` + `ToolCallback`),所有 provider / vector / embedding 可在 Admin UI 热切换,无需重启。Spring Boot 4.0.5。
+> 底层统一基于 **Spring AI 2.0.0-M6**(`ChatClient` + `Advisor` + `ToolCallback`),所有 provider / vector / embedding 可在 Admin UI 热切换,无需重启。Spring Boot 4.0.5。
 
 ## 导航
 

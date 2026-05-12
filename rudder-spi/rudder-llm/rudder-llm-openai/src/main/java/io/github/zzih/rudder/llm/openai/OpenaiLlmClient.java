@@ -37,7 +37,6 @@ public class OpenaiLlmClient extends SpringAiBackedLlmClient {
     }
 
     private static OpenAiChatModel buildChatModel(OpenaiProperties props) {
-        // Spring AI 2.0.0-M5 起底层 client 切到官方 openai-java SDK；旧的 OpenAiApi 类已删除。
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(props.getApiKey())
                 .baseUrl(props.getBaseUrl())

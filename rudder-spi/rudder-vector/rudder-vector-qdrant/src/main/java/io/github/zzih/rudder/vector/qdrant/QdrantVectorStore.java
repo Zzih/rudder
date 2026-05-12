@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import io.qdrant.client.QdrantClient;
 import io.qdrant.client.QdrantGrpcClient;
 import io.qdrant.client.grpc.Collections;
+import io.qdrant.client.grpc.Common;
 import io.qdrant.client.grpc.JsonWithInt.Value;
 import io.qdrant.client.grpc.Points;
 import lombok.extern.slf4j.Slf4j;
@@ -105,7 +106,7 @@ public class QdrantVectorStore implements VectorStore, AutoCloseable {
         if (pointIds == null || pointIds.isEmpty()) {
             return;
         }
-        List<Points.PointId> ids = new ArrayList<>(pointIds.size());
+        List<Common.PointId> ids = new ArrayList<>(pointIds.size());
         for (String id : pointIds) {
             ids.add(toPointId(id));
         }
@@ -118,9 +119,9 @@ public class QdrantVectorStore implements VectorStore, AutoCloseable {
 
     @Override
     public void deleteByPayload(String collection, String payloadKey, Object payloadValue) {
-        Points.Filter filter = Points.Filter.newBuilder()
-                .addMust(Points.Condition.newBuilder()
-                        .setField(Points.FieldCondition.newBuilder()
+        Common.Filter filter = Common.Filter.newBuilder()
+                .addMust(Common.Condition.newBuilder()
+                        .setField(Common.FieldCondition.newBuilder()
                                 .setKey(payloadKey)
                                 .setMatch(buildMatch(payloadValue))
                                 .build())
@@ -150,10 +151,10 @@ public class QdrantVectorStore implements VectorStore, AutoCloseable {
             req.setScoreThreshold(query.getMinScore().floatValue());
         }
         if (query.getPayloadFilter() != null && !query.getPayloadFilter().isEmpty()) {
-            Points.Filter.Builder fb = Points.Filter.newBuilder();
+            Common.Filter.Builder fb = Common.Filter.newBuilder();
             for (Map.Entry<String, Object> e : query.getPayloadFilter().entrySet()) {
-                fb.addMust(Points.Condition.newBuilder()
-                        .setField(Points.FieldCondition.newBuilder()
+                fb.addMust(Common.Condition.newBuilder()
+                        .setField(Common.FieldCondition.newBuilder()
                                 .setKey(e.getKey())
                                 .setMatch(buildMatch(e.getValue()))
                                 .build())
@@ -213,26 +214,26 @@ public class QdrantVectorStore implements VectorStore, AutoCloseable {
         return b.build();
     }
 
-    private Points.PointId toPointId(String id) {
+    private Common.PointId toPointId(String id) {
         try {
             UUID uuid = UUID.fromString(id);
-            return Points.PointId.newBuilder().setUuid(uuid.toString()).build();
+            return Common.PointId.newBuilder().setUuid(uuid.toString()).build();
         } catch (IllegalArgumentException ignore) {
             try {
                 long num = Long.parseLong(id);
-                return Points.PointId.newBuilder().setNum(num).build();
+                return Common.PointId.newBuilder().setNum(num).build();
             } catch (NumberFormatException e) {
-                return Points.PointId.newBuilder().setUuid(id).build();
+                return Common.PointId.newBuilder().setUuid(id).build();
             }
         }
     }
 
-    private String pointIdToString(Points.PointId id) {
+    private String pointIdToString(Common.PointId id) {
         return id.hasUuid() ? id.getUuid() : Long.toString(id.getNum());
     }
 
-    private Points.Match buildMatch(Object value) {
-        Points.Match.Builder m = Points.Match.newBuilder();
+    private Common.Match buildMatch(Object value) {
+        Common.Match.Builder m = Common.Match.newBuilder();
         if (value instanceof Long l) {
             m.setInteger(l);
         } else if (value instanceof Integer i) {

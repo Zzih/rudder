@@ -43,7 +43,6 @@ public class OpenaiEmbeddingClient implements EmbeddingClient {
     private final int dimensions;
 
     public OpenaiEmbeddingClient(OpenaiProperties properties, int dimensions) {
-        // Spring AI 2.0.0-M5：底层 client 切到官方 openai-java SDK；旧的 OpenAiApi 类已删除。
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(properties.getApiKey())
                 .baseUrl(properties.getBaseUrl())

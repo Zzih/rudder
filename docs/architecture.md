@@ -6,7 +6,7 @@
 
 Rudder 是**统一批流大数据 IDE 平台**：开发、调度、执行、监控批 / 流任务的一站式工具。前端做工作流编排和脚本编辑，后端把工作流发布到 DolphinScheduler / 自建 Worker 执行，配套数据源管理、元数据查询、脱敏、版本控制、AI Copilot 等。
 
-技术栈：Java 21 + Spring Boot 4.0.5 + MyBatis-Plus 3.5.15 + Spring AI 2.0.0-M4 + Maven 多模块；前端 Vue 3 + TypeScript + Vite 6。
+技术栈：Java 21 + Spring Boot 4.0.5 + MyBatis-Plus 3.5.15 + Spring AI 2.0.0-M6 + Maven 多模块；前端 Vue 3 + TypeScript + Vite 6。
 
 ## 2. 部署形态
 
