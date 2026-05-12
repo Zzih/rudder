@@ -125,7 +125,7 @@ interface IResultService {                  // Execution 实现
 
 1. 创建 `RpcServer(port, ioThreads, workerThreads, authSecret)` Bean
 2. `@PostConstruct`：扫所有 `@Component` Bean，凡是实现了带 `@RpcService` 注解的接口的，注册到 `MethodRegistry`
-3. `start()` 起 Netty `ServerBootstrap`，绑定 `RUDDER_RPC_PORT`
+3. `start()` 起 Netty `ServerBootstrap`，绑定 `rudder.rpc.port`（API 进程取 `RUDDER_API_RPC_PORT`，Execution 进程取 `RUDDER_EXECUTION_RPC_PORT`）
 
 ### 调用流程
 
@@ -175,7 +175,7 @@ stub.dispatch(request);   // 同步阻塞调用
 ```yaml
 rudder:
   rpc:
-    port: ${RUDDER_RPC_PORT:5690}      # API: 5690 / Execution: 5691
+    port: ${RUDDER_API_RPC_PORT:5690}        # Execution 进程对应 ${RUDDER_EXECUTION_RPC_PORT:5691}
     auth-secret: ${RUDDER_RPC_AUTH_SECRET:}    # 必填，≥ 32 字节
 ```
 

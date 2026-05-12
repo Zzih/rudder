@@ -303,8 +303,8 @@ rudder-<version>/
 
 | Process | HTTP | RPC | Key env |
 |:--------|:----:|:----:|:--------|
-| Server (rudder-api) | `RUDDER_API_PORT` (5680) | `RUDDER_RPC_PORT` (5690) | `RUDDER_REDIS_HOST/PORT/PASSWORD/DB`, `RUDDER_RPC_AUTH_SECRET` (≥32B), `RUDDER_SSO_*` |
-| Execution (rudder-execution) | `RUDDER_EXECUTION_PORT` (5681) | `RUDDER_RPC_PORT` (5691) | (same) |
+| Server (rudder-api) | `RUDDER_API_PORT` (5680) | `RUDDER_API_RPC_PORT` (5690) | `RUDDER_REDIS_HOST/PORT/PASSWORD/DB`, `RUDDER_RPC_AUTH_SECRET` (≥32B), `RUDDER_SSO_*` |
+| Execution (rudder-execution) | `RUDDER_EXECUTION_PORT` (5681) | `RUDDER_EXECUTION_RPC_PORT` (5691) | (same) |
 
 - MySQL / Redis use the standard Spring properties (`spring.datasource.*` / `spring.data.redis.*`).
 - The RPC `auth-secret` must match between Server and Execution; otherwise connections are refused.

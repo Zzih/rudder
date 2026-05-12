@@ -90,7 +90,7 @@ rudder:
   node-id: ${RUDDER_NODE_ID:}
   # RPC 通信
   rpc:
-    port: ${RUDDER_RPC_PORT:5690}
+    port: ${RUDDER_API_RPC_PORT:5690}
     # Server 和 Execution 必须配置相同值（至少 32 字节）。未配置时启动失败
     auth-secret: ${RUDDER_RPC_AUTH_SECRET:}
   # 安全
