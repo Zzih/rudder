@@ -2,7 +2,7 @@
 -- 最小启动种子：admin 用户 + SPI 平台配置默认值。
 
 -- ===================== 1. Admin User =====================
--- 默认管理员账号：admin / rudder123（生产必须首次登录后修改）
+-- 默认管理员账号：admin / 123456（生产必须首次登录后修改）
 INSERT IGNORE INTO `t_r_user` (`id`, `username`, `password`, `email`, `is_super_admin`, `created_by`, `created_at`)
 VALUES
   (1, 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', 'admin@rudder.io', 1, 0, NOW());

@@ -67,7 +67,7 @@
         <postgresql.version>42.7.10</postgresql.version>
         <clickhouse-jdbc.version>0.4.6</clickhouse-jdbc.version>
         <spring-dotenv.version>5.1.0</spring-dotenv.version>
-        <spring-ai.version>2.0.0-M5</spring-ai.version>
+        <spring-ai.version>2.0.0-M6</spring-ai.version>
         <aliyun-oss.version>3.17.4</aliyun-oss.version>
         <unboundid-ldapsdk.version>7.0.1</unboundid-ldapsdk.version>
         <lark-oapi-sdk.version>2.4.14</lark-oapi-sdk.version>

@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.5-green.svg)](https://spring.io/projects/spring-boot)
-[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M4-blueviolet.svg)](https://spring.io/projects/spring-ai)
+[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M6-blueviolet.svg)](https://spring.io/projects/spring-ai)
 [![Vue](https://img.shields.io/badge/Vue-3-brightgreen.svg)](https://vuejs.org/)
 
 中文 | [English](README.en.md)
@@ -109,7 +109,7 @@ Rudder 把 MCP(Model Context Protocol)做成了**双向公民**:**作为客户�
 
 | 层 | 技术 |
 |:---|:-----|
-| 后端 | Java 21、Spring Boot 4.0.5、MyBatis-Plus 3.5.15、Spring AI 2.0.0-M4 |
+| 后端 | Java 21、Spring Boot 4.0.5、MyBatis-Plus 3.5.15、Spring AI 2.0.0-M6 |
 | 前端 | Vue 3、TypeScript、Vite 6、Element Plus、Monaco Editor、AntV X6、Pinia |
 | 通信 | 自研 Netty RPC 框架(含 auth-secret 校验) |
 | 持久化 | MySQL 8.x(主库 + 服务注册)、Redis(流取消 pub/sub、限流、预算、缓存) |

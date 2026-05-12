@@ -140,7 +140,6 @@ class SpringAiMcpClient implements McpClient {
         }
     }
 
-    /** Spring AI 2.0.0-M5 起 {@code Tool.inputSchema()} 返 {@code Map<String,Object>}。 */
     private JsonNode schemaToJson(Map<String, Object> schema) {
         if (schema == null || schema.isEmpty()) {
             return objectMapper.createObjectNode();

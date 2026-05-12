@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.5-green.svg)](https://spring.io/projects/spring-boot)
-[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M4-blueviolet.svg)](https://spring.io/projects/spring-ai)
+[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M6-blueviolet.svg)](https://spring.io/projects/spring-ai)
 [![Vue](https://img.shields.io/badge/Vue-3-brightgreen.svg)](https://vuejs.org/)
 
 English | [中文](README.md)
@@ -109,7 +109,7 @@ Rudder treats MCP (Model Context Protocol) as a **two-way citizen**: **as an MCP
 
 | Layer | Tech |
 |:---|:-----|
-| Backend | Java 21, Spring Boot 4.0.5, MyBatis-Plus 3.5.15, Spring AI 2.0.0-M4 |
+| Backend | Java 21, Spring Boot 4.0.5, MyBatis-Plus 3.5.15, Spring AI 2.0.0-M6 |
 | Frontend | Vue 3, TypeScript, Vite 6, Element Plus, Monaco Editor, AntV X6, Pinia |
 | Transport | Custom Netty RPC framework with auth-secret verification |
 | Persistence | MySQL 8.x (primary + service registry), Redis (stream-cancel pub/sub, rate limit, budget, cache) |
