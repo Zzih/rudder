@@ -19,7 +19,8 @@ package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.request.QuickLinkRequest;
 import io.github.zzih.rudder.api.response.QuickLinkResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.quicklink.QuickLinkCategory;
@@ -52,6 +53,7 @@ public class QuickLinkController {
     private final QuickLinkService quickLinkService;
 
     @GetMapping
+    @RequireLoggedIn
     public Result<List<QuickLinkResponse>> list(@RequestParam(required = false) QuickLinkCategory category,
                                                 @RequestParam(required = false) Boolean onlyEnabled) {
         UserContext.UserInfo user = UserContext.get();
@@ -63,28 +65,28 @@ public class QuickLinkController {
     }
 
     @PostMapping
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<QuickLinkResponse> create(@Valid @RequestBody QuickLinkRequest request) {
         QuickLinkDTO dto = quickLinkService.create(BeanConvertUtils.convert(request, QuickLinkDTO.class));
         return Result.ok(BeanConvertUtils.convert(dto, QuickLinkResponse.class));
     }
 
     @PutMapping("/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<QuickLinkResponse> update(@PathVariable Long id, @Valid @RequestBody QuickLinkRequest request) {
         QuickLinkDTO dto = quickLinkService.update(id, BeanConvertUtils.convert(request, QuickLinkDTO.class));
         return Result.ok(BeanConvertUtils.convert(dto, QuickLinkResponse.class));
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> delete(@PathVariable Long id) {
         quickLinkService.delete(id);
         return Result.ok();
     }
 
     @PutMapping("/sort")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> updateSort(@RequestBody List<Long> idsInOrder) {
         quickLinkService.updateSort(idsInOrder);
         return Result.ok();

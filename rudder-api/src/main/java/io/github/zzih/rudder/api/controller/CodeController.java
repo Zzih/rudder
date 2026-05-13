@@ -17,6 +17,7 @@
 
 package io.github.zzih.rudder.api.controller;
 
+import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.naming.CodeGenerateUtils;
 
@@ -28,11 +29,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 雪花 ID 生成接口，前端通过此接口获取全局唯一的 code。
- */
+/** 雪花 ID 生成接口,前端通过此接口获取全局唯一的 code。 */
 @RestController
 @RequestMapping("/api/codes")
+@RequireLoggedIn
 public class CodeController {
 
     @GetMapping("/generate")

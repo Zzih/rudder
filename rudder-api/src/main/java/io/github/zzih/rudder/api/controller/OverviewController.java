@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.response.OverviewStatsResponse;
+import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.overview.OverviewService;
@@ -32,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/overview")
 @RequiredArgsConstructor
+@RequireLoggedIn
 public class OverviewController {
 
     private final OverviewService overviewService;

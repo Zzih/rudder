@@ -17,8 +17,7 @@
 
 package io.github.zzih.rudder.api.controller;
 
-import io.github.zzih.rudder.common.annotation.RequireRole;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.metadata.api.model.ColumnMeta;
 import io.github.zzih.rudder.metadata.api.model.TableDetail;
@@ -38,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/metadata")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class MetadataController {
 
     private final MetadataService metadataService;

@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationGeneric, type RouteLocationRaw, type RouteRecordRaw } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import i18n from '@/locales'
 import { useUserStore, type Role } from '@/stores/user'
@@ -106,36 +106,53 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'admin',
         component: () => import('@/views/admin/AdminLayout.vue'),
-        // admin 父路由 meta 不再设 SUPER_ADMIN —— 服务监控对全员开放,工作空间管理对 OWNER 开放,
-        // 真正的 role 控制下沉到每个子路由 meta;父路由不再做兜底,避免误拦。
-        children: [
-          { path: '', redirect: { name: 'ServiceMonitor' } },
-          { path: 'services', name: 'ServiceMonitor', component: () => import('@/views/admin/ServiceMonitor.vue'), meta: { requireRole: 'VIEWER' } },
-          { path: 'workspaces', name: 'WorkspaceManage', component: () => import('@/views/admin/WorkspaceManage.vue'), meta: { requireRole: 'WORKSPACE_OWNER' } },
-          { path: 'users', name: 'UserManage', component: () => import('@/views/admin/UserManage.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'auth-sources', name: 'AuthSourceManage', component: () => import('@/views/admin/auth-sources/AuthSourcesView.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'datasources', name: 'DatasourceManage', component: () => import('@/views/datasource/DatasourceManage.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'audit-logs', name: 'AuditLogList', component: () => import('@/views/admin/AuditLogList.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'notification-config', name: 'NotificationConfig', component: () => import('@/views/notification/NotificationConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'approval-config', name: 'ApprovalConfig', component: () => import('@/views/approval/ApprovalConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'ai-config', name: 'AiConfig', component: () => import('@/views/ai/AiConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'redaction-config', name: 'RedactionConfig', component: () => import('@/views/redaction/RedactionConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'metadata-config', name: 'MetadataConfig', component: () => import('@/views/metadata/MetadataConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'publish-config', name: 'PublishConfig', component: () => import('@/views/publish/PublishConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'file-config', name: 'FileConfig', component: () => import('@/views/file/FileConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'result-config', name: 'ResultConfig', component: () => import('@/views/result/ResultConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'version-config', name: 'VersionConfig', component: () => import('@/views/version/VersionConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'runtime-config', name: 'RuntimeConfig', component: () => import('@/views/runtime/RuntimeConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-          { path: 'quick-links', name: 'QuickLinkManage', component: () => import('@/views/admin/QuickLinkManage.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
-        ],
+        children: adminChildren(
+          to => ({ name: 'ServiceMonitorWs', params: { workspaceId: to.params.workspaceId } }),
+          'Ws',
+        ),
       },
     ],
   },
+  // 顶级 /admin/* — 入口在 /workspaces 列表页, 无 workspace 上下文
   {
-    path: '/admin/:pathMatch(.*)*',
-    redirect: '/workspaces',
+    path: '/admin',
+    component: () => import('@/views/layouts/GlobalLayout.vue'),
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/admin/AdminLayout.vue'),
+        children: adminChildren(() => ({ name: 'ServiceMonitor' }), ''),
+      },
+    ],
   },
 ]
+
+// admin 子路由在 workspace-scoped 与 global 两棵树各挂一份;Vue Router 全局 name 唯一,workspace 树加 'Ws' 后缀防冲突
+function adminChildren(
+  indexRedirect: (to: RouteLocationGeneric) => RouteLocationRaw,
+  nameSuffix: string,
+): RouteRecordRaw[] {
+  return [
+    { path: '', redirect: indexRedirect },
+    { path: 'services', name: `ServiceMonitor${nameSuffix}`, component: () => import('@/views/admin/ServiceMonitor.vue'), meta: { requireRole: 'VIEWER' } },
+    { path: 'workspaces', name: `WorkspaceManage${nameSuffix}`, component: () => import('@/views/admin/WorkspaceManage.vue'), meta: { requireRole: 'WORKSPACE_OWNER' } },
+    { path: 'users', name: `UserManage${nameSuffix}`, component: () => import('@/views/admin/UserManage.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'auth-sources', name: `AuthSourceManage${nameSuffix}`, component: () => import('@/views/admin/auth-sources/AuthSourcesView.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'datasources', name: `DatasourceManage${nameSuffix}`, component: () => import('@/views/datasource/DatasourceManage.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'audit-logs', name: `AuditLogList${nameSuffix}`, component: () => import('@/views/admin/AuditLogList.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'notification-config', name: `NotificationConfig${nameSuffix}`, component: () => import('@/views/notification/NotificationConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'approval-config', name: `ApprovalConfig${nameSuffix}`, component: () => import('@/views/approval/ApprovalConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'ai-config', name: `AiConfig${nameSuffix}`, component: () => import('@/views/ai/AiConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'redaction-config', name: `RedactionConfig${nameSuffix}`, component: () => import('@/views/redaction/RedactionConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'metadata-config', name: `MetadataConfig${nameSuffix}`, component: () => import('@/views/metadata/MetadataConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'publish-config', name: `PublishConfig${nameSuffix}`, component: () => import('@/views/publish/PublishConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'file-config', name: `FileConfig${nameSuffix}`, component: () => import('@/views/file/FileConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'result-config', name: `ResultConfig${nameSuffix}`, component: () => import('@/views/result/ResultConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'version-config', name: `VersionConfig${nameSuffix}`, component: () => import('@/views/version/VersionConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'runtime-config', name: `RuntimeConfig${nameSuffix}`, component: () => import('@/views/runtime/RuntimeConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'quick-links', name: `QuickLinkManage${nameSuffix}`, component: () => import('@/views/admin/QuickLinkManage.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+  ]
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

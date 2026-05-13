@@ -7,11 +7,6 @@ INSERT IGNORE INTO `t_r_user` (`id`, `username`, `password`, `email`, `is_super_
 VALUES
   (1, 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', 'admin@rudder.io', 1, 0, NOW());
 
--- ===================== 1.1 Default Authentication Source =====================
--- PASSWORD 是系统行(is_system=1),用户不可删/不可禁。OIDC/LDAP 行由管理员在 UI 增删。
-INSERT IGNORE INTO `t_r_auth_source` (`id`, `name`, `type`, `enabled`, `is_system`, `priority`, `config_json`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-VALUES (1, '本地账号', 'PASSWORD', 1, 1, 0, NULL, 1, NOW(), 1, NOW());
-
 -- ===================== 2. SPI Platform Configs =====================
 -- 所有 SPI 走统一表 t_r_spi_config，按 type 区分(FILE / RESULT / RUNTIME / METADATA /
 -- VERSION / APPROVAL / PUBLISH / NOTIFICATION / LLM / EMBEDDING / VECTOR / RERANK)。

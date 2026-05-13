@@ -20,7 +20,9 @@ package io.github.zzih.rudder.api.controller;
 import io.github.zzih.rudder.api.request.ProjectCreateRequest;
 import io.github.zzih.rudder.api.request.ProjectOwnerUpdateRequest;
 import io.github.zzih.rudder.api.response.ProjectResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
+import io.github.zzih.rudder.api.security.annotation.RequireWorkspaceOwner;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
@@ -54,13 +56,13 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/projects")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class ProjectController {
 
     private final ProjectService projectService;
 
     @PostMapping
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.PROJECT, action = AuditAction.CREATE, resourceType = AuditResourceType.PROJECT)
     public Result<ProjectResponse> create(@PathVariable Long workspaceId,
                                           @Valid @RequestBody ProjectCreateRequest request) {
@@ -89,7 +91,7 @@ public class ProjectController {
      * 更新项目信息。需要 DEVELOPER 角色，且必须是项目创建者或 WORKSPACE_OWNER+。
      */
     @PutMapping("/{code}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.PROJECT, action = AuditAction.UPDATE, resourceType = AuditResourceType.PROJECT, resourceCode = "#projectCode")
     public Result<ProjectResponse> update(@PathVariable Long workspaceId,
                                           @PathVariable Long code,
@@ -102,7 +104,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{code}/owner")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.PROJECT, action = AuditAction.UPDATE_OWNER, resourceType = AuditResourceType.PROJECT, resourceCode = "#projectCode")
     public Result<Void> updateOwner(@PathVariable Long workspaceId,
                                     @PathVariable Long code,
@@ -112,7 +114,7 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{code}")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.PROJECT, action = AuditAction.DELETE, resourceType = AuditResourceType.PROJECT, resourceCode = "#projectCode")
     public Result<Void> delete(@PathVariable Long workspaceId,
                                @PathVariable Long code) {

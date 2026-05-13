@@ -169,7 +169,6 @@ export default {
     ssoProcessing: 'Signing in…',
     ssoFailed: 'SSO login failed ({code})',
     loginAs: 'Sign in with {name}',
-    noSourcesEnabled: 'No login methods enabled. Contact your administrator.',
   },
 
   workspace: {

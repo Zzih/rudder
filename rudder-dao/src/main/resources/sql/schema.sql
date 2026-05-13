@@ -67,18 +67,18 @@ CREATE TABLE IF NOT EXISTS `t_r_workspace_member` (
 CREATE TABLE IF NOT EXISTS `t_r_auth_source` (
     `id`          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     `name`        VARCHAR(64)  NOT NULL              COMMENT '显示名(登录页按钮文案)',
-    `type`        VARCHAR(16)  NOT NULL              COMMENT '类型: PASSWORD / OIDC / LDAP',
+    `type`        VARCHAR(16)  NOT NULL              COMMENT '类型: OIDC / LDAP',
     `enabled`     TINYINT      NOT NULL DEFAULT 1    COMMENT '启用状态',
-    `is_system`   TINYINT      NOT NULL DEFAULT 0    COMMENT '系统行(=1)不可删/不可禁,仅默认 PASSWORD 行=1',
+    `is_system`   TINYINT      NOT NULL DEFAULT 0    COMMENT '系统行(=1)不可删/不可禁',
     `priority`    INT          NOT NULL DEFAULT 0    COMMENT '登录页按钮排序,值大者靠前',
-    `config_json` TEXT                               COMMENT 'config JSON(敏感字段已 AES 加密)。PASSWORD 行无需配置,允许 NULL',
+    `config_json` TEXT                               COMMENT 'config JSON(敏感字段已 AES 加密)',
     `created_by`  BIGINT                             COMMENT '创建人ID',
     `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_by`  BIGINT                             COMMENT '更新人ID',
     `updated_at`  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY `uk_name` (`name`),
     INDEX `idx_type_enabled` (`type`, `enabled`)
-) ENGINE=InnoDB COMMENT='认证源(登录方式): PASSWORD/OIDC/LDAP,多源可同时启用';
+) ENGINE=InnoDB COMMENT='外部认证源(SSO): OIDC/LDAP,多源可同时启用;本地账号走 t_r_user 不进本表';
 
 -- ==================== Datasource Module ====================
 

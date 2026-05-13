@@ -22,17 +22,27 @@ import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.crypto.CryptoUtils;
+import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.dao.AuthSourceDao;
 import io.github.zzih.rudder.dao.entity.AuthSource;
 import io.github.zzih.rudder.dao.enums.AuthSourceType;
 import io.github.zzih.rudder.service.auth.dto.AuthSourceDTO;
+import io.github.zzih.rudder.service.auth.security.LdapSourceConfigData;
+import io.github.zzih.rudder.service.auth.security.OidcSourceConfigData;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.ldap.DefaultSpringSecurityContextSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,9 +60,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AuthSourceService {
 
+    private static final HttpClient PROBE_HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(10);
+
     private final AuthSourceDao authSourceDao;
-    private final AuthenticatorDispatcher authenticatorDispatcher;
     private final GlobalCacheService cache;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${rudder.security.encrypt-key:}")
     private String encryptKey;
@@ -93,6 +108,36 @@ public class AuthSourceService {
         return src;
     }
 
+    /**
+     * 取 OIDC source 的解析后配置(用于 Spring Security {@code DbClientRegistrationRepository} +
+     * {@code JwtIssuanceSuccessHandler})。source 必须启用且 type=OIDC,configJson 已解密为明文。
+     */
+    public OidcSourceConfigData getOidcConfig(Long sourceId) {
+        return parseConfig(sourceId, AuthSourceType.OIDC, OidcSourceConfigData.class);
+    }
+
+    /** 取 LDAP source 的解析后配置(供 {@code DbLdapAuthenticationProviderFactory} 用)。 */
+    public LdapSourceConfigData getLdapConfig(Long sourceId) {
+        return parseConfig(sourceId, AuthSourceType.LDAP, LdapSourceConfigData.class);
+    }
+
+    private <T> T parseConfig(Long sourceId, AuthSourceType expectedType, Class<T> clazz) {
+        AuthSource src = requireEnabled(sourceId);
+        if (src.getType() != expectedType) {
+            throw new BizException(WorkspaceErrorCode.SSO_PROVIDER_NOT_SUPPORTED);
+        }
+        String json = src.getConfigJson();
+        if (json == null || json.isBlank()) {
+            throw new BizException(WorkspaceErrorCode.AUTH_SOURCE_CONFIG_INVALID);
+        }
+        try {
+            return JsonUtils.fromJson(json, clazz);
+        } catch (Exception e) {
+            log.error("Failed to parse {} config json for source id={}", expectedType, sourceId, e);
+            throw new BizException(WorkspaceErrorCode.AUTH_SOURCE_CONFIG_INVALID);
+        }
+    }
+
     @Transactional
     public AuthSource create(AuthSource source) {
         validateName(source.getName(), null);
@@ -106,7 +151,7 @@ public class AuthSourceService {
         }
         encryptInPlace(source);
         authSourceDao.insert(source);
-        cache.invalidate(GlobalCacheKey.AUTH_SOURCE);
+        invalidateCaches(source.getId());
         decryptInPlace(source);
         return source;
     }
@@ -140,7 +185,7 @@ public class AuthSourceService {
             }
         }
         authSourceDao.updateById(existing);
-        cache.invalidate(GlobalCacheKey.AUTH_SOURCE);
+        invalidateCaches(id);
         decryptInPlace(existing);
         return existing;
     }
@@ -154,10 +199,9 @@ public class AuthSourceService {
         if (Boolean.TRUE.equals(existing.getIsSystem())) {
             throw new BizException(WorkspaceErrorCode.AUTH_SOURCE_SYSTEM_IMMUTABLE);
         }
-        // TODO Phase 2: 校验是否有用户仅能从该 source 登入(t_r_user.sso_provider=type 且 password 空)
-        // 当前 Phase 直接删,失去 SSO 入口的用户由管理员之后用本地账号重置密码兜底。
+        // 失去 SSO 入口的用户(t_r_user.sso_provider=type 且 password 空)需 admin 重置密码兜底
         authSourceDao.deleteById(id);
-        cache.invalidate(GlobalCacheKey.AUTH_SOURCE);
+        invalidateCaches(id);
     }
 
     @Transactional
@@ -171,10 +215,16 @@ public class AuthSourceService {
         }
         existing.setEnabled(enabled);
         authSourceDao.updateById(existing);
-        cache.invalidate(GlobalCacheKey.AUTH_SOURCE);
+        invalidateCaches(id);
     }
 
-    /** 探活:解密 source 后调对应 Authenticator.testConnection。失败不抛异常,返回 unhealthy。 */
+    /** 失效 source 列表缓存 + 广播事件让 security 层的 OIDC / LDAP provider 缓存同步 evict。 */
+    private void invalidateCaches(Long sourceId) {
+        cache.invalidate(GlobalCacheKey.AUTH_SOURCE);
+        eventPublisher.publishEvent(new AuthSourceChangedEvent(sourceId));
+    }
+
+    /** 探活:OIDC 走 discovery endpoint HTTP probe;LDAP 用 ContextSource bind 试探。 */
     public HealthStatus testConnection(Long id) {
         AuthSource src;
         try {
@@ -182,11 +232,66 @@ public class AuthSourceService {
         } catch (BizException e) {
             return HealthStatus.unhealthy(e.getMessage());
         }
-        Authenticator authenticator = authenticatorDispatcher.require(src.getType());
+        return switch (src.getType()) {
+            case OIDC -> probeOidcDiscovery(id);
+            case LDAP -> probeLdapBind(id);
+        };
+    }
+
+    /**
+     * LDAP 探活:用配置构建短命的 {@code DefaultSpringSecurityContextSource},尝试 admin bind。
+     * 成功视为 healthy。trustAllCerts 在登录路径生效,探活路径暂走 JDK truststore。
+     */
+    private HealthStatus probeLdapBind(Long id) {
+        LdapSourceConfigData cfg;
         try {
-            return authenticator.testConnection(src);
+            cfg = getLdapConfig(id);
+        } catch (BizException e) {
+            return HealthStatus.unhealthy(e.getMessage());
+        }
+        DefaultSpringSecurityContextSource ctx = new DefaultSpringSecurityContextSource(cfg.getUrl());
+        ctx.setBase(cfg.getBaseDn());
+        if (cfg.getBindDn() != null && !cfg.getBindDn().isBlank()) {
+            ctx.setUserDn(cfg.getBindDn());
+            ctx.setPassword(cfg.getBindPassword() == null ? "" : cfg.getBindPassword());
+        }
+        // 短命 ContextSource,JNDI 底层连接由 GC 释放,无显式 dispose API
+        try {
+            ctx.afterPropertiesSet();
+            ctx.getReadOnlyContext().close();
+            return HealthStatus.healthy();
         } catch (Exception e) {
-            log.warn("testConnection failed for source id={}", id, e);
+            return HealthStatus.unhealthy(e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+    }
+
+    /** GET {@code <issuer>/.well-known/openid-configuration},2xx/3xx 视为 healthy。 */
+    private HealthStatus probeOidcDiscovery(Long id) {
+        OidcSourceConfigData cfg;
+        try {
+            cfg = getOidcConfig(id);
+        } catch (BizException e) {
+            return HealthStatus.unhealthy(e.getMessage());
+        }
+        String issuer = cfg.getIssuer();
+        if (issuer == null || issuer.isBlank()) {
+            return HealthStatus.unhealthy("issuer is blank");
+        }
+        String probeUrl = (issuer.endsWith("/") ? issuer.substring(0, issuer.length() - 1) : issuer)
+                + "/.well-known/openid-configuration";
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(probeUrl))
+                    .timeout(PROBE_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<Void> resp = PROBE_HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.discarding());
+            int status = resp.statusCode();
+            if (status >= 200 && status < 400) {
+                return HealthStatus.healthy();
+            }
+            return HealthStatus.degraded("probe HTTP " + status);
+        } catch (Exception e) {
             return HealthStatus.unhealthy(e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
@@ -252,11 +357,6 @@ public class AuthSourceService {
     private void encryptInPlace(AuthSource source) {
         String json = source.getConfigJson();
         if (json == null || json.isBlank()) {
-            return;
-        }
-        if (source.getType() == AuthSourceType.PASSWORD) {
-            // PASSWORD 不存配置;调用方误传也不写
-            source.setConfigJson(null);
             return;
         }
         source.setConfigJson(CryptoUtils.aesEncrypt(json, encryptKey));

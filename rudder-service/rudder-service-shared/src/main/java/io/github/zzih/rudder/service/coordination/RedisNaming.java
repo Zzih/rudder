@@ -29,7 +29,6 @@ package io.github.zzih.rudder.service.coordination;
  *   <li>所有 key / channel 一律以 {@value #ROOT} 起头,跟同 Redis 实例下其他服务隔离</li>
  *   <li>{@link Channels} —— Redis pub/sub 通道,不存数据</li>
  *   <li>{@link Cache} —— {@code GlobalCacheService} SHARED 模式 L2 + 单 flight 锁</li>
- *   <li>{@link Token} —— {@code OneShotTokenService} 一次性凭证(SSO state / 重置密码 token / nonce 等)</li>
  * </ul>
  *
  * <p>不同子命名空间之间**不应有前缀包含关系**(例如 {@code rudder:cache:lock:} 不能是
@@ -69,16 +68,6 @@ public final class RedisNaming {
         public static final String LOCK_PREFIX = ROOT + ":cache:lock:";
 
         private Cache() {
-        }
-    }
-
-    /** 一次性凭证命名空间 —— {@code OneShotTokenService} 专用。 */
-    public static final class Token {
-
-        /** 凭证 key 前缀。完整 key:{@code rudder:token:{scope}:{token}}。 */
-        public static final String PREFIX = ROOT + ":token:";
-
-        private Token() {
         }
     }
 

@@ -1,15 +1,16 @@
 import request from '@/utils/request'
 
-export type AuthSourceType = 'PASSWORD' | 'OIDC' | 'LDAP'
+export type AuthSourceType = 'OIDC' | 'LDAP'
 
+/**
+ * OIDC 配置:Spring Security oauth2Login 通过 issuer 自动 discovery
+ * authorization / token / userinfo / jwks endpoint,前端无需配置 4 个 URI。
+ * redirect_uri 由后端按 {baseUrl}/login/oauth2/code/{sourceId} 自动构造,IdP 注册时填这个模板。
+ */
 export interface OidcConfig {
   clientId: string
   clientSecret: string
-  redirectUri: string
   issuer: string
-  authorizationUri: string
-  tokenUri: string
-  userInfoUri: string
   scopes: string
   frontendRedirectUrl: string
 }
@@ -26,7 +27,7 @@ export interface LdapConfig {
   displayNameAttribute: string
 }
 
-/** 与后端 SourceConfig sealed interface 对齐;Jackson 按兄弟字段 type 决定具体子类。 */
+/** 协议特定 config。后端落库前 AES 加密敏感字段(clientSecret / bindPassword)。 */
 export type SourceConfig = OidcConfig | LdapConfig
 
 export interface AuthSourceSummary {

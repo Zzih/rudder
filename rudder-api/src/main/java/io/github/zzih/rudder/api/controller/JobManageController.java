@@ -18,13 +18,12 @@
 package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.response.TaskInstanceResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
@@ -47,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/jobs")
 @RequiredArgsConstructor
-@RequireRole(RoleType.DEVELOPER)
+@RequireDeveloper
 public class JobManageController {
 
     private final TaskInstanceService taskInstanceService;

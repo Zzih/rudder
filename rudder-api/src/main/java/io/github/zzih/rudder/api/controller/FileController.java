@@ -21,12 +21,12 @@ import io.github.zzih.rudder.api.request.FileContentUpdateRequest;
 import io.github.zzih.rudder.api.request.FileCreateRequest;
 import io.github.zzih.rudder.api.request.FileMkdirRequest;
 import io.github.zzih.rudder.api.request.FileRenameRequest;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.net.HttpUtils;
 import io.github.zzih.rudder.file.api.StorageEntity;
@@ -51,7 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/files")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class FileController {
 
     private final FileService fileService;
@@ -59,7 +59,7 @@ public class FileController {
     // --- 上传 ---
 
     @PostMapping("/upload")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.FILE, action = AuditAction.UPLOAD, resourceType = AuditResourceType.FILE, description = "上传文件")
     public Result<String> upload(@RequestParam("file") MultipartFile file,
                                  @RequestParam(required = false, defaultValue = "") String currentDir) {
@@ -87,7 +87,7 @@ public class FileController {
     // --- 删除 ---
 
     @DeleteMapping
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.FILE, action = AuditAction.DELETE, resourceType = AuditResourceType.FILE, description = "删除文件/目录")
     public Result<Boolean> delete(@RequestParam String path) {
         return Result.ok(fileService.delete(path));
@@ -103,7 +103,7 @@ public class FileController {
     // --- 目录 ---
 
     @PostMapping("/directory")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.FILE, action = AuditAction.MKDIR, resourceType = AuditResourceType.FILE, description = "创建目录")
     public Result<Void> mkdir(@RequestBody FileMkdirRequest request) {
         fileService.mkdir(request.getPath() != null ? request.getPath() : "");
@@ -113,7 +113,7 @@ public class FileController {
     // --- 重命名 ---
 
     @PutMapping("/rename")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.FILE, action = AuditAction.RENAME, resourceType = AuditResourceType.FILE, description = "重命名/移动文件")
     public Result<Void> rename(@RequestBody FileRenameRequest request) {
         fileService.rename(request.getOldPath(), request.getNewPath());
@@ -123,7 +123,7 @@ public class FileController {
     // --- 在线创建/编辑 ---
 
     @PostMapping("/online-create")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.FILE, action = AuditAction.ONLINE_CREATE, resourceType = AuditResourceType.FILE, description = "在线创建文件")
     public Result<String> onlineCreate(@RequestBody FileCreateRequest request) {
         String path = fileService.onlineCreate(
@@ -141,7 +141,7 @@ public class FileController {
     }
 
     @PutMapping("/content")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.FILE, action = AuditAction.UPDATE_CONTENT, resourceType = AuditResourceType.FILE, description = "修改文件内容")
     public Result<Void> updateContent(@RequestBody FileContentUpdateRequest request) {
         fileService.updateContent(request.getPath(), request.getContent());

@@ -19,19 +19,18 @@ package io.github.zzih.rudder.api.response;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.enums.AuthSourceType;
-import io.github.zzih.rudder.service.auth.config.LdapSourceConfig;
-import io.github.zzih.rudder.service.auth.config.OidcSourceConfig;
-import io.github.zzih.rudder.service.auth.config.SourceConfig;
 import io.github.zzih.rudder.service.auth.dto.AuthSourceDTO;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import lombok.Data;
 
 /**
- * Admin 详情。{@link #config} 是结构化对象(SourceConfig 子类),敏感字段(clientSecret / bindPassword)
- * 已替换为 {@value MASK} 占位符。前端编辑时若用户不改这些字段,提交 update 时不带 config(或清掉敏感字段)
- * 让后端保留旧值;v1 简化方案不做"占位符等于不变"的隐式逻辑。
+ * Admin 详情。{@link #config} 透传原 JSON 解析的 Map,敏感字段(clientSecret / bindPassword)
+ * 已替换为 {@value MASK} 占位符。update 时若不带 config 后端保留旧值。
  */
 @Data
 public class AuthSourceDetailResponse {
@@ -39,14 +38,17 @@ public class AuthSourceDetailResponse {
     /** 脱敏占位符。 */
     public static final String MASK = "••••••";
 
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
+
     private Long id;
     private String name;
     private AuthSourceType type;
     private Boolean enabled;
     private Boolean isSystem;
     private Integer priority;
-    /** 协议特定配置(已 mask);PASSWORD 行为 null。 */
-    private SourceConfig config;
+    /** 协议特定配置(已 mask)。 */
+    private Map<String, Object> config;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -64,31 +66,29 @@ public class AuthSourceDetailResponse {
         return r;
     }
 
-    /** 按 type 反序列化为对应 config 类,并把敏感字段替换为 {@link #MASK}。 */
-    private static SourceConfig parseAndMask(String json, AuthSourceType type) {
-        if (json == null || json.isBlank() || type == null || type == AuthSourceType.PASSWORD) {
+    /** 按 type 把敏感字段替换为 {@link #MASK} 后透传整个 config map。 */
+    private static Map<String, Object> parseAndMask(String json, AuthSourceType type) {
+        if (json == null || json.isBlank() || type == null) {
             return null;
         }
         try {
-            return switch (type) {
-                case OIDC -> {
-                    OidcSourceConfig cfg = JsonUtils.fromJson(json, OidcSourceConfig.class);
-                    if (cfg.getClientSecret() != null && !cfg.getClientSecret().isEmpty()) {
-                        cfg.setClientSecret(MASK);
-                    }
-                    yield cfg;
+            Map<String, Object> map = JsonUtils.fromJson(json, MAP_TYPE);
+            for (String sensitive : sensitiveFieldsFor(type)) {
+                Object v = map.get(sensitive);
+                if (v instanceof String s && !s.isEmpty()) {
+                    map.put(sensitive, MASK);
                 }
-                case LDAP -> {
-                    LdapSourceConfig cfg = JsonUtils.fromJson(json, LdapSourceConfig.class);
-                    if (cfg.getBindPassword() != null && !cfg.getBindPassword().isEmpty()) {
-                        cfg.setBindPassword(MASK);
-                    }
-                    yield cfg;
-                }
-                default -> null;
-            };
+            }
+            return map;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String[] sensitiveFieldsFor(AuthSourceType type) {
+        return switch (type) {
+            case OIDC -> new String[]{"clientSecret"};
+            case LDAP -> new String[]{"bindPassword"};
+        };
     }
 }

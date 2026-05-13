@@ -31,7 +31,7 @@ import lombok.NoArgsConstructor;
  *
  * <p>承载当前请求的 user / workspace / role 等信息，由入口 filter 统一注入：
  * <ul>
- *   <li>HTTP: TokenFilter 解析 JWT + X-Workspace-Id header → set</li>
+ *   <li>HTTP: JwtToUserContextFilter 把 Spring Security 解析好的 Jwt + X-Workspace-Id header → set</li>
  *   <li>MCP:  PatAuthFilter 解析 PAT → set（workspace_id 来自 token 绑定）</li>
  *   <li>RPC:  RpcContextInterceptor 从消息头读 → set</li>
  * </ul>

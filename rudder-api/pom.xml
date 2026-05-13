@@ -26,6 +26,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- Spring Security:统一登录走 oauth2Login(OIDC) + DaoAuthenticationProvider(PASSWORD) + LDAP -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+        <!-- Resource Server:用 JwtDecoder 校验自家签发的 JWT,Spring 默认 BearerTokenAuthenticationFilter 接管 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
 
         <!-- OpenAPI / Swagger -->
         <dependency>

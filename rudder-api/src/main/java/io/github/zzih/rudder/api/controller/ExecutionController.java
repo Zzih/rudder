@@ -19,13 +19,13 @@ package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.request.DirectExecuteRequest;
 import io.github.zzih.rudder.api.response.TaskInstanceResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.error.SystemErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.execution.LogResponse;
@@ -53,7 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/executions")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class ExecutionController {
 
     private static final int EXECUTE_MAX_PERMITS = 30;
@@ -63,7 +63,7 @@ public class ExecutionController {
     private final RateLimitService rateLimitService;
 
     @PostMapping("/direct")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.EXECUTION, action = AuditAction.EXECUTE, resourceType = AuditResourceType.TASK_INSTANCE)
     public Result<TaskInstanceResponse> executeDirect(
                                                       @Valid @RequestBody DirectExecuteRequest request) {
@@ -97,7 +97,7 @@ public class ExecutionController {
     }
 
     @PostMapping("/{id}/cancel")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.EXECUTION, action = AuditAction.CANCEL, resourceType = AuditResourceType.TASK_INSTANCE, resourceCode = "#id")
     public Result<Void> cancel(@PathVariable Long id) {
         taskInstanceService.cancel(id);

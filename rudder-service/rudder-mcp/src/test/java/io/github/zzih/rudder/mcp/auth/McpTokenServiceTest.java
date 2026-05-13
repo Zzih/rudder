@@ -30,8 +30,10 @@ import static org.mockito.Mockito.when;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.approval.ApprovalResourceType;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.common.enums.error.McpErrorCode;
 import io.github.zzih.rudder.common.enums.mcp.McpScopeGrantStatus;
 import io.github.zzih.rudder.common.enums.mcp.McpTokenStatus;
+import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.dao.dao.McpTokenDao;
 import io.github.zzih.rudder.dao.dao.McpTokenScopeGrantDao;
 import io.github.zzih.rudder.dao.entity.McpToken;
@@ -166,12 +168,13 @@ class McpTokenServiceTest {
     }
 
     @Test
-    @DisplayName("createToken: 空 capabilityIds → 抛 IllegalArgumentException")
+    @DisplayName("createToken: 空 capabilityIds → 抛 BizException(AT_LEAST_ONE_CAPABILITY_REQUIRED)")
     void createTokenRejectsEmptyCapabilities() {
         var req = new CreateTokenCommand(100L, 5L, "x", null,
                 LocalDateTime.now().plusDays(1), List.of());
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        BizException ex = org.junit.jupiter.api.Assertions.assertThrows(BizException.class,
                 () -> service.createToken(req));
+        assertThat(ex.getErrorCode()).isEqualTo(McpErrorCode.AT_LEAST_ONE_CAPABILITY_REQUIRED);
         verify(tokenDao, never()).insert(any());
     }
 

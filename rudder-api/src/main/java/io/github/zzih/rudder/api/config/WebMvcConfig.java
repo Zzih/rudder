@@ -17,8 +17,6 @@
 
 package io.github.zzih.rudder.api.config;
 
-import io.github.zzih.rudder.api.interceptor.PermissionInterceptor;
-
 import java.io.IOException;
 
 import org.springframework.context.annotation.Bean;
@@ -28,19 +26,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
 
-import lombok.RequiredArgsConstructor;
-
 @Configuration
-@RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
-
-    private final PermissionInterceptor permissionInterceptor;
 
     @Bean
     public CorsFilter corsFilter() {
@@ -51,19 +43,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
-    }
-
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(permissionInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns(
-                        "/api/auth/login",
-                        "/api/auth/sso/**",
-                        "/api/approvals/callback/**",
-                        "/api/executions/*/logs",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**");
     }
 
     @Override

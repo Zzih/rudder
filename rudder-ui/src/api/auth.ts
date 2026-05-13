@@ -26,7 +26,11 @@ export function getMe() {
   return request.get('/auth/me')
 }
 
-/** OIDC 跳转 URL —— 浏览器直接 window.location 即可,后端会 302 到 IdP。 */
+/**
+ * OIDC 跳转 URL。Spring Security oauth2Login 默认 endpoint:
+ * /oauth2/authorization/{registrationId},Rudder 用 sourceId 字符串作 registrationId。
+ * 浏览器直接 window.location,后端 302 到 IdP 完成 authorization code 流程。
+ */
 export function ssoStartUrl(sourceId: number): string {
-  return `/api/auth/sources/${sourceId}/sso/start`
+  return `/oauth2/authorization/${sourceId}`
 }
