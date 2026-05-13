@@ -1,5 +1,5 @@
 server:
-  port: ${RUDDER_EXECUTION_PORT:5681}
+  port: ${RUDDER_EXECUTION_HTTP_PORT:5681}
 
 spring:
   application:

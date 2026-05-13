@@ -57,14 +57,14 @@ classpath:sql/data.sql         最小种子（admin 用户 + SPI 默认）
 
 | 变量 | 默认 | 说明 |
 |:---|:---|:---|
-| `RUDDER_API_PORT` | `5680` | HTTP / WebSocket / SSE |
+| `RUDDER_API_HTTP_PORT` | `5680` | HTTP / WebSocket / SSE |
 | `RUDDER_API_RPC_PORT` | `5690` | Netty RPC（接 Execution 反向回调 / 任务状态上报） |
 
 ### Execution (`rudder-execution`)
 
 | 变量 | 默认 | 说明 |
 |:---|:---|:---|
-| `RUDDER_EXECUTION_PORT` | `5681` | HTTP（健康检查 / 内部接口） |
+| `RUDDER_EXECUTION_HTTP_PORT` | `5681` | HTTP（健康检查 / 内部接口） |
 | `RUDDER_EXECUTION_RPC_PORT` | `5691` | Netty RPC（接受 Server 派发任务） |
 
 ### RPC 鉴权
