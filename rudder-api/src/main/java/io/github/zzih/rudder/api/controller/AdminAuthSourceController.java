@@ -21,22 +21,18 @@ import io.github.zzih.rudder.api.request.AuthSourceCreateRequest;
 import io.github.zzih.rudder.api.request.AuthSourceUpdateRequest;
 import io.github.zzih.rudder.api.response.AuthSourceDetailResponse;
 import io.github.zzih.rudder.api.response.AuthSourceSummaryResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
-import io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode;
-import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.enums.AuthSourceType;
 import io.github.zzih.rudder.service.auth.AuthSourceService;
-import io.github.zzih.rudder.service.auth.config.SourceConfig;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,13 +47,11 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Admin 端管理 auth source(SSO 登录方式)。所有端点要求 {@link RoleType#SUPER_ADMIN}。
- */
+/** Admin 端管理 auth source(SSO 登录方式)。 */
 @RestController
 @RequestMapping("/api/admin/auth-sources")
 @RequiredArgsConstructor
-@RequireRole(RoleType.SUPER_ADMIN)
+@RequireSuperAdmin
 public class AdminAuthSourceController {
 
     private final AuthSourceService authSourceService;
@@ -78,10 +72,6 @@ public class AdminAuthSourceController {
     @PostMapping
     @AuditLog(module = AuditModule.AUTH_SOURCE, action = AuditAction.CREATE, resourceType = AuditResourceType.AUTH_SOURCE, resourceCode = "#result.data.id", description = "创建认证源")
     public Result<AuthSourceDetailResponse> create(@Valid @RequestBody AuthSourceCreateRequest request) {
-        if (request.getType() == AuthSourceType.PASSWORD) {
-            // PASSWORD 系统行只能存在一行(data.sql 种子建),禁止通过 API 新建
-            throw new BizException(WorkspaceErrorCode.AUTH_SOURCE_SYSTEM_IMMUTABLE);
-        }
         return Result.ok(AuthSourceDetailResponse.from(authSourceService.createDetail(
                 request.getName(),
                 request.getType(),
@@ -105,9 +95,9 @@ public class AdminAuthSourceController {
                 request.getPriority())));
     }
 
-    /** SourceConfig 子类对象 → 明文 JSON 字符串,交给 service 加密落库。 */
-    private static String serializeConfig(SourceConfig config) {
-        return config == null ? null : JsonUtils.toJson(config);
+    /** 协议 config map → 明文 JSON 字符串,交给 service 加密落库。 */
+    private static String serializeConfig(Map<String, Object> config) {
+        return (config == null || config.isEmpty()) ? null : JsonUtils.toJson(config);
     }
 
     @DeleteMapping("/{id}")

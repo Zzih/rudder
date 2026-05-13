@@ -18,16 +18,20 @@
 package io.github.zzih.rudder.api.request;
 
 import io.github.zzih.rudder.dao.enums.AuthSourceType;
-import io.github.zzih.rudder.service.auth.config.SourceConfig;
 
-import jakarta.validation.Valid;
+import java.util.Map;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 新建 auth source(SSO 登录方式)。Jackson 按兄弟字段 {@link #type} 决定 {@link #config}
- * 反序列化为 {@code OidcSourceConfig} 还是 {@code LdapSourceConfig}。
+ * 新建 auth source。{@link #config} 为协议字段透传 map,后端按 {@link #type} 序列化为 JSON 落库:
+ * <ul>
+ *   <li>{@code OIDC}: {@code clientId / clientSecret / issuer / scopes / frontendRedirectUrl}</li>
+ *   <li>{@code LDAP}: {@code url / baseDn / bindDn / bindPassword / userSearchFilter / ...}</li>
+ * </ul>
+ * 字段级校验由 service 层 + Jackson 反序列化为具体 config POJO 时完成。
  *
  * <p>type=PASSWORD 不允许通过此接口新建(系统行只能存在一行,在 data.sql 种子里建)。
  */
@@ -40,9 +44,7 @@ public class AuthSourceCreateRequest {
     @NotNull(message = "{validation.AuthSourceCreateRequest.type.required}")
     private AuthSourceType type;
 
-    /** 协议特定配置: type=OIDC → OidcSourceConfig, type=LDAP → LdapSourceConfig。 */
-    @Valid
-    private SourceConfig config;
+    private Map<String, Object> config;
 
     /** 默认 true。 */
     private Boolean enabled;

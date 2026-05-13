@@ -22,8 +22,7 @@ import io.github.zzih.rudder.api.request.RedactionStrategyRequest;
 import io.github.zzih.rudder.api.request.RedactionTestRequest;
 import io.github.zzih.rudder.api.response.RedactionRuleResponse;
 import io.github.zzih.rudder.api.response.RedactionStrategyResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.redaction.RedactionAdminService;
@@ -49,7 +48,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/platform/redaction")
 @RequiredArgsConstructor
-@RequireRole(RoleType.SUPER_ADMIN)
+@RequireSuperAdmin
 public class RedactionController {
 
     private final RedactionAdminService adminService;

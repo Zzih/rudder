@@ -8,10 +8,9 @@ import { listWorkspaces, createWorkspace } from '@/api/workspace'
 import { listQuickLinks, type QuickLink } from '@/api/quickLink'
 import { getOverviewStats, type OverviewStats } from '@/api/overview'
 import { useUserStore } from '@/stores/user'
-import { setLocale, getLocale } from '@/locales'
 import { cardColor } from '@/utils/colorMeta'
-import AboutDialog from '@/components/AboutDialog.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
+import AppHeader from '@/components/AppHeader.vue'
+import { useAboutDialog } from '@/composables/useAboutDialog'
 
 interface Workspace {
   id: number
@@ -20,9 +19,10 @@ interface Workspace {
   createdAt: string
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const userStore = useUserStore()
+const { open: openAbout } = useAboutDialog()
 
 const workspaces = ref<Workspace[]>([])
 const loading = ref(false)
@@ -34,8 +34,6 @@ const pageSize = ref(10)
 const total = ref(0)
 const createFormRef = ref<FormInstance>()
 const createForm = ref({ name: '', description: '' })
-const currentLocale = ref(getLocale())
-const aboutVisible = ref(false)
 const quickEntries = ref<QuickLink[]>([])
 const docLinks = ref<QuickLink[]>([])
 const stats = ref<OverviewStats>({ workspaceCount: 0, workflowCount: 0, scriptCount: 0 })
@@ -102,28 +100,18 @@ async function handleDelete(ws: Workspace) {
   } catch { /* cancelled */ }
 }
 
-function handleLogout() {
-  userStore.logout()
-  router.push('/login')
-}
-
-function switchLocale(locale: string) {
-  setLocale(locale)
-  currentLocale.value = locale
-}
-
 function formatDate(d: string) {
   if (!d) return ''
-  return new Date(d).toLocaleDateString(currentLocale.value === 'zh' ? 'zh-CN' : 'en-US', {
+  return new Date(d).toLocaleDateString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
 }
 
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return currentLocale.value === 'zh' ? '上午好' : 'Good morning'
-  if (h < 18) return currentLocale.value === 'zh' ? '下午好' : 'Good afternoon'
-  return currentLocale.value === 'zh' ? '晚上好' : 'Good evening'
+  if (h < 12) return locale.value === 'zh' ? '上午好' : 'Good morning'
+  if (h < 18) return locale.value === 'zh' ? '下午好' : 'Good afternoon'
+  return locale.value === 'zh' ? '晚上好' : 'Good evening'
 })
 
 async function fetchQuickLinks() {
@@ -151,46 +139,7 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <!-- Header -->
-    <header class="header">
-      <div class="header__left">
-        <div class="logo-mark">R</div>
-        <span class="logo-text">Rudder</span>
-      </div>
-      <div class="header__right">
-        <ThemeToggle />
-        <el-dropdown trigger="click" @command="switchLocale">
-          <div class="header-action">
-            <el-icon size="15"><Eleme /></el-icon>
-            <span>{{ currentLocale === 'zh' ? '中文' : 'EN' }}</span>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="en" :disabled="currentLocale === 'en'">English</el-dropdown-item>
-              <el-dropdown-item command="zh" :disabled="currentLocale === 'zh'">中文</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-        <span class="header-sep" />
-        <el-dropdown trigger="click">
-          <div class="header-action">
-            <el-avatar :size="26" class="user-avatar">{{ username.charAt(0).toUpperCase() }}</el-avatar>
-            <span>{{ username }}</span>
-            <el-icon size="12" style="color: var(--r-text-disabled)"><ArrowDown /></el-icon>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click="aboutVisible = true">
-                <el-icon><InfoFilled /></el-icon>{{ t('header.about') }}
-              </el-dropdown-item>
-              <el-dropdown-item @click="handleLogout" divided>
-                <el-icon><SwitchButton /></el-icon>{{ t('header.logout') }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </header>
+    <AppHeader />
 
     <!-- Body -->
     <div class="body">
@@ -371,8 +320,7 @@ onMounted(() => {
     </div>
 
     <!-- Footer -->
-    <footer class="page-footer" @click="aboutVisible = true">{{ t('footer.copyright') }}</footer>
-    <AboutDialog v-model="aboutVisible" />
+    <footer class="page-footer" @click="openAbout">{{ t('footer.copyright') }}</footer>
 
     <!-- Dialog -->
     <el-dialog v-model="dialogVisible" :title="t('workspace.createTitle')" width="460px" destroy-on-close>
@@ -404,35 +352,6 @@ onMounted(() => {
   background: var(--r-bg-panel);
 }
 
-/* ===== Header ===== */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 52px;
-  padding: 0 24px;
-  background: var(--r-bg-header);
-  border-bottom: 1px solid var(--r-border);
-  flex-shrink: 0;
-}
-.header__left { display: flex; align-items: center; gap: 8px; }
-.header__right { display: flex; align-items: center; gap: 2px; }
-.header-sep { width: 1px; height: 14px; background: var(--r-border); margin: 0 6px; }
-
-.logo-mark {
-  width: 26px; height: 26px; background: var(--r-logo-bg); border-radius: 6px;
-  font-size: 13px; font-weight: 800; color: var(--r-logo-text);
-  display: flex; align-items: center; justify-content: center;
-}
-.logo-text { font-size: 14px; font-weight: 700; color: var(--r-text-primary); letter-spacing: -0.02em; }
-
-.header-action {
-  display: flex; align-items: center; gap: 5px;
-  cursor: pointer; padding: 5px 8px; border-radius: 5px;
-  font-size: 12px; color: var(--r-text-tertiary);
-  transition: all 0.12s;
-  &:hover { background: var(--r-bg-hover); color: var(--r-text-primary); }
-}
 .user-avatar { background: var(--r-logo-bg); font-size: 11px; font-weight: 600; color: #fff; }
 
 /* ===== Body ===== */

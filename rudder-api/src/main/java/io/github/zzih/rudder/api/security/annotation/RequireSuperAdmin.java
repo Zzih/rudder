@@ -15,34 +15,18 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.common.annotation;
+package io.github.zzih.rudder.api.security.annotation;
 
-import io.github.zzih.rudder.common.enums.auth.RoleType;
-
-import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * 声明式权限校验注解。
- * <p>
- * 标注在 Controller 方法或类上，PermissionInterceptor 会自动校验
- * 当前用户在所属工作空间中的角色是否 >= 指定的最低角色。
- * <p>
- * 角色层级: SUPER_ADMIN(3) > WORKSPACE_OWNER(2) > DEVELOPER(1) > VIEWER(0)
- * <p>
- * 方法级注解优先于类级注解。
- */
-@Target({ElementType.METHOD, ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
-@Documented
-public @interface RequireRole {
+import org.springframework.security.access.prepost.PreAuthorize;
 
-    /**
-     * 最低角色，对应 RoleType 枚举值。
-     * 例如 {@code @RequireRole(RoleType.DEVELOPER)} 表示至少需要 DEVELOPER 角色。
-     */
-    RoleType value();
+/** 要求当前请求 user 持 {@code ROLE_SUPER_ADMIN} authority。可标在 method 或 class 上。 */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD, ElementType.TYPE})
+@PreAuthorize("hasRole('SUPER_ADMIN')")
+public @interface RequireSuperAdmin {
 }

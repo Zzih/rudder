@@ -25,12 +25,15 @@ import io.github.zzih.rudder.dao.entity.WorkspaceMember;
 import io.github.zzih.rudder.mcp.auth.McpTokenService;
 import io.github.zzih.rudder.mcp.auth.PatCodec;
 import io.github.zzih.rudder.mcp.auth.TokenView;
+import io.github.zzih.rudder.service.auth.security.RudderAuthorities;
 
 import java.io.IOException;
 import java.util.Optional;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -55,7 +58,9 @@ import lombok.extern.slf4j.Slf4j;
  * <p>验证失败 → 返回 401，链路终止。
  * 灰度：仅当 {@code spring.ai.mcp.server.enabled=true} 时启用此 filter。
  *
- * <p>@Order(0)：早于 TokenFilter（@Order(1)）执行，避免 MCP 请求被 JWT 路径误处理。
+ * <p>@Order(0):早于 Servlet 容器内其他 Filter 执行。注意 Spring Security 主链对所有路径
+ * permitAll,且 oauth2ResourceServer 仅在请求带 Bearer 头时才尝试解析;MCP 协议入口的鉴权完全
+ * 在本 filter 内完成,与 Spring Security 不冲突。
  */
 @Slf4j
 @Component
@@ -100,10 +105,8 @@ public class PatAuthFilter extends OncePerRequestFilter {
 
         TokenView view = verified.get();
         try {
-            // 把 token view 放到 request attribute 给协议层使用
             request.setAttribute(McpRequestAttributes.TOKEN_VIEW, view);
 
-            // 注入 UserContext: 让 Service 层透明读取 userId/workspaceId/role
             UserContext.UserInfo userInfo = new UserContext.UserInfo();
             userInfo.setUserId(view.userId());
             userInfo.setWorkspaceId(view.workspaceId());
@@ -118,11 +121,23 @@ public class PatAuthFilter extends OncePerRequestFilter {
                 userInfo.setRole(member.getRole());
             }
             UserContext.set(userInfo);
+            applySecurityContext(userInfo);
 
             chain.doFilter(request, response);
         } finally {
             UserContext.clear();
+            SecurityContextHolder.clearContext();
         }
+    }
+
+    /** MCP 路径不走 Spring Security 主链,显式塞 SecurityContext 让 service 层的 @PreAuthorize 仍生效。 */
+    private static void applySecurityContext(UserContext.UserInfo userInfo) {
+        Object principal = userInfo.getUsername() == null
+                ? String.valueOf(userInfo.getUserId())
+                : userInfo.getUsername();
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(
+                        principal, null, RudderAuthorities.from(userInfo.getRole())));
     }
 
     private static void sendUnauthorized(HttpServletResponse response, String message) throws IOException {

@@ -21,14 +21,14 @@ import io.github.zzih.rudder.api.request.ApprovalResolveRequest;
 import io.github.zzih.rudder.api.request.ApprovalWithdrawRequest;
 import io.github.zzih.rudder.api.response.ApprovalDecisionResponse;
 import io.github.zzih.rudder.api.response.ApprovalRecordResponse;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.approval.api.model.ApprovalAction;
-import io.github.zzih.rudder.common.annotation.RequireRole;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.error.ApprovalErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.page.PageRequest;
@@ -50,7 +50,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/approvals")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class ApprovalController {
 
     private final ApprovalService approvalService;
@@ -88,7 +88,7 @@ public class ApprovalController {
     }
 
     @PostMapping("/{id}/approve")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.APPROVAL, action = AuditAction.APPROVE, resourceType = AuditResourceType.APPROVAL_RECORD, resourceCode = "#id")
     public Result<Void> approve(@PathVariable Long id,
                                 @RequestBody(required = false) ApprovalResolveRequest request) {
@@ -100,7 +100,7 @@ public class ApprovalController {
     }
 
     @PostMapping("/{id}/reject")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.APPROVAL, action = AuditAction.REJECT, resourceType = AuditResourceType.APPROVAL_RECORD, resourceCode = "#id")
     public Result<Void> reject(@PathVariable Long id,
                                @RequestBody ApprovalResolveRequest request) {
@@ -115,7 +115,7 @@ public class ApprovalController {
     }
 
     @PostMapping("/{id}/withdraw")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.APPROVAL, action = AuditAction.WITHDRAW, resourceType = AuditResourceType.APPROVAL_RECORD, resourceCode = "#id")
     public Result<Void> withdraw(@PathVariable Long id,
                                  @RequestBody(required = false) ApprovalWithdrawRequest request) {

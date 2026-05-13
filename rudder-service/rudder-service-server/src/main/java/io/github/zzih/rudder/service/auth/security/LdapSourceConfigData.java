@@ -15,31 +15,30 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.service.auth.config;
+package io.github.zzih.rudder.service.auth.security;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * LDAP source 的配置 POJO,跟 {@code t_r_auth_source.config_json}(type=LDAP) 一一对应。
- *
- * <p>{@link #bindPassword} 在落库前由 service 层 AES 加密;读出后由 service 层解密再传给 Authenticator。
+ * LDAP source 的 config_json 载体,字段语义对齐 spring-security-ldap。
+ * {@code bindPassword} 落库前由 AES 加密。
  */
 @Data
-public final class LdapSourceConfig implements SourceConfig {
+public final class LdapSourceConfigData {
 
     /** LDAP 服务器地址。例: {@code ldap://ad.company.com:389} 或 {@code ldaps://ad.company.com:636}。 */
     @NotBlank
     private String url;
 
-    /** 是否信任所有 TLS 证书(仅开发/测试,生产必须 false)。 */
+    /** ldaps 时若启用,跳过证书校验(仅开发/测试,生产应导入企业 CA)。 */
     private boolean trustAllCerts = false;
 
     /** 搜索用户的根 DN。例: {@code dc=company,dc=com}。 */
     @NotBlank
     private String baseDn;
 
-    /** 用于绑定(连接)LDAP 的服务账号 DN。允许匿名 bind 时可留空。 */
+    /** 服务账号 DN(允许匿名 bind 时留空)。 */
     private String bindDn;
 
     private String bindPassword;

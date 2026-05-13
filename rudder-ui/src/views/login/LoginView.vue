@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { type FormInstance, type FormRules, ElMessage } from 'element-plus'
+import { type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock, Connection, Key } from '@element-plus/icons-vue'
 import {
   login as localLogin,
@@ -33,8 +33,6 @@ const rules: FormRules = {
   password: [{ required: true, message: () => t('login.passwordRequired'), trigger: 'blur' }],
 }
 
-/** PASSWORD source 是否启用 —— 决定是否渲染本地账号表单。 */
-const passwordEnabled = computed(() => sources.value.some(s => s.type === 'PASSWORD'))
 /** 凭证类(LDAP)source 列表,前端用按钮切换为表单输入。 */
 const credentialSources = computed(() => sources.value.filter(s => s.type === 'LDAP'))
 /** SSO 跳转类(OIDC)source 列表,渲染为按钮。 */
@@ -45,24 +43,10 @@ const activeSourceName = computed(() => {
   return credentialSources.value.find(s => s.id === activeCredentialSourceId.value)?.name ?? ''
 })
 
-/**
- * 登录页 4 种渲染态。所有 v-if 都从此派生,模板只看 loginMode 不再串联条件:
- *   form-credential — 选了某个 LDAP source,只显示表单(隐藏 alt 按钮)
- *   form-password   — 本地账号表单 + 其它 source 按钮(若有)
- *   picker          — 没启用 PASSWORD,但有 LDAP/OIDC,只显示按钮
- *   empty           — 一个 source 都没启用
- */
-type LoginMode = 'form-credential' | 'form-password' | 'picker' | 'empty'
-const loginMode = computed<LoginMode>(() => {
-  if (activeCredentialSourceId.value != null) return 'form-credential'
-  if (passwordEnabled.value) return 'form-password'
-  if (sources.value.length > 0) return 'picker'
-  return 'empty'
-})
-const showForm = computed(() => loginMode.value === 'form-credential' || loginMode.value === 'form-password')
+/** 选了 LDAP source 时隐藏本地账号 / 其它 source 按钮,只显示选中 source 的表单。 */
+const isCredentialMode = computed(() => activeCredentialSourceId.value != null)
 const showAltButtons = computed(
-  () =>
-    (loginMode.value === 'form-password' || loginMode.value === 'picker')
+  () => !isCredentialMode.value
     && (credentialSources.value.length > 0 || ssoSources.value.length > 0),
 )
 
@@ -71,8 +55,7 @@ onMounted(async () => {
     const { data } = await listPublicSources()
     sources.value = (data || []).slice().sort((a, b) => b.priority - a.priority)
   } catch {
-    // 拉不到 source 列表时也允许用本地表单兜底,假装 PASSWORD 启用
-    sources.value = [{ id: 0, name: 'local', type: 'PASSWORD', priority: 0 }]
+    sources.value = []
   }
 })
 
@@ -118,9 +101,6 @@ function switchLocale(locale: string) {
   currentLocale.value = locale
 }
 
-function showNoSourcesMessage() {
-  ElMessage.warning(t('login.noSourcesEnabled'))
-}
 </script>
 
 <template>
@@ -151,14 +131,13 @@ function showNoSourcesMessage() {
 
       <!-- 表单区:本地账号 或 选中的凭证 source(LDAP) -->
       <el-form
-        v-if="showForm"
         ref="formRef"
         :model="form"
         :rules="rules"
         size="large"
         @keyup.enter="handleSubmit"
       >
-        <div v-if="loginMode === 'form-credential'" class="active-source-hint">
+        <div v-if="isCredentialMode" class="active-source-hint">
           <el-icon><Key /></el-icon>
           <span>{{ t('login.loginAs', { name: activeSourceName }) }}</span>
           <el-button link size="small" @click="selectCredentialSource(null)">×</el-button>
@@ -186,11 +165,6 @@ function showNoSourcesMessage() {
           </el-button>
         </el-form-item>
       </el-form>
-
-      <!-- 没启用任何 source 时的兜底提示 -->
-      <div v-else-if="loginMode === 'empty'" class="no-sources">
-        <el-button text @click="showNoSourcesMessage">{{ t('login.noSourcesEnabled') }}</el-button>
-      </div>
 
       <!-- 其它登录方式按钮 -->
       <div v-if="showAltButtons" class="alt-sources">
@@ -347,11 +321,6 @@ function showNoSourcesMessage() {
 
 .source-btn {
   width: 100%;
-}
-
-.no-sources {
-  text-align: center;
-  margin: 16px 0;
 }
 
 .login-footer {

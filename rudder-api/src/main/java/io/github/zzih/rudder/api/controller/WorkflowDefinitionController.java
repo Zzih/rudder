@@ -22,13 +22,13 @@ import io.github.zzih.rudder.api.request.WorkflowCreateRequest;
 import io.github.zzih.rudder.api.request.WorkflowRunRequest;
 import io.github.zzih.rudder.api.response.WorkflowInstanceResponse;
 import io.github.zzih.rudder.api.response.WorkflowResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.datatype.Direct;
 import io.github.zzih.rudder.common.enums.datatype.ResourceType;
 import io.github.zzih.rudder.common.result.PageResult;
@@ -64,7 +64,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/projects/{projectCode}/workflow-definitions")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class WorkflowDefinitionController {
 
     private final WorkflowDefinitionService workflowDefinitionService;
@@ -75,7 +75,7 @@ public class WorkflowDefinitionController {
     private final WorkflowEditLockService editLockService;
 
     @PostMapping
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW, action = AuditAction.CREATE, resourceType = AuditResourceType.WORKFLOW_DEFINITION)
     public Result<WorkflowResponse> create(@PathVariable Long workspaceId,
                                            @PathVariable Long projectCode,
@@ -115,7 +115,7 @@ public class WorkflowDefinitionController {
     }
 
     @PutMapping("/{code}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW, action = AuditAction.UPDATE, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#code")
     public Result<WorkflowResponse> update(@PathVariable Long workspaceId,
                                            @PathVariable Long projectCode,
@@ -148,7 +148,7 @@ public class WorkflowDefinitionController {
     }
 
     @DeleteMapping("/{code}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW, action = AuditAction.DELETE, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#code")
     public Result<Void> delete(@PathVariable Long workspaceId,
                                @PathVariable Long projectCode,
@@ -158,7 +158,7 @@ public class WorkflowDefinitionController {
     }
 
     @PostMapping("/{code}/run")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW, action = AuditAction.RUN, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#code")
     public Result<WorkflowInstanceResponse> run(@PathVariable Long workspaceId,
                                                 @PathVariable Long projectCode,
@@ -186,7 +186,7 @@ public class WorkflowDefinitionController {
     }
 
     @PostMapping("/{code}/commit")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW, action = AuditAction.COMMIT, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#code")
     public Result<Void> commitVersion(@PathVariable Long workspaceId,
                                       @PathVariable Long projectCode,
@@ -197,7 +197,7 @@ public class WorkflowDefinitionController {
     }
 
     @PostMapping("/{code}/rollback/{versionId}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW, action = AuditAction.ROLLBACK, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#code")
     public Result<WorkflowResponse> rollback(@PathVariable Long workspaceId,
                                              @PathVariable Long projectCode,
@@ -258,6 +258,7 @@ public class WorkflowDefinitionController {
 
     /** 切换调度上线/下线;返回切换后的状态。 */
     @PostMapping("/{code}/schedule/toggle")
+    @RequireDeveloper
     public Result<WorkflowScheduleDTO> toggleSchedule(@PathVariable Long workspaceId,
                                                       @PathVariable Long projectCode,
                                                       @PathVariable Long code) {
@@ -274,7 +275,7 @@ public class WorkflowDefinitionController {
     }
 
     @PostMapping("/{code}/lock")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<WorkflowEditLockService.Holder> acquireLock(@PathVariable Long workspaceId,
                                                               @PathVariable Long projectCode,
                                                               @PathVariable Long code) {
@@ -284,7 +285,7 @@ public class WorkflowDefinitionController {
     }
 
     @PostMapping("/{code}/lock/heartbeat")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<Boolean> heartbeatLock(@PathVariable Long workspaceId,
                                          @PathVariable Long projectCode,
                                          @PathVariable Long code) {
@@ -292,7 +293,7 @@ public class WorkflowDefinitionController {
     }
 
     @DeleteMapping("/{code}/lock")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<Void> releaseLock(@PathVariable Long workspaceId,
                                     @PathVariable Long projectCode,
                                     @PathVariable Long code) {

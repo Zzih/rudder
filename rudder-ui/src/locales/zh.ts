@@ -169,7 +169,6 @@ export default {
     ssoProcessing: '正在登录中…',
     ssoFailed: 'SSO 登录失败 ({code})',
     loginAs: '使用 {name} 登录',
-    noSourcesEnabled: '当前没有启用任何登录方式,请联系管理员',
   },
 
   workspace: {

@@ -22,9 +22,8 @@ import io.github.zzih.rudder.api.request.AiSessionCreateRequest;
 import io.github.zzih.rudder.api.request.AiSessionUpdateRequest;
 import io.github.zzih.rudder.api.response.AiMessageResponse;
 import io.github.zzih.rudder.api.response.AiSessionResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
@@ -48,7 +47,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/ai/sessions")
 @RequiredArgsConstructor
-@RequireRole(RoleType.DEVELOPER)
+@RequireDeveloper
 public class AiSessionController {
 
     private final AiSessionService aiSessionService;

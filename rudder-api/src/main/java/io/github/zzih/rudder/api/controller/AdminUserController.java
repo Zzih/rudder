@@ -24,12 +24,11 @@ import io.github.zzih.rudder.api.request.UserEmailUpdateRequest;
 import io.github.zzih.rudder.api.response.MemberResponse;
 import io.github.zzih.rudder.api.response.UserResponse;
 import io.github.zzih.rudder.api.response.UserSimpleResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
@@ -49,7 +48,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
-@RequireRole(RoleType.SUPER_ADMIN)
+@RequireSuperAdmin
 public class AdminUserController {
 
     private final UserService userService;

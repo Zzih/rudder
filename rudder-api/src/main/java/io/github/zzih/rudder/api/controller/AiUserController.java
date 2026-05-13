@@ -27,9 +27,9 @@ import io.github.zzih.rudder.api.request.AiPinTableRequest;
 import io.github.zzih.rudder.api.response.AiContextProfileResponse;
 import io.github.zzih.rudder.api.response.AiFeedbackResponse;
 import io.github.zzih.rudder.api.response.AiPinnedTableResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
@@ -70,7 +70,7 @@ public class AiUserController {
     // ==================== Feedback ====================
 
     @PostMapping("/feedback")
-    @RequireRole(RoleType.VIEWER)
+    @RequireViewer
     public Result<AiFeedbackResponse> submitFeedback(@Valid @RequestBody AiFeedbackRequest request) {
         return Result.ok(BeanConvertUtils.convert(
                 feedbackService.recordDetail(request.getMessageId(), UserContext.getUserId(),
@@ -79,7 +79,7 @@ public class AiUserController {
     }
 
     @GetMapping("/feedback/messages/{messageId}")
-    @RequireRole(RoleType.VIEWER)
+    @RequireViewer
     public Result<List<AiFeedbackResponse>> listFeedback(@PathVariable Long messageId) {
         return Result.ok(BeanConvertUtils.convertList(
                 feedbackService.listByMessageDetail(messageId), AiFeedbackResponse.class));
@@ -88,7 +88,7 @@ public class AiUserController {
     // ==================== Pinned tables ====================
 
     @GetMapping("/pinned-tables")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<IPage<AiPinnedTableResponse>> listPinned(
                                                            @RequestParam(defaultValue = "USER") String scope,
                                                            @RequestParam(defaultValue = "1") int pageNum,
@@ -100,7 +100,7 @@ public class AiUserController {
     }
 
     @PostMapping("/pinned-tables")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<AiPinnedTableResponse> pin(@Valid @RequestBody AiPinTableRequest request) {
         String scope = request.getScope() == null ? "USER" : request.getScope();
         Long scopeId = resolveScopeId(scope);
@@ -111,14 +111,14 @@ public class AiUserController {
     }
 
     @DeleteMapping("/pinned-tables/{id}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<Void> unpinById(@PathVariable Long id) {
         pinnedTableService.unpinById(id);
         return Result.ok();
     }
 
     @DeleteMapping("/pinned-tables")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<Void> unpin(@Valid @RequestBody AiPinTableRequest request) {
         String scope = request.getScope() == null ? "USER" : request.getScope();
         Long scopeId = resolveScopeId(scope);
@@ -130,14 +130,14 @@ public class AiUserController {
     // ==================== Context profiles ====================
 
     @GetMapping("/context-profiles/{scope}/{scopeId}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<AiContextProfileResponse> getContextProfile(@PathVariable String scope, @PathVariable Long scopeId) {
         return Result.ok(BeanConvertUtils.convert(
                 contextProfileService.getDetail(scope, scopeId), AiContextProfileResponse.class));
     }
 
     @PutMapping("/context-profiles")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<AiContextProfileResponse> upsertContextProfile(@Valid @RequestBody AiContextProfileRequest request) {
         return Result.ok(BeanConvertUtils.convert(
                 contextProfileService.upsertDetail(BeanConvertUtils.convert(request, AiContextProfileDTO.class)),
@@ -145,7 +145,7 @@ public class AiUserController {
     }
 
     @DeleteMapping("/context-profiles/{scope}/{scopeId}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<Void> clearContextProfile(@PathVariable String scope, @PathVariable Long scopeId) {
         contextProfileService.clear(scope, scopeId);
         return Result.ok();

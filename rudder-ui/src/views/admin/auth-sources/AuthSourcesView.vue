@@ -42,11 +42,7 @@ function emptyOidc(): OidcConfig {
   return {
     clientId: '',
     clientSecret: '',
-    redirectUri: '',
     issuer: '',
-    authorizationUri: '',
-    tokenUri: '',
-    userInfoUri: '',
     scopes: 'openid profile email',
     frontendRedirectUrl: '',
   }
@@ -108,7 +104,7 @@ async function openEdit(row: AuthSourceSummary) {
 
 function fillFormFromDetail(detail: AuthSourceDetail) {
   form.name = detail.name
-  form.type = detail.type === 'PASSWORD' ? 'OIDC' : detail.type
+  form.type = detail.type
   form.enabled = detail.enabled
   form.priority = detail.priority
   if (!detail.config) return
@@ -211,8 +207,7 @@ async function handleDelete(row: AuthSourceSummary) {
   }
 }
 
-const TYPE_TAG: Record<AuthSourceType, 'info' | 'success' | 'warning'> = {
-  PASSWORD: 'info',
+const TYPE_TAG: Record<AuthSourceType, 'success' | 'warning'> = {
   OIDC: 'success',
   LDAP: 'warning',
 }
@@ -221,7 +216,6 @@ const dialogTitle = computed(() =>
   dialogMode.value === 'create' ? t('admin.authSource.create') : t('admin.authSource.edit'),
 )
 
-const callbackHint = computed(() => `${window.location.origin}/api/auth/sources/{id}/sso/callback`)
 const frontendRedirectHint = computed(() => `${window.location.origin}/sso/callback`)
 
 onMounted(fetchList)
@@ -312,20 +306,8 @@ onMounted(fetchList)
               :placeholder="dialogMode === 'edit' ? t('admin.authSource.secretPlaceholder') : ''"
             />
           </el-form-item>
-          <el-form-item label="Issuer">
+          <el-form-item label="Issuer" required>
             <el-input v-model="form.oidc.issuer" placeholder="https://idp.example.com" />
-          </el-form-item>
-          <el-form-item label="Authorization URI" required>
-            <el-input v-model="form.oidc.authorizationUri" />
-          </el-form-item>
-          <el-form-item label="Token URI" required>
-            <el-input v-model="form.oidc.tokenUri" />
-          </el-form-item>
-          <el-form-item label="UserInfo URI" required>
-            <el-input v-model="form.oidc.userInfoUri" />
-          </el-form-item>
-          <el-form-item label="Redirect URI" required>
-            <el-input v-model="form.oidc.redirectUri" :placeholder="callbackHint" />
           </el-form-item>
           <el-form-item label="Scopes">
             <el-input v-model="form.oidc.scopes" />

@@ -19,12 +19,12 @@ package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.response.TaskInstanceResponse;
 import io.github.zzih.rudder.api.response.WorkflowInstanceResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
@@ -48,7 +48,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/workflow-instances")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class WorkflowInstanceController {
 
     private final WorkflowInstanceService workflowInstanceService;
@@ -102,7 +102,7 @@ public class WorkflowInstanceController {
     }
 
     @PostMapping("/{id}/cancel")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.WORKFLOW_INSTANCE, action = AuditAction.CANCEL, resourceType = AuditResourceType.WORKFLOW_INSTANCE, resourceCode = "#id")
     public Result<Void> cancel(@PathVariable Long workspaceId,
                                @RequestParam Long workflowDefinitionCode,

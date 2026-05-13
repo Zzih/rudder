@@ -25,15 +25,15 @@ import io.github.zzih.rudder.api.request.ScriptMoveRequest;
 import io.github.zzih.rudder.api.response.ScriptBindingResponse;
 import io.github.zzih.rudder.api.response.ScriptResponse;
 import io.github.zzih.rudder.api.response.TaskInstanceResponse;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.api.service.ScriptBindingService;
 import io.github.zzih.rudder.api.service.ScriptDispatchOrchestrator;
 import io.github.zzih.rudder.api.service.ScriptVersionService;
-import io.github.zzih.rudder.common.annotation.RequireRole;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.datatype.ResourceType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
@@ -55,7 +55,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/scripts")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class ScriptController {
 
     private final ScriptService scriptService;
@@ -66,7 +66,7 @@ public class ScriptController {
     private final VersionService versionService;
 
     @PostMapping
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.CREATE, resourceType = AuditResourceType.SCRIPT)
     public Result<ScriptResponse> create(@PathVariable Long workspaceId,
                                          @Valid @RequestBody ScriptCreateRequest request) {
@@ -102,7 +102,7 @@ public class ScriptController {
     }
 
     @PostMapping("/{code}/commit")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.COMMIT, resourceType = AuditResourceType.SCRIPT, resourceCode = "#code")
     public Result<Void> commitVersion(@PathVariable Long workspaceId,
                                       @PathVariable Long code,
@@ -120,7 +120,7 @@ public class ScriptController {
     }
 
     @PostMapping("/{code}/rollback/{versionId}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.ROLLBACK, resourceType = AuditResourceType.SCRIPT, resourceCode = "#code")
     public Result<ScriptResponse> rollback(@PathVariable Long workspaceId,
                                            @PathVariable Long code,
@@ -133,7 +133,7 @@ public class ScriptController {
     }
 
     @PutMapping("/{code}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.UPDATE, resourceType = AuditResourceType.SCRIPT, resourceCode = "#code")
     public Result<ScriptResponse> update(@PathVariable Long workspaceId,
                                          @PathVariable Long code,
@@ -144,7 +144,7 @@ public class ScriptController {
     }
 
     @DeleteMapping("/{code}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.DELETE, resourceType = AuditResourceType.SCRIPT, resourceCode = "#code")
     public Result<Void> delete(@PathVariable Long workspaceId,
                                @PathVariable Long code) {
@@ -153,7 +153,7 @@ public class ScriptController {
     }
 
     @PostMapping("/{code}/move")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.UPDATE, resourceType = AuditResourceType.SCRIPT, description = "移动脚本", resourceCode = "#code")
     public Result<ScriptResponse> move(@PathVariable Long workspaceId,
                                        @PathVariable Long code,
@@ -163,7 +163,7 @@ public class ScriptController {
     }
 
     @PostMapping("/{code}/execute")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.EXECUTE, resourceType = AuditResourceType.SCRIPT, resourceCode = "#code")
     public Result<TaskInstanceResponse> execute(@PathVariable Long workspaceId,
                                                 @PathVariable Long code,
@@ -182,7 +182,7 @@ public class ScriptController {
     }
 
     @PostMapping("/{code}/push")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.PUSH, resourceType = AuditResourceType.SCRIPT, description = "推送到工作流", resourceCode = "#code")
     public Result<ScriptBindingResponse> push(@PathVariable Long workspaceId,
                                               @PathVariable Long code,
@@ -192,7 +192,7 @@ public class ScriptController {
     }
 
     @PostMapping("/{code}/dispatch")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT, action = AuditAction.DISPATCH, resourceType = AuditResourceType.SCRIPT, description = "脚本派发成 DAG 节点", resourceCode = "#code")
     public Result<Void> dispatch(@PathVariable Long workspaceId,
                                  @RequestParam Long projectCode,

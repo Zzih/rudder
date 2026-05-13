@@ -20,12 +20,12 @@ package io.github.zzih.rudder.api.controller;
 import io.github.zzih.rudder.api.request.ProjectPublishRequest;
 import io.github.zzih.rudder.api.request.WorkflowPublishRequest;
 import io.github.zzih.rudder.api.response.PublishRecordResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
@@ -44,7 +44,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/projects/{projectCode}/publish")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class PublishController {
 
     private final WorkflowPublishService workflowPublishService;
@@ -52,7 +52,7 @@ public class PublishController {
     private final ProjectService projectService;
 
     @PostMapping("/workflow/{workflowCode}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.PUBLISH, action = AuditAction.PUBLISH_WORKFLOW, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#workflowCode")
     public Result<PublishRecordResponse> publishWorkflow(@PathVariable Long workspaceId,
                                                          @PathVariable Long projectCode,
@@ -75,7 +75,7 @@ public class PublishController {
     }
 
     @PostMapping("/project")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.PUBLISH, action = AuditAction.PUBLISH_PROJECT, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#projectCode")
     public Result<List<PublishRecordResponse>> publishProject(@PathVariable Long workspaceId,
                                                               @PathVariable Long projectCode,
@@ -90,7 +90,7 @@ public class PublishController {
     }
 
     @PostMapping("/records/{batchCode}/execute")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.PUBLISH, action = AuditAction.EXECUTE_PUBLISH, resourceType = AuditResourceType.WORKFLOW_DEFINITION, resourceCode = "#batchCode")
     public Result<Void> executePublish(@PathVariable Long workspaceId,
                                        @PathVariable Long projectCode,

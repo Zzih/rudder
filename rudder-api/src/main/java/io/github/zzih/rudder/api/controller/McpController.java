@@ -25,6 +25,7 @@ import io.github.zzih.rudder.api.response.McpGrantInfoResponse;
 import io.github.zzih.rudder.api.response.McpScopesAvailableResponse;
 import io.github.zzih.rudder.api.response.McpTokenDetailResponse;
 import io.github.zzih.rudder.api.response.McpTokenSummaryResponse;
+import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.error.McpErrorCode;
@@ -68,6 +69,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/mcp")
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
+@RequireLoggedIn
 public class McpController {
 
     private final McpTokenService tokenService;

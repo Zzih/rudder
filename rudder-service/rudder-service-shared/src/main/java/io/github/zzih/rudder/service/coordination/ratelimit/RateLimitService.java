@@ -30,8 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 全集群共享的固定窗口限流服务。
  *
- * <p>跟 {@code GlobalCacheService}(缓存)、{@code OneShotTokenService}(一次性凭证)、
- * {@code PubSubSignalRegistry}(信号)并列,是协调原语的第四种语义:**带 TTL 的原子计数器**。
+ * <p>跟 {@code GlobalCacheService}(缓存)、{@code PubSubSignalRegistry}(信号)
+ * 并列,是协调原语的第三种语义:**带 TTL 的原子计数器**。
  *
  * <p>算法:Redis {@code INCR + EXPIRE} 固定窗口。Redis 单线程保证 INCR 原子,
  * 同 (scope, key) 在不同节点的请求打到同一 Redis key,**配额跨节点共享**(不是每节点独立)。

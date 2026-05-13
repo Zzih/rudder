@@ -17,8 +17,7 @@
 
 package io.github.zzih.rudder.api.controller;
 
-import io.github.zzih.rudder.common.annotation.RequireRole;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.service.audit.AuditLogService;
 import io.github.zzih.rudder.service.workspace.dto.AuditLogDTO;
@@ -35,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/admin/audit-logs")
 @RequiredArgsConstructor
-@RequireRole(RoleType.SUPER_ADMIN)
+@RequireSuperAdmin
 public class AdminAuditLogController {
 
     private final AuditLogService auditLogService;

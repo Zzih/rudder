@@ -19,17 +19,9 @@ package io.github.zzih.rudder.dao.enums;
 
 /**
  * 认证源类型,落库为 {@link #name()},对应 {@code t_r_auth_source.type} 列。
- *
- * <p>新增类型 = 新协议接入(如 SAML / CAS),需同步:
- * <ol>
- *   <li>在 {@code rudder-service-server/.../auth/} 新增对应 {@code Authenticator} 实现</li>
- *   <li>登录页前端按 type 增加渲染分支</li>
- * </ol>
+ * 本地账号(t_r_user + BCrypt)不归在 auth source 表中,直接走 {@code /api/auth/login}。
  */
 public enum AuthSourceType {
-
-    /** 本地账号(用户名 + BCrypt 密码),系统行,不可删/不可禁。 */
-    PASSWORD,
 
     /** OpenID Connect / OAuth 2.0 授权码流程。 */
     OIDC,

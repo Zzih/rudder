@@ -19,13 +19,14 @@ package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.request.DatasourceCreateRequest;
 import io.github.zzih.rudder.api.response.DatasourceResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
@@ -61,7 +62,7 @@ public class DatasourceController {
     private final MetadataService metadataService;
 
     @PostMapping
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.CREATE, resourceType = AuditResourceType.DATASOURCE)
     public Result<DatasourceResponse> create(@Valid @RequestBody DatasourceCreateRequest request) {
         DatasourceDTO body = BeanConvertUtils.convert(request, DatasourceDTO.class);
@@ -71,6 +72,7 @@ public class DatasourceController {
     }
 
     @GetMapping
+    @RequireViewer
     public Result<List<DatasourceResponse>> list() {
         if (UserContext.isSuperAdmin()) {
             return Result.ok(BeanConvertUtils.convertList(datasourceService.listAllDetail(), DatasourceResponse.class));
@@ -84,6 +86,7 @@ public class DatasourceController {
     }
 
     @GetMapping("/{id}")
+    @RequireViewer
     public Result<DatasourceResponse> getById(@PathVariable Long id) {
         Long workspaceId = UserContext.getWorkspaceId();
         if (workspaceId != null) {
@@ -94,7 +97,7 @@ public class DatasourceController {
     }
 
     @PutMapping("/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.UPDATE, resourceType = AuditResourceType.DATASOURCE, resourceCode = "#id")
     public Result<DatasourceResponse> update(@PathVariable Long id,
                                              @Valid @RequestBody DatasourceCreateRequest request) {
@@ -105,7 +108,7 @@ public class DatasourceController {
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.DELETE, resourceType = AuditResourceType.DATASOURCE, resourceCode = "#id")
     public Result<Void> delete(@PathVariable Long id) {
         datasourceService.delete(id);
@@ -113,6 +116,7 @@ public class DatasourceController {
     }
 
     @PostMapping("/{id}/test")
+    @RequireDeveloper
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.TEST_CONNECTION, resourceType = AuditResourceType.DATASOURCE, description = "测试数据源连通性", resourceCode = "#id")
     public Result<Boolean> testConnection(@PathVariable Long id) {
         Long workspaceId = UserContext.getWorkspaceId();
@@ -121,6 +125,7 @@ public class DatasourceController {
     }
 
     @GetMapping("/{id}/meta/catalogs")
+    @RequireViewer
     public Result<List<String>> listCatalogs(@PathVariable Long id) {
         Long workspaceId = UserContext.getWorkspaceId();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
@@ -128,6 +133,7 @@ public class DatasourceController {
     }
 
     @GetMapping("/{id}/meta/databases")
+    @RequireViewer
     public Result<List<String>> listDatabases(@PathVariable Long id,
                                               @RequestParam(required = false) String catalog) {
         Long workspaceId = UserContext.getWorkspaceId();
@@ -136,6 +142,7 @@ public class DatasourceController {
     }
 
     @GetMapping("/{id}/meta/databases/{db}/tables")
+    @RequireViewer
     public Result<List<TableMeta>> listTables(@PathVariable Long id,
                                               @PathVariable String db,
                                               @RequestParam(required = false) String catalog) {
@@ -145,6 +152,7 @@ public class DatasourceController {
     }
 
     @GetMapping("/{id}/meta/databases/{db}/tables/{table}/columns")
+    @RequireViewer
     public Result<List<ColumnMeta>> listColumns(@PathVariable Long id,
                                                 @PathVariable String db,
                                                 @PathVariable String table,
@@ -155,6 +163,7 @@ public class DatasourceController {
     }
 
     @GetMapping("/{id}/meta/search")
+    @RequireViewer
     public Result<List<TableSearchResult>> searchTables(@PathVariable Long id,
                                                         @RequestParam String keyword) {
         Long workspaceId = UserContext.getWorkspaceId();
@@ -180,6 +189,7 @@ public class DatasourceController {
     }
 
     @DeleteMapping("/{id}/meta/cache")
+    @RequireDeveloper
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.REFRESH_META_CACHE, resourceType = AuditResourceType.DATASOURCE, description = "刷新元数据缓存", resourceCode = "#id")
     public Result<Void> refreshMetaCache(@PathVariable Long id) {
         Long workspaceId = UserContext.getWorkspaceId();

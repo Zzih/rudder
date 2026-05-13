@@ -38,9 +38,9 @@ import io.github.zzih.rudder.api.response.AiMcpServerResponse;
 import io.github.zzih.rudder.api.response.AiMetadataSyncConfigResponse;
 import io.github.zzih.rudder.api.response.AiSkillResponse;
 import io.github.zzih.rudder.api.response.AiToolConfigResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.enums.ai.SkillCategory;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.llm.api.skill.SkillDefinition;
@@ -73,7 +73,7 @@ import lombok.RequiredArgsConstructor;
  *   <li>/api/ai/metadata-sync/** —— 每数据源的元数据同步配置</li>
  *   <li>/api/ai/skills/** —— 平台 / 工作区级 skill 定义(用户可读,admin 可写)</li>
  * </ul>
- * 前端 URL 保持原有路径,方法级 {@code @RequireRole} 区分 SUPER_ADMIN / DEVELOPER。
+ * 前端 URL 保持原有路径,方法级权限元注解区分 SUPER_ADMIN / DEVELOPER。
  */
 @RestController
 @RequestMapping("/api/ai")
@@ -92,7 +92,7 @@ public class AiAdminController {
     // ==================== MCP servers ====================
 
     @GetMapping("/mcp/servers")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<IPage<AiMcpServerResponse>> listMcp(@RequestParam(defaultValue = "1") int pageNum,
                                                       @RequestParam(defaultValue = "20") int pageSize) {
         return Result.ok(BeanConvertUtils.convertPage(
@@ -100,28 +100,28 @@ public class AiAdminController {
     }
 
     @PostMapping("/mcp/servers")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<AiMcpServerResponse> createMcp(@Valid @RequestBody AiMcpServerRequest request) {
         AiMcpServerDTO dto = mcpManager.createDetail(BeanConvertUtils.convert(request, AiMcpServerDTO.class));
         return Result.ok(BeanConvertUtils.convert(dto, AiMcpServerResponse.class));
     }
 
     @PutMapping("/mcp/servers/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> updateMcp(@PathVariable Long id, @Valid @RequestBody AiMcpServerRequest request) {
         mcpManager.updateDetail(id, BeanConvertUtils.convert(request, AiMcpServerDTO.class));
         return Result.ok();
     }
 
     @DeleteMapping("/mcp/servers/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> deleteMcp(@PathVariable Long id) {
         mcpManager.delete(id);
         return Result.ok();
     }
 
     @PostMapping("/mcp/refresh-health")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> refreshMcpHealth() {
         mcpClientManager.refreshHealth();
         return Result.ok();
@@ -134,7 +134,7 @@ public class AiAdminController {
      * 用于 Tools 总览页 + Skills 选择器 + MCP allowlist 选择器。
      */
     @GetMapping("/tools")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<List<ToolOverviewService.ToolView>> listTools(
                                                                 @RequestParam(required = false) String source,
                                                                 @RequestParam(required = false, defaultValue = "false") boolean excludeSkill) {
@@ -152,7 +152,7 @@ public class AiAdminController {
     // ==================== Tool configs(原 tool_permissions)====================
 
     @GetMapping("/admin/tool-configs")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<IPage<AiToolConfigResponse>> listToolConfigs(@RequestParam(defaultValue = "1") int pageNum,
                                                                @RequestParam(defaultValue = "20") int pageSize) {
         return Result.ok(BeanConvertUtils.convertPage(
@@ -160,21 +160,21 @@ public class AiAdminController {
     }
 
     @PostMapping("/admin/tool-configs")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<AiToolConfigResponse> createToolConfig(@Valid @RequestBody AiToolConfigRequest request) {
         AiToolConfigDTO dto = toolConfigService.createDetail(BeanConvertUtils.convert(request, AiToolConfigDTO.class));
         return Result.ok(BeanConvertUtils.convert(dto, AiToolConfigResponse.class));
     }
 
     @PutMapping("/admin/tool-configs/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> updateToolConfig(@PathVariable Long id, @Valid @RequestBody AiToolConfigRequest request) {
         toolConfigService.updateDetail(id, BeanConvertUtils.convert(request, AiToolConfigDTO.class));
         return Result.ok();
     }
 
     @DeleteMapping("/admin/tool-configs/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> deleteToolConfig(@PathVariable Long id) {
         toolConfigService.delete(id);
         return Result.ok();
@@ -187,7 +187,7 @@ public class AiAdminController {
      * 前端按此渲染"方言"配置 tab —— 新增 TaskType 零前端改动。
      */
     @GetMapping("/admin/dialects")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<List<AiDialectSlotResponse>> listDialects() {
         List<AiDialectSlotResponse> out = new ArrayList<>();
         for (TaskType tt : dialectService.listSlots()) {
@@ -199,7 +199,7 @@ public class AiAdminController {
     }
 
     @PutMapping("/admin/dialects/{taskType}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> updateDialect(@PathVariable String taskType, @RequestBody AiDialectUpdateRequest request) {
         dialectService.upsertOverride(taskType, request.getContent(),
                 request.getEnabled() == null || request.getEnabled());
@@ -208,7 +208,7 @@ public class AiAdminController {
 
     /** 删除 DB 覆盖,回退到 classpath 出厂默认。 */
     @DeleteMapping("/admin/dialects/{taskType}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> resetDialect(@PathVariable String taskType) {
         dialectService.resetToDefault(taskType);
         return Result.ok();
@@ -217,7 +217,7 @@ public class AiAdminController {
     // ==================== Metadata sync ====================
 
     @GetMapping("/metadata-sync")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<IPage<AiMetadataSyncConfigResponse>> listMetadataSync(
                                                                         @RequestParam(defaultValue = "1") int pageNum,
                                                                         @RequestParam(defaultValue = "20") int pageSize) {
@@ -226,14 +226,14 @@ public class AiAdminController {
     }
 
     @GetMapping("/metadata-sync/by-datasource/{datasourceId}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<AiMetadataSyncConfigResponse> getMetadataSyncByDatasource(@PathVariable Long datasourceId) {
         return Result.ok(BeanConvertUtils.convert(
                 metadataSyncService.getByDatasourceIdDetail(datasourceId), AiMetadataSyncConfigResponse.class));
     }
 
     @PostMapping("/metadata-sync")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<AiMetadataSyncConfigResponse> saveMetadataSync(
                                                                  @Valid @RequestBody AiMetadataSyncConfigRequest request) {
         AiMetadataSyncConfigDTO dto = metadataSyncService.saveDetail(
@@ -242,7 +242,7 @@ public class AiAdminController {
     }
 
     @PutMapping("/metadata-sync/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<AiMetadataSyncConfigResponse> updateMetadataSync(@PathVariable Long id,
                                                                    @Valid @RequestBody AiMetadataSyncConfigRequest request) {
         request.setId(id);
@@ -252,14 +252,14 @@ public class AiAdminController {
     }
 
     @DeleteMapping("/metadata-sync/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> deleteMetadataSync(@PathVariable Long id) {
         metadataSyncService.delete(id);
         return Result.ok();
     }
 
     @PostMapping("/metadata-sync/sync/{datasourceId}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<SyncResult> runMetadataSync(@PathVariable Long datasourceId) {
         return Result.ok(metadataSyncService.syncByDatasourceId(datasourceId));
     }
@@ -268,14 +268,14 @@ public class AiAdminController {
 
     /** Developer 侧:给 AI 聊天窗口的 skill picker 用,只返回启用的。 */
     @GetMapping("/skills")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<List<SkillDefinition>> listSkills() {
         // Skill 不再按 workspace 过滤,工作区可见性在 Tools 页通过 tool_config 管理
         return Result.ok(skillRegistry.listEnabled());
     }
 
     @GetMapping("/skills/admin")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<IPage<AiSkillResponse>> listSkillsAdmin(@RequestParam(defaultValue = "1") int pageNum,
                                                           @RequestParam(defaultValue = "20") int pageSize) {
         return Result.ok(BeanConvertUtils.convertPage(
@@ -283,7 +283,7 @@ public class AiAdminController {
     }
 
     @PostMapping("/skills")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<AiSkillResponse> createSkill(@Valid @RequestBody AiSkillRequest request) {
         request.setCategory(SkillCategory.from(request.getCategory()).name());
         AiSkillDTO dto = skillRegistry.createDetail(BeanConvertUtils.convert(request, AiSkillDTO.class));
@@ -291,7 +291,7 @@ public class AiAdminController {
     }
 
     @PutMapping("/skills/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> updateSkill(@PathVariable Long id, @Valid @RequestBody AiSkillRequest request) {
         request.setCategory(SkillCategory.from(request.getCategory()).name());
         skillRegistry.updateDetail(id, BeanConvertUtils.convert(request, AiSkillDTO.class));
@@ -299,7 +299,7 @@ public class AiAdminController {
     }
 
     @DeleteMapping("/skills/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<Void> deleteSkill(@PathVariable Long id) {
         skillRegistry.delete(id);
         return Result.ok();
@@ -307,7 +307,7 @@ public class AiAdminController {
 
     /** 前端 skill 表单用的分类下拉 options。返回枚举 name 数组(i18n 在前端做)。 */
     @GetMapping("/skills/categories")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public Result<List<String>> listSkillCategories() {
         return Result.ok(java.util.Arrays.stream(SkillCategory.values())
                 .map(Enum::name)
@@ -321,7 +321,7 @@ public class AiAdminController {
      * 仅 SUPER_ADMIN: trace 包含 retrieved chunks 内容,可能含敏感数据。
      */
     @PostMapping("/rag/debug")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     public Result<io.github.zzih.rudder.ai.rag.RagDebugTrace> debugRag(
                                                                        @Valid @RequestBody io.github.zzih.rudder.api.request.RagDebugRequest request) {
         io.github.zzih.rudder.task.api.task.enums.TaskType tt = request.getTaskType() == null ? null

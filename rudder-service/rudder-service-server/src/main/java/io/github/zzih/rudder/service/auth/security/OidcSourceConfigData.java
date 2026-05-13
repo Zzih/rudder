@@ -15,19 +15,18 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.service.auth.config;
+package io.github.zzih.rudder.service.auth.security;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * OIDC source 的配置 POJO,跟 {@code t_r_auth_source.config_json}(type=OIDC) 一一对应。
- *
- * <p>{@link #clientSecret} 在落库前由 service 层用 {@code RUDDER_ENCRYPT_KEY} AES 加密;
- * 读出后由 service 层解密再传给 Authenticator,这里持有的是明文。
+ * OIDC source 的 config_json 载体。Spring Security 用 {@code issuer} 自动 discovery
+ * 其余 endpoint,redirect_uri 由 {@code {baseUrl}/login/oauth2/code/{sourceId}} 模板构造。
+ * {@code clientSecret} 落库前由 AES 加密。
  */
 @Data
-public final class OidcSourceConfig implements SourceConfig {
+public final class OidcSourceConfigData {
 
     @NotBlank
     private String clientId;
@@ -36,24 +35,11 @@ public final class OidcSourceConfig implements SourceConfig {
     private String clientSecret;
 
     @NotBlank
-    private String redirectUri;
-
-    /** IdP issuer,主要用于 OIDC 校验 id_token 的 iss 字段。 */
     private String issuer;
 
-    @NotBlank
-    private String authorizationUri;
+    /** 逗号分隔 / 空格分隔均可。默认 {@code "openid,profile,email"}。 */
+    private String scopes = "openid,profile,email";
 
-    @NotBlank
-    private String tokenUri;
-
-    @NotBlank
-    private String userInfoUri;
-
-    /** 默认 {@code openid profile email}。 */
-    private String scopes = "openid profile email";
-
-    /** 登录成功后前端回跳地址,token 拼在 query。例: {@code http://localhost:5173/sso/callback} */
     @NotBlank
     private String frontendRedirectUrl;
 }

@@ -24,13 +24,12 @@ import io.github.zzih.rudder.ai.orchestrator.turn.TurnEventSink;
 import io.github.zzih.rudder.ai.orchestrator.turn.TurnRequest;
 import io.github.zzih.rudder.api.request.AiToolApproveRequest;
 import io.github.zzih.rudder.api.request.AiTurnRequest;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.service.stream.StreamRegistry;
@@ -63,7 +62,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-@RequireRole(RoleType.DEVELOPER)
+@RequireDeveloper
 public class AiTurnController {
 
     private final AiOrchestrator orchestrator;

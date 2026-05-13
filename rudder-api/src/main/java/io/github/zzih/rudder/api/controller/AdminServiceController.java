@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.response.ServiceRegistryResponse;
+import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.registry.ServiceRegistryService;
@@ -30,12 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 
-/**
- * 服务监控 — 所有登录用户可见（无 @RequireRole，仅需认证）。
- */
+/** 服务监控 — 所有登录用户可见。 */
 @RestController
 @RequestMapping("/api/admin/services")
 @RequiredArgsConstructor
+@RequireLoggedIn
 public class AdminServiceController {
 
     private final ServiceRegistryService serviceRegistryService;

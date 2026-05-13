@@ -23,8 +23,7 @@ import io.github.zzih.rudder.ai.eval.EvalService.BatchResult;
 import io.github.zzih.rudder.api.request.AiEvalCaseRequest;
 import io.github.zzih.rudder.api.response.AiEvalCaseResponse;
 import io.github.zzih.rudder.api.response.AiEvalRunResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
@@ -49,7 +48,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/ai/eval")
 @RequiredArgsConstructor
-@RequireRole(RoleType.SUPER_ADMIN)
+@RequireSuperAdmin
 public class AiEvalController {
 
     private final EvalService evalService;

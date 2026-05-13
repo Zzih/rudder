@@ -10,9 +10,10 @@ const route = useRoute()
 const router = useRouter()
 const { hasRole } = usePermission()
 
+// basePath 跟随当前 URL 形态: workspace-scoped 走 /workspaces/:id/admin, 顶级走 /admin
 const basePath = computed(() => {
   const wsId = route.params.workspaceId
-  return `/workspaces/${wsId}/admin`
+  return wsId ? `/workspaces/${wsId}/admin` : '/admin'
 })
 
 // requireRole 必须与 router meta 一对一对齐 —— 双源任何一边漏改都会让 UI 与守卫不一致
@@ -53,7 +54,7 @@ const menuItems = computed(() => allMenuItems.value.filter(item => hasRole(item.
 const activeKey = computed(() => {
   const path = route.path
   for (const item of menuItems.value) {
-    if (path.includes(`/admin/${item.key}`)) return item.key
+    if (path.endsWith(`/admin/${item.key}`) || path.includes(`/admin/${item.key}/`)) return item.key
   }
   return menuItems.value[0]?.key ?? 'services'
 })
@@ -71,7 +72,7 @@ function navigate(key: string) {
         <div
           v-for="item in menuItems"
           :key="item.key"
-          class="nav-item"
+          class="sidebar-item"
           :class="{ active: activeKey === item.key }"
           @click="navigate(item.key)"
         >
@@ -116,7 +117,7 @@ function navigate(key: string) {
   gap: 2px;
 }
 
-.nav-item {
+.sidebar-item {
   display: flex;
   align-items: center;
   gap: var(--r-space-3);
@@ -126,17 +127,8 @@ function navigate(key: string) {
   color: var(--r-text-secondary);
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
-
-  &:hover {
-    color: var(--r-text-primary);
-    background: var(--r-bg-hover);
-  }
-
-  &.active {
-    color: var(--r-accent);
-    background: var(--r-accent-bg);
-    font-weight: var(--r-weight-semibold);
-  }
+  &:hover { color: var(--r-text-primary); background: var(--r-bg-hover); }
+  &.active { color: var(--r-accent); background: var(--r-accent-bg); font-weight: var(--r-weight-semibold); }
 }
 
 .admin-content {

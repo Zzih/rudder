@@ -24,9 +24,8 @@ import io.github.zzih.rudder.ai.rag.DocumentRetrievalService;
 import io.github.zzih.rudder.ai.rag.DocumentRetrievalService.RetrievedChunk;
 import io.github.zzih.rudder.api.request.AiDocumentRequest;
 import io.github.zzih.rudder.api.response.AiDocumentResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
@@ -58,7 +57,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/ai/documents")
 @RequiredArgsConstructor
-@RequireRole(RoleType.SUPER_ADMIN)
+@RequireSuperAdmin
 public class AiDocumentController {
 
     private final AiDocumentService aiDocumentService;

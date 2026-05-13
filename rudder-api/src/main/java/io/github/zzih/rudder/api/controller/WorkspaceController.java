@@ -21,7 +21,9 @@ import io.github.zzih.rudder.api.request.MemberAddRequest;
 import io.github.zzih.rudder.api.request.WorkspaceCreateRequest;
 import io.github.zzih.rudder.api.response.MemberResponse;
 import io.github.zzih.rudder.api.response.WorkspaceResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
+import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
+import io.github.zzih.rudder.api.security.annotation.RequireWorkspaceOwner;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
@@ -65,7 +67,7 @@ public class WorkspaceController {
     private final MemberService memberService;
 
     @PostMapping
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     @AuditLog(module = AuditModule.WORKSPACE, action = AuditAction.CREATE, resourceType = AuditResourceType.WORKSPACE)
     public Result<WorkspaceResponse> create(@Valid @RequestBody WorkspaceCreateRequest request) {
         WorkspaceDTO body = BeanConvertUtils.convert(request, WorkspaceDTO.class);
@@ -73,6 +75,7 @@ public class WorkspaceController {
     }
 
     @GetMapping
+    @RequireLoggedIn
     public PageResult<WorkspaceResponse> list(@RequestParam(required = false) String searchVal,
                                               @RequestParam(defaultValue = "1") int pageNum,
                                               @RequestParam(defaultValue = "20") int pageSize) {
@@ -91,13 +94,14 @@ public class WorkspaceController {
     }
 
     @GetMapping("/{id}")
+    @RequireLoggedIn
     public Result<WorkspaceResponse> getById(@PathVariable Long id) {
         checkWorkspaceMember(id);
         return Result.ok(BeanConvertUtils.convert(workspaceService.getById(id), WorkspaceResponse.class));
     }
 
     @PutMapping("/{id}")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.WORKSPACE, action = AuditAction.UPDATE, resourceType = AuditResourceType.WORKSPACE, resourceCode = "#id")
     public Result<WorkspaceResponse> update(@PathVariable Long id,
                                             @Valid @RequestBody WorkspaceCreateRequest request) {
@@ -106,7 +110,7 @@ public class WorkspaceController {
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole(RoleType.SUPER_ADMIN)
+    @RequireSuperAdmin
     @AuditLog(module = AuditModule.WORKSPACE, action = AuditAction.DELETE, resourceType = AuditResourceType.WORKSPACE, resourceCode = "#id")
     public Result<Void> delete(@PathVariable Long id) {
         workspaceService.delete(id);
@@ -114,13 +118,13 @@ public class WorkspaceController {
     }
 
     @GetMapping("/{id}/members")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     public Result<List<MemberResponse>> listMembers(@PathVariable Long id) {
         return Result.ok(BeanConvertUtils.convertList(memberService.listByWorkspaceId(id), MemberResponse.class));
     }
 
     @PostMapping("/{id}/members")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.WORKSPACE, action = AuditAction.ADD_MEMBER, resourceType = AuditResourceType.USER, resourceCode = "#request.userId")
     public Result<MemberResponse> addMember(@PathVariable Long id,
                                             @Valid @RequestBody MemberAddRequest request) {
@@ -129,7 +133,7 @@ public class WorkspaceController {
     }
 
     @PutMapping("/{id}/members/{userId}")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.WORKSPACE, action = AuditAction.UPDATE_MEMBER_ROLE, resourceType = AuditResourceType.USER, resourceCode = "#userId")
     public Result<Void> updateMemberRole(@PathVariable Long id,
                                          @PathVariable Long userId,
@@ -139,7 +143,7 @@ public class WorkspaceController {
     }
 
     @DeleteMapping("/{id}/members/{userId}")
-    @RequireRole(RoleType.WORKSPACE_OWNER)
+    @RequireWorkspaceOwner
     @AuditLog(module = AuditModule.WORKSPACE, action = AuditAction.REMOVE_MEMBER, resourceType = AuditResourceType.USER, resourceCode = "#userId")
     public Result<Void> removeMember(@PathVariable Long id, @PathVariable Long userId) {
         memberService.removeMember(id, userId);

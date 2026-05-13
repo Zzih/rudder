@@ -21,12 +21,12 @@ import io.github.zzih.rudder.api.request.ScriptDirCreateRequest;
 import io.github.zzih.rudder.api.request.ScriptDirMoveRequest;
 import io.github.zzih.rudder.api.request.ScriptDirUpdateRequest;
 import io.github.zzih.rudder.api.response.ScriptDirResponse;
-import io.github.zzih.rudder.common.annotation.RequireRole;
+import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
-import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.script.ScriptDirService;
@@ -48,13 +48,13 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/script-dirs")
 @RequiredArgsConstructor
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class ScriptDirController {
 
     private final ScriptDirService scriptDirService;
 
     @PostMapping
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT_DIR, action = AuditAction.CREATE, resourceType = AuditResourceType.SCRIPT_DIR)
     public Result<ScriptDirResponse> create(@PathVariable Long workspaceId,
                                             @RequestBody ScriptDirCreateRequest request) {
@@ -70,7 +70,7 @@ public class ScriptDirController {
     }
 
     @PutMapping("/{id}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT_DIR, action = AuditAction.UPDATE, resourceType = AuditResourceType.SCRIPT_DIR, resourceCode = "#id")
     public Result<ScriptDirResponse> update(@PathVariable Long workspaceId,
                                             @PathVariable Long id,
@@ -81,7 +81,7 @@ public class ScriptDirController {
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT_DIR, action = AuditAction.DELETE, resourceType = AuditResourceType.SCRIPT_DIR, resourceCode = "#id")
     public Result<Void> delete(@PathVariable Long workspaceId,
                                @PathVariable Long id) {
@@ -90,7 +90,7 @@ public class ScriptDirController {
     }
 
     @PostMapping("/{id}/move")
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     @AuditLog(module = AuditModule.SCRIPT_DIR, action = AuditAction.UPDATE, resourceType = AuditResourceType.SCRIPT_DIR, description = "移动目录", resourceCode = "#id")
     public Result<ScriptDirResponse> move(@PathVariable Long workspaceId,
                                           @PathVariable Long id,

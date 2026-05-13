@@ -15,21 +15,18 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.service.auth;
+package io.github.zzih.rudder.api.security.annotation;
 
-import io.github.zzih.rudder.dao.entity.AuthSource;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-/**
- * 用户名 + 密码直接登录的认证器。PASSWORD / LDAP 实现此接口。
- *
- * <p>OIDC 不实现此接口(走 {@link SsoAuthenticator} 重定向流程)。
- */
-public interface CredentialAuthenticator extends Authenticator {
+import org.springframework.security.access.prepost.PreAuthorize;
 
-    /**
-     * 校验账号密码,成功返回包含 JWT 的 {@link AuthService.AuthResult}。
-     *
-     * @throws io.github.zzih.rudder.common.exception.BizException 用户不存在 / 密码错 / 账号被禁等
-     */
-    AuthService.AuthResult authenticate(AuthSource source, String username, String password);
+/** 要求当前请求 user 在当前 workspace 持 {@code ROLE_VIEWER} 或更高(由 RoleHierarchy 覆盖)。 */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD, ElementType.TYPE})
+@PreAuthorize("hasRole('VIEWER')")
+public @interface RequireViewer {
 }

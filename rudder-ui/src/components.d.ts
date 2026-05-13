@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AboutDialog: typeof import('./components/AboutDialog.vue')['default']
+    AppHeader: typeof import('./components/AppHeader.vue')['default']
     CronEditor: typeof import('./components/CronEditor.vue')['default']
     DagDiffViewer: typeof import('./components/DagDiffViewer.vue')['default']
     DagViewer: typeof import('./components/DagViewer.vue')['default']
