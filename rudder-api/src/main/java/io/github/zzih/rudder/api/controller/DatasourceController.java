@@ -19,6 +19,7 @@ package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.request.DatasourceCreateRequest;
 import io.github.zzih.rudder.api.response.DatasourceResponse;
+import io.github.zzih.rudder.api.response.DatasourceWorkspaceGrantResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.api.security.annotation.RequireViewer;
@@ -30,15 +31,20 @@ import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
+import io.github.zzih.rudder.dao.dao.WorkspaceDao;
+import io.github.zzih.rudder.dao.entity.Workspace;
 import io.github.zzih.rudder.datasource.dto.DatasourceDTO;
 import io.github.zzih.rudder.datasource.model.DataSourceCredentials;
+import io.github.zzih.rudder.datasource.service.DatasourcePermissionService;
 import io.github.zzih.rudder.datasource.service.DatasourceService;
 import io.github.zzih.rudder.metadata.api.model.ColumnMeta;
 import io.github.zzih.rudder.metadata.api.model.TableMeta;
 import io.github.zzih.rudder.metadata.api.model.TableSearchResult;
 import io.github.zzih.rudder.service.metadata.MetadataService;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -60,6 +66,8 @@ public class DatasourceController {
 
     private final DatasourceService datasourceService;
     private final MetadataService metadataService;
+    private final DatasourcePermissionService permissionService;
+    private final WorkspaceDao workspaceDao;
 
     @PostMapping
     @RequireSuperAdmin
@@ -71,24 +79,34 @@ public class DatasourceController {
                 datasourceService.createDetail(body, credential), DatasourceResponse.class));
     }
 
+    /**
+     * 列出当前调用方可见的数据源。
+     *
+     * <p>解析顺序: query 参数 {@code workspaceId} > {@code X-Workspace-Id} header (走 {@link UserContext#getWorkspaceId()})。
+     * 解析到 wsId 即按该工作空间的 grant 过滤(SUPER_ADMIN 也尊重,保持工作空间隔离语义);
+     * 两者都没有时 SUPER_ADMIN 看全量,普通用户看空(实际触发不到)。
+     *
+     * <p>注意:与 {@link #testConnection}、{@code meta/*} 等运维端点不同 —— 后者用
+     * {@link UserContext#getWorkspaceIdOrNull()} 让 SUPER_ADMIN 跨工作空间操作;本端点严格隔离。
+     */
     @GetMapping
     @RequireViewer
-    public Result<List<DatasourceResponse>> list() {
+    public Result<List<DatasourceResponse>> list(@RequestParam(required = false) Long workspaceId) {
+        Long wsId = workspaceId != null ? workspaceId : UserContext.getWorkspaceId();
+        if (wsId != null) {
+            return Result.ok(BeanConvertUtils.convertList(
+                    datasourceService.listByWorkspaceIdDetail(wsId), DatasourceResponse.class));
+        }
         if (UserContext.isSuperAdmin()) {
             return Result.ok(BeanConvertUtils.convertList(datasourceService.listAllDetail(), DatasourceResponse.class));
         }
-        Long wsId = UserContext.getWorkspaceId();
-        if (wsId == null) {
-            return Result.ok(List.of());
-        }
-        return Result.ok(BeanConvertUtils.convertList(datasourceService.listByWorkspaceIdDetail(wsId),
-                DatasourceResponse.class));
+        return Result.ok(List.of());
     }
 
     @GetMapping("/{id}")
     @RequireViewer
     public Result<DatasourceResponse> getById(@PathVariable Long id) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         if (workspaceId != null) {
             return Result.ok(BeanConvertUtils.convert(datasourceService.getByIdWithWorkspaceDetail(workspaceId, id),
                     DatasourceResponse.class));
@@ -119,7 +137,7 @@ public class DatasourceController {
     @RequireDeveloper
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.TEST_CONNECTION, resourceType = AuditResourceType.DATASOURCE, description = "测试数据源连通性", resourceCode = "#id")
     public Result<Boolean> testConnection(@PathVariable Long id) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         datasourceService.resolveNameByWorkspace(workspaceId, id);
         return Result.ok(datasourceService.testConnection(id));
     }
@@ -127,7 +145,7 @@ public class DatasourceController {
     @GetMapping("/{id}/meta/catalogs")
     @RequireViewer
     public Result<List<String>> listCatalogs(@PathVariable Long id) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         return Result.ok(metadataService.listCatalogs(dsName));
     }
@@ -136,7 +154,7 @@ public class DatasourceController {
     @RequireViewer
     public Result<List<String>> listDatabases(@PathVariable Long id,
                                               @RequestParam(required = false) String catalog) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         return Result.ok(metadataService.listDatabases(dsName, catalog));
     }
@@ -146,7 +164,7 @@ public class DatasourceController {
     public Result<List<TableMeta>> listTables(@PathVariable Long id,
                                               @PathVariable String db,
                                               @RequestParam(required = false) String catalog) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         return Result.ok(metadataService.listTables(dsName, catalog, db));
     }
@@ -157,7 +175,7 @@ public class DatasourceController {
                                                 @PathVariable String db,
                                                 @PathVariable String table,
                                                 @RequestParam(required = false) String catalog) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         return Result.ok(metadataService.listColumns(dsName, catalog, db, table));
     }
@@ -166,7 +184,7 @@ public class DatasourceController {
     @RequireViewer
     public Result<List<TableSearchResult>> searchTables(@PathVariable Long id,
                                                         @RequestParam String keyword) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         if (keyword == null || keyword.isBlank()) {
             return Result.ok(List.of());
@@ -192,9 +210,38 @@ public class DatasourceController {
     @RequireDeveloper
     @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.REFRESH_META_CACHE, resourceType = AuditResourceType.DATASOURCE, description = "刷新元数据缓存", resourceCode = "#id")
     public Result<Void> refreshMetaCache(@PathVariable Long id) {
-        Long workspaceId = UserContext.getWorkspaceId();
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         metadataService.invalidateByDatasource(dsName);
+        return Result.ok();
+    }
+
+    /** 列出某数据源已授权的工作空间(返回 id + name 让前端直接显示)。 */
+    @GetMapping("/{id}/workspaces")
+    @RequireSuperAdmin
+    public Result<List<DatasourceWorkspaceGrantResponse>> listGrants(@PathVariable Long id) {
+        // 触发存在性校验
+        datasourceService.getByIdDetail(id);
+        List<Long> wsIds = permissionService.listByDatasource(id).stream()
+                .map(p -> p.getWorkspaceId())
+                .toList();
+        if (wsIds.isEmpty()) {
+            return Result.ok(List.of());
+        }
+        List<Workspace> wss = workspaceDao.selectByIds(wsIds);
+        return Result.ok(wss.stream()
+                .map(w -> new DatasourceWorkspaceGrantResponse(w.getId(), w.getName()))
+                .toList());
+    }
+
+    /** 用 workspaceIds 全量覆盖数据源的可见工作空间集合 (幂等)。 */
+    @PutMapping("/{id}/workspaces")
+    @RequireSuperAdmin
+    @AuditLog(module = AuditModule.DATASOURCE, action = AuditAction.UPDATE, resourceType = AuditResourceType.DATASOURCE, description = "更新数据源工作空间授权", resourceCode = "#id")
+    public Result<Void> setGrants(@PathVariable Long id, @RequestBody List<Long> workspaceIds) {
+        datasourceService.getByIdDetail(id);
+        Set<Long> ids = workspaceIds == null ? new HashSet<>() : new HashSet<>(workspaceIds);
+        permissionService.setGrants(id, ids, UserContext.getUserId());
         return Result.ok();
     }
 

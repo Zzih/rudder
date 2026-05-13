@@ -640,6 +640,12 @@ export default {
     items: '个数据源',
     emptyHint: '还没有数据源，点击右上角创建',
     nameImmutable: '名称创建后不可修改(会影响 DataHub 元数据匹配)',
+    grantWorkspaces: '授权工作空间',
+    grantWorkspacesTitle: '授权工作空间 — {name}',
+    grantWorkspacesHint: '选择有权访问该数据源的工作空间。未授权工作空间将无法使用该数据源。',
+    grantSelectedCount: '已选 {selected} / 共 {total}',
+    grantSelectAll: '全选',
+    grantClearAll: '清除',
   },
 
   approval: {

@@ -8,7 +8,6 @@ import { useUserStore } from '@/stores/user'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useDatasourceStore } from '@/stores/datasource'
 import { useAiChatStore } from '@/stores/aiChat'
-import { usePermission } from '@/composables/usePermission'
 import AppHeader from '@/components/AppHeader.vue'
 
 const route = useRoute()
@@ -16,7 +15,6 @@ const userStore = useUserStore()
 const workspaceStore = useWorkspaceStore()
 const datasourceStore = useDatasourceStore()
 const aiChatStore = useAiChatStore()
-const { isSuperAdmin } = usePermission()
 
 const workspaceId = computed(() => Number(route.params.workspaceId))
 
@@ -36,10 +34,9 @@ async function init() {
     ElMessage.error('Failed to load workspace')
   }
 
-  // SUPER_ADMIN 看全量,其他角色按 workspace 权限过滤
+  // 工作空间上下文里所有角色都只看该工作空间已 grant 的数据源 (SUPER_ADMIN 也尊重隔离)
   try {
-    const params = isSuperAdmin.value ? {} : { workspaceId: wsId }
-    const { data } = await listDatasources(params)
+    const { data } = await listDatasources({ workspaceId: wsId })
     datasourceStore.setDatasources(data ?? [])
   } catch (e) {
     console.warn('Failed to load datasources', e)

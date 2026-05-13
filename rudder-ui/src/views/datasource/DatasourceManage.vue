@@ -2,14 +2,19 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Search, Plus, Connection, MoreFilled } from '@element-plus/icons-vue'
+import { Search, Plus, Connection, MoreFilled, Select, Close } from '@element-plus/icons-vue'
 import {
   listDatasources,
   createDatasource,
   updateDatasource,
   deleteDatasource,
   testConnection,
+  listDatasourceWorkspaces,
+  setDatasourceWorkspaces,
+  type DatasourceWorkspaceGrant,
 } from '@/api/datasource'
+import { listWorkspaces } from '@/api/workspace'
+import { cardColor } from '@/utils/colorMeta'
 
 interface DatasourceRow {
   id: number
@@ -157,6 +162,76 @@ async function handleTestConnection(row: DatasourceRow) {
   }
 }
 
+// ==================== Workspace 授权 ====================
+const grantVisible = ref(false)
+const grantTargetDs = ref<DatasourceRow | null>(null)
+const grantSubmitting = ref(false)
+const grantWorkspaces = ref<{ id: number; name: string }[]>([])
+const grantSelected = ref<Set<number>>(new Set())
+const grantSearch = ref('')
+const grantLoading = ref(false)
+
+const filteredGrantWorkspaces = computed(() => {
+  const q = grantSearch.value.trim().toLowerCase()
+  if (!q) return grantWorkspaces.value
+  return grantWorkspaces.value.filter(w => w.name.toLowerCase().includes(q))
+})
+
+const allFilteredSelected = computed(() =>
+  filteredGrantWorkspaces.value.length > 0
+  && filteredGrantWorkspaces.value.every(w => grantSelected.value.has(w.id)),
+)
+
+function toggleGrant(id: number) {
+  const next = new Set(grantSelected.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  grantSelected.value = next
+}
+
+function selectAllFiltered() {
+  const next = new Set(grantSelected.value)
+  filteredGrantWorkspaces.value.forEach(w => next.add(w.id))
+  grantSelected.value = next
+}
+
+function clearAllFiltered() {
+  const next = new Set(grantSelected.value)
+  filteredGrantWorkspaces.value.forEach(w => next.delete(w.id))
+  grantSelected.value = next
+}
+
+async function openGrantDialog(row: DatasourceRow) {
+  grantLoading.value = true
+  try {
+    const [wsRes, currentRes] = await Promise.all([
+      listWorkspaces({ pageNum: 1, pageSize: 500 }) as any,
+      listDatasourceWorkspaces(row.id),
+    ])
+    grantTargetDs.value = row
+    grantWorkspaces.value = (wsRes.data ?? []).map((w: any) => ({ id: w.id, name: w.name }))
+    grantSelected.value = new Set(
+      (currentRes.data ?? []).map((g: DatasourceWorkspaceGrant) => g.workspaceId),
+    )
+    grantSearch.value = ''
+    grantVisible.value = true
+  } catch { /* interceptor */ } finally {
+    grantLoading.value = false
+  }
+}
+
+async function handleGrantSubmit() {
+  if (!grantTargetDs.value) return
+  grantSubmitting.value = true
+  try {
+    await setDatasourceWorkspaces(grantTargetDs.value.id, Array.from(grantSelected.value))
+    ElMessage.success(t('common.success'))
+    grantVisible.value = false
+  } catch { /* interceptor */ } finally {
+    grantSubmitting.value = false
+  }
+}
+
 async function handleDelete(row: DatasourceRow) {
   try {
     await ElMessageBox.confirm(
@@ -204,6 +279,7 @@ onMounted(fetchDatasources)
             </div>
             <el-dropdown trigger="click" @command="(cmd: string) => {
               if (cmd === 'edit') openEditDialog(ds)
+              else if (cmd === 'grant') openGrantDialog(ds)
               else if (cmd === 'delete') handleDelete(ds)
             }">
               <div class="card__menu">
@@ -213,6 +289,9 @@ onMounted(fetchDatasources)
                 <el-dropdown-menu>
                   <el-dropdown-item command="edit">
                     <el-icon><Edit /></el-icon>{{ t('common.edit') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="grant">
+                    <el-icon><Share /></el-icon>{{ t('datasource.grantWorkspaces') }}
                   </el-dropdown-item>
                   <el-dropdown-item command="delete" divided>
                     <span style="color: var(--r-danger)"><el-icon><Delete /></el-icon>{{ t('common.delete') }}</span>
@@ -295,6 +374,82 @@ onMounted(fetchDatasources)
       <template #footer>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          {{ t('common.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Grant Workspaces Dialog -->
+    <el-dialog
+      v-model="grantVisible"
+      :title="t('datasource.grantWorkspacesTitle', { name: grantTargetDs?.name ?? '' })"
+      width="520px"
+      destroy-on-close
+    >
+      <div class="grant-hint">{{ t('datasource.grantWorkspacesHint') }}</div>
+
+      <div class="grant-toolbar">
+        <el-input
+          v-model="grantSearch"
+          :placeholder="t('common.search')"
+          :prefix-icon="Search"
+          clearable
+          size="default"
+          class="grant-search"
+        />
+        <div class="grant-counter">
+          {{ t('datasource.grantSelectedCount', { selected: grantSelected.size, total: grantWorkspaces.length }) }}
+        </div>
+      </div>
+
+      <div class="grant-bulkbar">
+        <button
+          type="button"
+          class="grant-bulk"
+          :disabled="filteredGrantWorkspaces.length === 0 || allFilteredSelected"
+          @click="selectAllFiltered"
+        >
+          <el-icon><Select /></el-icon>{{ t('datasource.grantSelectAll') }}
+        </button>
+        <button
+          type="button"
+          class="grant-bulk"
+          :disabled="filteredGrantWorkspaces.length === 0"
+          @click="clearAllFiltered"
+        >
+          <el-icon><Close /></el-icon>{{ t('datasource.grantClearAll') }}
+        </button>
+      </div>
+
+      <div v-loading="grantLoading" class="grant-list">
+        <button
+          v-for="ws in filteredGrantWorkspaces"
+          :key="ws.id"
+          type="button"
+          class="grant-row"
+          :class="{ 'grant-row--active': grantSelected.has(ws.id) }"
+          :style="{ '--ws-accent': cardColor(ws.id) }"
+          @click="toggleGrant(ws.id)"
+        >
+          <span class="grant-row__avatar">{{ ws.name.charAt(0).toUpperCase() }}</span>
+          <span class="grant-row__name">{{ ws.name }}</span>
+          <el-checkbox
+            :model-value="grantSelected.has(ws.id)"
+            tabindex="-1"
+            @click.stop="toggleGrant(ws.id)"
+          />
+        </button>
+        <el-empty
+          v-if="!grantLoading && filteredGrantWorkspaces.length === 0"
+          :description="grantSearch ? t('common.noData') : t('common.noData')"
+          :image-size="60"
+          class="grant-empty"
+        />
+      </div>
+
+      <template #footer>
+        <el-button @click="grantVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="grantSubmitting" @click="handleGrantSubmit">
           {{ t('common.confirm') }}
         </el-button>
       </template>
@@ -409,5 +564,125 @@ onMounted(fetchDatasources)
   color: var(--r-text-muted);
   line-height: var(--r-leading-snug);
   margin-top: var(--r-space-1);
+}
+
+.grant-hint {
+  font-size: var(--r-font-sm);
+  color: var(--r-text-muted);
+  line-height: var(--r-leading-snug);
+  margin-bottom: var(--r-space-4);
+}
+
+.grant-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--r-space-3);
+  margin-bottom: var(--r-space-2);
+}
+.grant-search { flex: 1; }
+.grant-counter {
+  font-size: var(--r-font-sm);
+  color: var(--r-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.grant-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: var(--r-space-1);
+  margin-bottom: var(--r-space-3);
+}
+.grant-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--r-space-1);
+  padding: var(--r-space-1) var(--r-space-2);
+  border: none;
+  background: transparent;
+  font-size: var(--r-font-sm);
+  color: var(--r-text-secondary);
+  cursor: pointer;
+  border-radius: var(--r-radius-sm);
+  transition: background-color 0.15s, color 0.15s;
+  &:hover:not(:disabled) {
+    background: var(--r-bg-hover);
+    color: var(--r-text-primary);
+  }
+  &:disabled {
+    color: var(--r-text-disabled);
+    cursor: not-allowed;
+  }
+}
+
+.grant-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--r-bg-panel);
+  border: 1px solid var(--r-border);
+  border-radius: var(--r-radius-md);
+}
+
+.grant-row {
+  display: flex;
+  align-items: center;
+  gap: var(--r-space-2);
+  width: 100%;
+  padding: 6px var(--r-space-3);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: background-color 0.12s;
+
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--r-space-3);
+    right: var(--r-space-3);
+    bottom: 0;
+    height: 1px;
+    background: var(--r-border-light);
+  }
+
+  &:hover { background: var(--r-bg-hover); }
+
+  &--active {
+    background: color-mix(in srgb, var(--ws-accent, var(--r-accent)) 8%, transparent);
+    .grant-row__name { color: var(--r-text-primary); font-weight: var(--r-weight-semibold); }
+    &:hover { background: color-mix(in srgb, var(--ws-accent, var(--r-accent)) 12%, transparent); }
+  }
+}
+
+.grant-row__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: var(--r-radius-sm);
+  background: color-mix(in srgb, var(--ws-accent, var(--r-accent)) 14%, transparent);
+  color: var(--ws-accent, var(--r-accent));
+  font-size: var(--r-font-xs);
+  font-weight: var(--r-weight-bold);
+  letter-spacing: -0.02em;
+}
+
+.grant-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--r-font-sm);
+  color: var(--r-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grant-empty {
+  margin: var(--r-space-4) 0;
 }
 </style>
