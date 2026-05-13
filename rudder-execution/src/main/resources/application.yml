@@ -20,6 +20,8 @@ spring:
       password: ${RUDDER_REDIS_PASSWORD:}
       database: ${RUDDER_REDIS_DB:0}
       timeout: 3s
+      ssl:
+        enabled: ${RUDDER_REDIS_SSL_ENABLED:false}
 
 mybatis-plus:
   global-config:
