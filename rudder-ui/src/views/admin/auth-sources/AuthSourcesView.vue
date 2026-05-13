@@ -233,7 +233,7 @@ onMounted(fetchList)
 
     <div class="admin-card">
       <el-table :data="rows" v-loading="loading" row-key="id">
-        <el-table-column prop="name" :label="t('admin.authSource.name')" width="200" />
+        <el-table-column prop="name" :label="t('admin.authSource.name')" min-width="200" show-overflow-tooltip />
         <el-table-column :label="t('admin.authSource.type')" width="120">
           <template #default="{ row }">
             <el-tag :type="TYPE_TAG[row.type as AuthSourceType]" size="small">{{ row.type }}</el-tag>
@@ -254,19 +254,19 @@ onMounted(fetchList)
           </template>
         </el-table-column>
         <el-table-column prop="priority" :label="t('admin.authSource.priority')" width="100" align="center" />
-        <el-table-column prop="updatedAt" :label="t('common.updatedAt')" width="200" />
-        <el-table-column :label="t('common.actions')" width="280">
+        <el-table-column prop="updatedAt" :label="t('common.updatedAt')" width="180" />
+        <el-table-column :label="t('common.actions')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="!row.isSystem" link type="primary" size="small" @click="openEdit(row)">
+            <el-button v-if="!row.isSystem" text size="small" type="primary" @click="openEdit(row)">
               {{ t('common.edit') }}
             </el-button>
-            <el-button v-if="!row.isSystem" link type="primary" size="small" @click="handleTest(row)">
+            <el-button v-if="!row.isSystem" text size="small" @click="handleTest(row)">
               {{ t('admin.authSource.test') }}
             </el-button>
-            <el-button v-if="!row.isSystem" link type="danger" size="small" @click="handleDelete(row)">
+            <el-button v-if="!row.isSystem" text size="small" type="danger" @click="handleDelete(row)">
               {{ t('common.delete') }}
             </el-button>
-            <span v-else style="color: var(--r-text-muted); font-size: 13px;">
+            <span v-else class="readonly-hint">
               {{ t('admin.authSource.systemReadonly') }}
             </span>
           </template>
@@ -360,27 +360,11 @@ onMounted(fetchList)
   </div>
 </template>
 
-<style scoped>
-.page-container {
-  padding: var(--r-space-6);
-}
+<style scoped lang="scss">
+@use '@/styles/admin.scss';
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--r-space-4);
-}
-
-.page-actions {
-  display: flex;
-  gap: var(--r-space-2);
-}
-
-.admin-card {
-  background: var(--r-bg-card);
-  border: 1px solid var(--r-border);
-  border-radius: var(--r-radius-md);
-  padding: var(--r-space-3);
+.readonly-hint {
+  color: var(--r-text-muted);
+  font-size: var(--r-font-sm);
 }
 </style>
