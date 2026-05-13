@@ -638,6 +638,12 @@ export default {
     items: 'datasources',
     emptyHint: 'No datasources yet. Click the button above to create one.',
     nameImmutable: 'Name cannot be changed after creation (affects DataHub metadata matching).',
+    grantWorkspaces: 'Grant Workspaces',
+    grantWorkspacesTitle: 'Grant Workspaces — {name}',
+    grantWorkspacesHint: 'Select workspaces authorized to access this datasource. Unauthorized workspaces cannot use this datasource.',
+    grantSelectedCount: '{selected} of {total} selected',
+    grantSelectAll: 'Select all',
+    grantClearAll: 'Clear all',
   },
 
   approval: {

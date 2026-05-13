@@ -89,6 +89,15 @@ public class UserContext {
     }
 
     /**
+     * SUPER_ADMIN 返 null,其他角色返 {@link #getWorkspaceId()}。
+     * 适用于"运维型"端点(test/meta/refresh-cache 等)需让 SUPER_ADMIN 跨工作空间执行的场景;
+     * 列表/可见性接口请直接走 query 参数 + {@link #getWorkspaceId()},不要用本方法。
+     */
+    public static Long getWorkspaceIdOrNull() {
+        return isSuperAdmin() ? null : getWorkspaceId();
+    }
+
+    /**
      * Fail-fast 读取 userId，未设置时抛 {@link IllegalStateException}。
      */
     public static Long requireUserId() {

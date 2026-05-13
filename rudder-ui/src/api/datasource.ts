@@ -28,6 +28,16 @@ export function listWorkspaceDatasources(workspaceId: number) {
   return request.get('/datasources', { params: { workspaceId } })
 }
 
+export interface DatasourceWorkspaceGrant { workspaceId: number; workspaceName: string }
+
+export function listDatasourceWorkspaces(datasourceId: number) {
+  return request.get<DatasourceWorkspaceGrant[]>(`/datasources/${datasourceId}/workspaces`)
+}
+
+export function setDatasourceWorkspaces(datasourceId: number, workspaceIds: number[]) {
+  return request.put(`/datasources/${datasourceId}/workspaces`, workspaceIds)
+}
+
 // ==================== Metadata ====================
 
 /** 三层引擎(Trino / StarRocks 带外部 catalog)返回 catalog 名列表;两层引擎返回空数组。 */

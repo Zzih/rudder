@@ -22,6 +22,8 @@ import io.github.zzih.rudder.dao.entity.DatasourcePermission;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -74,5 +76,25 @@ public class DatasourcePermissionService {
      */
     public List<DatasourcePermission> listByDatasource(Long datasourceId) {
         return datasourcePermissionDao.selectByDatasourceId(datasourceId);
+    }
+
+    /**
+     * 用 workspaceIds 全量覆盖数据源的可见工作空间集合(diff:不在新集合的删,新增的插)。
+     * 幂等,调用方传当前期望的完整集合即可。
+     */
+    public void setGrants(Long datasourceId, Set<Long> workspaceIds, Long operatorId) {
+        Set<Long> current = listByDatasource(datasourceId).stream()
+                .map(DatasourcePermission::getWorkspaceId)
+                .collect(Collectors.toSet());
+        for (Long wsId : current) {
+            if (!workspaceIds.contains(wsId)) {
+                revoke(datasourceId, wsId);
+            }
+        }
+        for (Long wsId : workspaceIds) {
+            if (!current.contains(wsId)) {
+                grant(datasourceId, wsId, operatorId);
+            }
+        }
     }
 }
