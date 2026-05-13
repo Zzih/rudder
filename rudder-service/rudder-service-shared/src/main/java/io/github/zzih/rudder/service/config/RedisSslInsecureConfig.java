@@ -35,7 +35,8 @@ public class RedisSslInsecureConfig {
 
     @PostConstruct
     void logInsecureMode() {
-        log.warn("Redis TLS 证书校验已关闭(spring.data.redis.ssl.insecure=true),失去 MITM 防护。建议改用 spring.data.redis.ssl.bundle 引用自带 truststore 的 SSL Bundle。");
+        log.warn("Redis TLS 证书校验已关闭(spring.data.redis.ssl.insecure=true),失去 MITM 防护。" +
+                "建议改用 spring.data.redis.ssl.bundle 引用自带 truststore 的 SSL Bundle。");
     }
 
     @Bean
