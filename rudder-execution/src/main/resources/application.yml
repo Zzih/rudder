@@ -22,6 +22,9 @@ spring:
       timeout: 3s
       ssl:
         enabled: ${RUDDER_REDIS_SSL_ENABLED:false}
+        bundle: ${RUDDER_REDIS_SSL_BUNDLE:}
+        # 跳过对端证书校验,失去 MITM 防护
+        insecure: ${RUDDER_REDIS_SSL_INSECURE:false}
 
 mybatis-plus:
   global-config:
