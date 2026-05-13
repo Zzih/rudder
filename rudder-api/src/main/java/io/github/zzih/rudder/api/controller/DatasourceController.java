@@ -32,6 +32,7 @@ import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.dao.WorkspaceDao;
+import io.github.zzih.rudder.dao.entity.DatasourcePermission;
 import io.github.zzih.rudder.dao.entity.Workspace;
 import io.github.zzih.rudder.datasource.dto.DatasourceDTO;
 import io.github.zzih.rudder.datasource.model.DataSourceCredentials;
@@ -79,28 +80,12 @@ public class DatasourceController {
                 datasourceService.createDetail(body, credential), DatasourceResponse.class));
     }
 
-    /**
-     * 列出当前调用方可见的数据源。
-     *
-     * <p>解析顺序: query 参数 {@code workspaceId} > {@code X-Workspace-Id} header (走 {@link UserContext#getWorkspaceId()})。
-     * 解析到 wsId 即按该工作空间的 grant 过滤(SUPER_ADMIN 也尊重,保持工作空间隔离语义);
-     * 两者都没有时 SUPER_ADMIN 看全量,普通用户看空(实际触发不到)。
-     *
-     * <p>注意:与 {@link #testConnection}、{@code meta/*} 等运维端点不同 —— 后者用
-     * {@link UserContext#getWorkspaceIdOrNull()} 让 SUPER_ADMIN 跨工作空间操作;本端点严格隔离。
-     */
+    /** 平台管理用:列出全部数据源(SUPER_ADMIN 才能查)。工作空间内的列表见 {@code GET /api/workspaces/:id/datasources}。 */
     @GetMapping
-    @RequireViewer
-    public Result<List<DatasourceResponse>> list(@RequestParam(required = false) Long workspaceId) {
-        Long wsId = workspaceId != null ? workspaceId : UserContext.getWorkspaceId();
-        if (wsId != null) {
-            return Result.ok(BeanConvertUtils.convertList(
-                    datasourceService.listByWorkspaceIdDetail(wsId), DatasourceResponse.class));
-        }
-        if (UserContext.isSuperAdmin()) {
-            return Result.ok(BeanConvertUtils.convertList(datasourceService.listAllDetail(), DatasourceResponse.class));
-        }
-        return Result.ok(List.of());
+    @RequireSuperAdmin
+    public Result<List<DatasourceResponse>> listAll() {
+        return Result.ok(BeanConvertUtils.convertList(
+                datasourceService.listAllDetail(), DatasourceResponse.class));
     }
 
     @GetMapping("/{id}")
@@ -223,7 +208,7 @@ public class DatasourceController {
         // 触发存在性校验
         datasourceService.getByIdDetail(id);
         List<Long> wsIds = permissionService.listByDatasource(id).stream()
-                .map(p -> p.getWorkspaceId())
+                .map(DatasourcePermission::getWorkspaceId)
                 .toList();
         if (wsIds.isEmpty()) {
             return Result.ok(List.of());

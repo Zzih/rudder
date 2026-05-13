@@ -1,7 +1,8 @@
 import request from '@/utils/request'
 
-export function listDatasources(params?: { workspaceId?: number }) {
-  return request.get('/datasources', { params })
+/** 平台管理:列出全部 datasource (SUPER_ADMIN)。 */
+export function listDatasources() {
+  return request.get('/datasources')
 }
 
 export function getDatasource(workspaceId: number | undefined, id: number) {
@@ -24,8 +25,9 @@ export function testConnection(workspaceId: number | undefined, id: number) {
   return request.post(`/datasources/${id}/test`, null, { params: { workspaceId } })
 }
 
+/** 工作空间视角:列出该工作空间已 grant 的 datasource (IDE / 项目管理用)。 */
 export function listWorkspaceDatasources(workspaceId: number) {
-  return request.get('/datasources', { params: { workspaceId } })
+  return request.get(`/workspaces/${workspaceId}/datasources`)
 }
 
 export interface DatasourceWorkspaceGrant { workspaceId: number; workspaceName: string }
