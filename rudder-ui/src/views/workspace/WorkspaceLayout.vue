@@ -3,7 +3,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getWorkspace } from '@/api/workspace'
-import { listDatasources } from '@/api/datasource'
+import { listWorkspaceDatasources } from '@/api/datasource'
 import { useUserStore } from '@/stores/user'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useDatasourceStore } from '@/stores/datasource'
@@ -36,7 +36,7 @@ async function init() {
 
   // 工作空间上下文里所有角色都只看该工作空间已 grant 的数据源 (SUPER_ADMIN 也尊重隔离)
   try {
-    const { data } = await listDatasources({ workspaceId: wsId })
+    const { data } = await listWorkspaceDatasources(wsId)
     datasourceStore.setDatasources(data ?? [])
   } catch (e) {
     console.warn('Failed to load datasources', e)

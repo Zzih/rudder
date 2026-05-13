@@ -18,6 +18,8 @@
 package io.github.zzih.rudder.common.context;
 
 import io.github.zzih.rudder.common.enums.auth.RoleType;
+import io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode;
+import io.github.zzih.rudder.common.exception.AuthException;
 
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
@@ -95,6 +97,21 @@ public class UserContext {
      */
     public static Long getWorkspaceIdOrNull() {
         return isSuperAdmin() ? null : getWorkspaceId();
+    }
+
+    /**
+     * 校验调用方有权访问指定工作空间(SUPER_ADMIN 直接放行,其他要求 URL workspaceId 等于
+     * 当前 X-Workspace-Id —— 后者由 {@code JwtToUserContextFilter} 经 member 表校验过才设置)。
+     * 不等于即抛 {@link io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode#NOT_WORKSPACE_MEMBER},
+     * 防止枚举其他工作空间。
+     */
+    public static void assertWorkspaceAccess(Long workspaceId) {
+        if (isSuperAdmin()) {
+            return;
+        }
+        if (workspaceId == null || !workspaceId.equals(getWorkspaceId())) {
+            throw new AuthException(WorkspaceErrorCode.NOT_WORKSPACE_MEMBER, workspaceId);
+        }
     }
 
     /**
