@@ -1,5 +1,5 @@
 server:
-  port: ${RUDDER_API_PORT:5680}
+  port: ${RUDDER_API_HTTP_PORT:5680}
   # 静态资源 + JSON 响应启用 gzip,与前端 vite-plugin-compression 双保险
   compression:
     enabled: true

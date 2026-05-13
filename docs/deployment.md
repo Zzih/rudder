@@ -187,7 +187,7 @@ server {
 
 - Server 派发任务时按算法（轮询 / 负载 / workspace 亲和）选 ONLINE Execution
 - 加 / 减 Execution 不需要重启 Server，注册到 `t_r_service_registry` 即可被发现
-- 同机部署多 Execution 时务必区分 `RUDDER_EXECUTION_PORT` 与 `RUDDER_EXECUTION_RPC_PORT`
+- 同机部署多 Execution 时务必区分 `RUDDER_EXECUTION_HTTP_PORT` 与 `RUDDER_EXECUTION_RPC_PORT`
 
 ### RPC `auth-secret`
 
