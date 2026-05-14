@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import org.slf4j.MDC;
+
 public class ProcessUtils {
 
     private ProcessUtils() {
@@ -76,7 +78,13 @@ public class ProcessUtils {
                                        Consumer<String> lineConsumer) throws IOException {
         Process process = builder(command, env).start();
 
+        // reader 是新建的 daemon 线程,默认不继承 MDC;显式拷贝调用方 context,
+        // 否则 lineConsumer 内 log.info 的行无法按 taskLogPath 路由到任务日志文件。
+        Map<String, String> callerMdc = MDC.getCopyOfContextMap();
         Thread reader = new Thread(() -> {
+            if (callerMdc != null) {
+                MDC.setContextMap(callerMdc);
+            }
             try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
                 while ((line = br.readLine()) != null) {
@@ -85,6 +93,8 @@ public class ProcessUtils {
                     }
                 }
             } catch (IOException ignored) {
+            } finally {
+                MDC.clear();
             }
         }, "process-reader-" + process.pid());
         reader.setDaemon(true);

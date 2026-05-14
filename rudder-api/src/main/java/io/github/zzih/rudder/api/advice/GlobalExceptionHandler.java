@@ -19,7 +19,6 @@ package io.github.zzih.rudder.api.advice;
 
 import io.github.zzih.rudder.common.enums.error.SystemErrorCode;
 import io.github.zzih.rudder.common.exception.RudderException;
-import io.github.zzih.rudder.common.i18n.I18n;
 import io.github.zzih.rudder.common.result.ErrorCode;
 import io.github.zzih.rudder.common.result.Result;
 
@@ -52,12 +51,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
     }
 
-    /**
-     * Spring {@code MessageSource} 自身用 {@link java.text.MessageFormat} 填 args 占位符;bundle miss
-     * 时 {@code useCodeAsDefaultMessage=true} 直接吐 key,给运维一个明显的"漏译"信号。
-     */
     private static String resolveMessage(RudderException e) {
-        return I18n.t(e.getErrorCode().getMessage(), e.getArgs());
+        return e.resolvedMessage();
     }
 
     /**

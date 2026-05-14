@@ -55,7 +55,7 @@ public class PythonTask extends AbstractTask implements LocalTask {
     @Override
     public void handle() throws TaskException {
         log.info("Status → {}", TaskStatus.RUNNING);
-        log.info("Executing Python script...");
+        log.info("Final python script:\n{}", script);
 
         Path tempFile = null;
         try {

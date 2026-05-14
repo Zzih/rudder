@@ -53,7 +53,7 @@ public class ShellTask extends AbstractTask implements LocalTask {
     @Override
     public void handle() throws TaskException {
         log.info("Status → {}", TaskStatus.RUNNING);
-        log.info("Executing shell script...");
+        log.info("Final shell script:\n{}", script);
 
         try {
             runningProcess = ProcessUtils.start(

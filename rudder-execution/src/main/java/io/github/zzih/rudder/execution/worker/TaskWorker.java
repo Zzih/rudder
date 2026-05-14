@@ -19,7 +19,9 @@ package io.github.zzih.rudder.execution.worker;
 
 import io.github.zzih.rudder.common.enums.datatype.DataType;
 import io.github.zzih.rudder.common.enums.datatype.Direct;
+import io.github.zzih.rudder.common.enums.error.TaskErrorCode;
 import io.github.zzih.rudder.common.exception.ExceptionFormatter;
+import io.github.zzih.rudder.common.exception.TaskException;
 import io.github.zzih.rudder.common.execution.TaskCompletionReport;
 import io.github.zzih.rudder.common.param.Property;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
@@ -228,18 +230,25 @@ public class TaskWorker {
 
                 instance.setContent(resolvedContent);
 
-                log.info("Final {} ↓\n{}", instance.getTaskType().getLabel(), resolvedContent);
-
-                // 根据任务类型构建参数 JSON
                 String paramsJson = buildParamsJson(instance);
 
-                // 通过 SPI 解析参数，提取资源文件列表并下载到本地工作目录
                 TaskChannel channel = taskPluginManager.getChannel(instance.getTaskType());
                 Map<String, String> resolvedFilePaths = null;
                 AbstractTaskParams taskParams = channel.parseParams(paramsJson);
                 if (taskParams instanceof SqlTaskParams sqlParams) {
                     sqlParams.setQueryLimit(resultConfigService.getDefaultQueryRows());
                 }
+
+                // Layer 1 — 通用 params 结构 dump,所有 task 都会打这一条;
+                // Layer 2 (raw 脚本 / SQL / 命令行) 由各 Task 自己在 handle() 打。
+                log.info("Initialize {} task params:\n{}",
+                        instance.getTaskType().getLabel(), JsonUtils.toPrettyJson(taskParams));
+
+                if (taskParams != null && !taskParams.validate()) {
+                    throw new TaskException(TaskErrorCode.TASK_PARAM_INVALID,
+                            instance.getTaskType().getLabel());
+                }
+
                 Map<String, String> resourcePaths = taskParams != null ? taskParams.getResourceFiles() : Map.of();
                 if (!resourcePaths.isEmpty()) {
                     ResourceResolver.ResolveResult result = resourceResolver.resolveResources(
@@ -313,7 +322,7 @@ public class TaskWorker {
                 // 选工厂:active runtime 接管该 TaskType → 用云上子类工厂(如 AliyunSparkSqlTask);
                 // 否则 → 用 channel 默认工厂(原生 SparkSqlTask 等)。两路共用 Task.handle() 入口。
                 TaskFactory factory = runtimeConfigService.taskFactoryFor(ctx.getTaskType())
-                        .orElse(channel::createNewTask);
+                        .orElse(channel::createTask);
                 task = factory.create(ctx);
                 runningTasks.put(taskInstanceId, task);
 
@@ -388,8 +397,9 @@ public class TaskWorker {
                     log.warn(CANCELLED_BY_USER);
                     markFinished(instance, InstanceStatus.CANCELLED, CANCELLED_BY_USER);
                 } else {
-                    log.error("Task failed: {}", e.getMessage(), e);
-                    markFinished(instance, InstanceStatus.FAILED, ExceptionFormatter.summarize(e));
+                    String summary = ExceptionFormatter.summarize(e);
+                    log.error("Task failed: {}", summary, e);
+                    markFinished(instance, InstanceStatus.FAILED, summary);
                 }
             } finally {
                 // 清理任务工作目录

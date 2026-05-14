@@ -19,7 +19,6 @@ package io.github.zzih.rudder.task.shell;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
-import io.github.zzih.rudder.task.api.params.AbstractTaskParams;
 import io.github.zzih.rudder.task.api.spi.TaskChannel;
 import io.github.zzih.rudder.task.api.task.AbstractTask;
 
@@ -27,20 +26,11 @@ public class ShellTaskChannel implements TaskChannel {
 
     @Override
     public AbstractTask createTask(TaskExecutionContext ctx) {
-        String script = ctx.getParamsJson();
-        try {
-            var params = JsonUtils.fromJson(ctx.getParamsJson(), ShellTaskParams.class);
-            if (params.getContent() != null) {
-                script = params.getContent();
-            }
-        } catch (Exception ignored) {
-            // paramsJson 可能是原始脚本文本
-        }
-        return new ShellTask(ctx, script);
+        return new ShellTask(ctx, parseParams(ctx.getParamsJson()).getContent());
     }
 
     @Override
-    public AbstractTaskParams parseParams(String paramsJson) {
-        return null;
+    public ShellTaskParams parseParams(String paramsJson) {
+        return JsonUtils.fromJson(paramsJson, ShellTaskParams.class);
     }
 }

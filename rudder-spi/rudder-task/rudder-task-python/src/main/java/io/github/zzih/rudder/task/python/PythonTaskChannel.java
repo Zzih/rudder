@@ -19,7 +19,6 @@ package io.github.zzih.rudder.task.python;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
-import io.github.zzih.rudder.task.api.params.AbstractTaskParams;
 import io.github.zzih.rudder.task.api.spi.TaskChannel;
 import io.github.zzih.rudder.task.api.task.AbstractTask;
 
@@ -27,19 +26,11 @@ public class PythonTaskChannel implements TaskChannel {
 
     @Override
     public AbstractTask createTask(TaskExecutionContext ctx) {
-        String script = ctx.getParamsJson();
-        try {
-            var params = JsonUtils.fromJson(ctx.getParamsJson(), PythonTaskParams.class);
-            if (params.getContent() != null) {
-                script = params.getContent();
-            }
-        } catch (Exception ignored) {
-        }
-        return new PythonTask(ctx, script);
+        return new PythonTask(ctx, parseParams(ctx.getParamsJson()).getContent());
     }
 
     @Override
-    public AbstractTaskParams parseParams(String paramsJson) {
-        return null;
+    public PythonTaskParams parseParams(String paramsJson) {
+        return JsonUtils.fromJson(paramsJson, PythonTaskParams.class);
     }
 }

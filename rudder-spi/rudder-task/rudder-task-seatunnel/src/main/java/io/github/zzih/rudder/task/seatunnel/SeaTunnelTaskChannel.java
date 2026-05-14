@@ -19,7 +19,6 @@ package io.github.zzih.rudder.task.seatunnel;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
-import io.github.zzih.rudder.task.api.params.AbstractTaskParams;
 import io.github.zzih.rudder.task.api.spi.TaskChannel;
 import io.github.zzih.rudder.task.api.task.AbstractTask;
 
@@ -27,18 +26,11 @@ public class SeaTunnelTaskChannel implements TaskChannel {
 
     @Override
     public AbstractTask createTask(TaskExecutionContext ctx) {
-        SeaTunnelTaskParams params;
-        try {
-            params = JsonUtils.fromJson(ctx.getParamsJson(), SeaTunnelTaskParams.class);
-        } catch (Exception e) {
-            params = new SeaTunnelTaskParams();
-            params.setContent(ctx.getParamsJson());
-        }
-        return new SeaTunnelTask(ctx, params);
+        return new SeaTunnelTask(ctx, parseParams(ctx.getParamsJson()));
     }
 
     @Override
-    public AbstractTaskParams parseParams(String paramsJson) {
-        return null;
+    public SeaTunnelTaskParams parseParams(String paramsJson) {
+        return JsonUtils.fromJson(paramsJson, SeaTunnelTaskParams.class);
     }
 }
