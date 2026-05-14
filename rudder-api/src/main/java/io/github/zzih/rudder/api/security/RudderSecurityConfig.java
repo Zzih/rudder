@@ -22,6 +22,7 @@ import io.github.zzih.rudder.service.auth.security.RudderUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -35,10 +36,16 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
+import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler;
+import org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.web.client.RestClient;
 
 /**
  * 双 SecurityFilterChain:OIDC 回调路径走 oauth2Login;其他路径走 oauth2-resource-server
@@ -84,6 +91,26 @@ public class RudderSecurityConfig {
         return new ProviderManager(provider);
     }
 
+    /**
+     * 显式注册 OAuth2 专用 converter,避免回退到 Jackson 默认 converter 反序列化
+     * {@link org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse}
+     * (immutable + builder,无默认构造器) 触发 {@code invalid_token_response}。
+     */
+    @Bean
+    public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> oidcTokenResponseClient() {
+        RestClient restClient = RestClient.builder()
+                .configureMessageConverters(c -> c
+                        .disableDefaults()
+                        .addCustomConverter(new FormHttpMessageConverter())
+                        .addCustomConverter(new OAuth2AccessTokenResponseHttpMessageConverter()))
+                .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler())
+                .build();
+        RestClientAuthorizationCodeTokenResponseClient client =
+                new RestClientAuthorizationCodeTokenResponseClient();
+        client.setRestClient(restClient);
+        return client;
+    }
+
     @Bean
     @Order(1)
     public SecurityFilterChain oauth2LoginFilterChain(
@@ -91,7 +118,8 @@ public class RudderSecurityConfig {
                                                       DbClientRegistrationRepository clientRegistrationRepository,
                                                       RudderOidcUserService rudderOidcUserService,
                                                       JwtIssuanceSuccessHandler jwtIssuanceSuccessHandler,
-                                                      RedisOAuth2AuthorizationRequestRepository authorizationRequestRepository) throws Exception {
+                                                      RedisOAuth2AuthorizationRequestRepository authorizationRequestRepository,
+                                                      OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> oidcTokenResponseClient) throws Exception {
         return http
                 .securityMatcher("/oauth2/authorization/**", "/login/oauth2/code/**")
                 .csrf(AbstractHttpConfigurer::disable)
@@ -103,6 +131,7 @@ public class RudderSecurityConfig {
                 .oauth2Login(login -> login
                         .clientRegistrationRepository(clientRegistrationRepository)
                         .authorizationEndpoint(ae -> ae.authorizationRequestRepository(authorizationRequestRepository))
+                        .tokenEndpoint(t -> t.accessTokenResponseClient(oidcTokenResponseClient))
                         .userInfoEndpoint(u -> u.oidcUserService(rudderOidcUserService))
                         .successHandler(jwtIssuanceSuccessHandler))
                 .build();
