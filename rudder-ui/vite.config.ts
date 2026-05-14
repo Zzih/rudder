@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:5680'
 
   return {
-    base: mode === 'production' ? '/ui/' : '/',
+    // 与 backend 静态资源 path 对齐,避免 OIDC callback 在 dev/prod 分叉。
+    base: '/ui/',
     plugins: [
       vue(),
       AutoImport({

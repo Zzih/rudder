@@ -92,12 +92,16 @@ public class DbClientRegistrationRepository implements ClientRegistrationReposit
 
     private ClientRegistration buildRegistration(Long sourceId) {
         OidcSourceConfigData cfg = authSourceService.getOidcConfig(sourceId);
-        return ClientRegistrations.fromIssuerLocation(cfg.getIssuer())
+        ClientRegistration.Builder builder = ClientRegistrations.fromIssuerLocation(cfg.getIssuer())
                 .registrationId(String.valueOf(sourceId))
                 .clientId(cfg.getClientId())
                 .clientSecret(cfg.getClientSecret())
-                .scope(parseScopes(cfg.getScopes()))
-                .build();
+                .scope(parseScopes(cfg.getScopes()));
+        String base = cfg.getCallbackBaseUrl();
+        if (base != null && !base.isBlank()) {
+            builder.redirectUri(base.replaceAll("/+$", "") + "/login/oauth2/code/{registrationId}");
+        }
+        return builder.build();
     }
 
     private static List<String> parseScopes(String scopes) {

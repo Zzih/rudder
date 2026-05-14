@@ -5,14 +5,14 @@ export type AuthSourceType = 'OIDC' | 'LDAP'
 /**
  * OIDC 配置:Spring Security oauth2Login 通过 issuer 自动 discovery
  * authorization / token / userinfo / jwks endpoint,前端无需配置 4 个 URI。
- * redirect_uri 由后端按 {baseUrl}/login/oauth2/code/{sourceId} 自动构造,IdP 注册时填这个模板。
+ * redirect_uri 由后端按 {callbackBaseUrl|baseUrl}/login/oauth2/code/{sourceId} 构造,IdP 注册时填这个模板。
  */
 export interface OidcConfig {
   clientId: string
   clientSecret: string
   issuer: string
   scopes: string
-  frontendRedirectUrl: string
+  callbackBaseUrl?: string
 }
 
 export interface LdapConfig {
