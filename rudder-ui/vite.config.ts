@@ -43,6 +43,15 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
+        // OIDC 起点 + IdP callback,Spring Security oauth2Login 默认路径,需要代理到 backend
+        '/oauth2': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/login/oauth2': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
       },
     },
     build: {
