@@ -72,7 +72,7 @@ public class FlinkJarTask extends AbstractTask implements JobTask {
     @Override
     public void handle() throws TaskException {
         String jarPath = resolveJarPath();
-        log.info("提交 Flink JAR: mainClass={}, jar={}", params.getMainClass(), jarPath);
+        log.info("Submitting Flink JAR: mainClass={}, jar={}", params.getMainClass(), jarPath);
         boolean appMode = isApplicationMode(params.getDeployMode());
 
         try {
@@ -112,7 +112,7 @@ public class FlinkJarTask extends AbstractTask implements JobTask {
                     : (jobIdHolder[0] != null ? jobIdHolder[0]
                             : "flink-" + UUID.randomUUID().toString().substring(0, 8));
             this.trackingUrl = trackingUrlHolder[0];
-            log.info("Flink JAR 已提交, appId={}, trackingUrl={}", appId, trackingUrl);
+            log.info("Flink JAR submitted, appId={}, trackingUrl={}", appId, trackingUrl);
 
             // application 模式 spark-submit 风格阻塞等 YARN 终态;run 模式 flink CLI 已经同步执行完
             if (appMode && yarnAppIdHolder[0] != null) {
@@ -124,7 +124,7 @@ public class FlinkJarTask extends AbstractTask implements JobTask {
             } else {
                 this.status = TaskStatus.SUCCESS;
             }
-            log.info("Flink JAR 执行完成: {}", status);
+            log.info("Flink JAR finished: {}", status);
         } catch (TaskException e) {
             throw e;
         } catch (Exception e) {

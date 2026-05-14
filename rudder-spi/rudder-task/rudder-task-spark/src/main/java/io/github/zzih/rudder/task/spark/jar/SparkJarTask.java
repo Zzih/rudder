@@ -64,7 +64,7 @@ public class SparkJarTask extends AbstractTask implements JobTask {
     @Override
     public void handle() throws TaskException {
         String jarPath = resolveJarPath();
-        log.info("提交 Spark JAR: mainClass={}, jar={}", params.getMainClass(), jarPath);
+        log.info("Submitting Spark JAR: mainClass={}, jar={}", params.getMainClass(), jarPath);
         try {
             List<String> cmd = buildCommand(jarPath);
             log.info("spark-submit: {}", String.join(" ", cmd));
@@ -92,11 +92,11 @@ public class SparkJarTask extends AbstractTask implements JobTask {
             this.appId =
                     appIdHolder[0] != null ? appIdHolder[0] : "spark-" + UUID.randomUUID().toString().substring(0, 8);
             this.trackingUrl = trackingUrlHolder[0];
-            log.info("Spark JAR 已提交, appId={}, trackingUrl={}", appId, trackingUrl);
+            log.info("Spark JAR submitted, appId={}, trackingUrl={}", appId, trackingUrl);
 
             ShellRunner.YarnAppState finalState = ShellRunner.pollUntilTerminal(appId, Duration.ofSeconds(5));
             this.status = finalState == ShellRunner.YarnAppState.SUCCEEDED ? TaskStatus.SUCCESS : TaskStatus.FAILED;
-            log.info("Spark JAR 执行完成: {}", status);
+            log.info("Spark JAR finished: {}", status);
         } catch (TaskException e) {
             throw e;
         } catch (Exception e) {

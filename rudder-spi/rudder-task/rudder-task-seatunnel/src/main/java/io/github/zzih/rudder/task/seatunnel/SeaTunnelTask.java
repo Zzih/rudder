@@ -59,7 +59,7 @@ public class SeaTunnelTask extends AbstractTask implements LocalTask {
     @Override
     public void handle() throws TaskException {
         log.info("Status -> {}", TaskStatus.RUNNING);
-        log.info("Executing SeaTunnel task (deployMode={})...", params.getDeployMode());
+        log.info("Final seatunnel config (deployMode={}):\n{}", params.getDeployMode(), params.getContent());
 
         Path tempConfig = null;
         try {

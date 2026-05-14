@@ -17,6 +17,7 @@
 
 package io.github.zzih.rudder.common.exception;
 
+import io.github.zzih.rudder.common.i18n.I18n;
 import io.github.zzih.rudder.common.result.ErrorCode;
 
 import java.text.MessageFormat;
@@ -60,5 +61,10 @@ public class RudderException extends RuntimeException {
         super(errorCode.getMessage(), cause);
         this.errorCode = errorCode;
         this.args = null;
+    }
+
+    /** 把 ErrorCode 模板 + args 解析成当前 locale 的最终文案,供日志 / DB error_message / Response 出口统一使用。 */
+    public String resolvedMessage() {
+        return I18n.t(errorCode.getMessage(), args);
     }
 }
