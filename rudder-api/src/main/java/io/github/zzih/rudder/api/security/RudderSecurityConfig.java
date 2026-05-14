@@ -22,6 +22,8 @@ import io.github.zzih.rudder.service.auth.security.RudderUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -91,14 +93,10 @@ public class RudderSecurityConfig {
         return new ProviderManager(provider);
     }
 
-    /**
-     * 显式注册 OAuth2 专用 converter,避免回退到 Jackson 默认 converter 反序列化
-     * {@link org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse}
-     * (immutable + builder,无默认构造器) 触发 {@code invalid_token_response}。
-     */
     @Bean
     public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> oidcTokenResponseClient() {
         RestClient restClient = RestClient.builder()
+                .requestFactory(new BufferingClientHttpRequestFactory(new JdkClientHttpRequestFactory()))
                 .configureMessageConverters(c -> c
                         .disableDefaults()
                         .addCustomConverter(new FormHttpMessageConverter())
