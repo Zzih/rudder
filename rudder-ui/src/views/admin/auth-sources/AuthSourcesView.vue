@@ -44,7 +44,7 @@ function emptyOidc(): OidcConfig {
     clientSecret: '',
     issuer: '',
     scopes: 'openid profile email',
-    frontendRedirectUrl: '',
+    callbackBaseUrl: '',
   }
 }
 
@@ -216,8 +216,6 @@ const dialogTitle = computed(() =>
   dialogMode.value === 'create' ? t('admin.authSource.create') : t('admin.authSource.edit'),
 )
 
-const frontendRedirectHint = computed(() => `${window.location.origin}/sso/callback`)
-
 onMounted(fetchList)
 </script>
 
@@ -312,8 +310,11 @@ onMounted(fetchList)
           <el-form-item label="Scopes">
             <el-input v-model="form.oidc.scopes" />
           </el-form-item>
-          <el-form-item label="Frontend Redirect URL" required>
-            <el-input v-model="form.oidc.frontendRedirectUrl" :placeholder="frontendRedirectHint" />
+          <el-form-item label="Callback Base URL">
+            <el-input
+              v-model="form.oidc.callbackBaseUrl"
+              placeholder="https://rudder.example.com"
+            />
           </el-form-item>
         </template>
 

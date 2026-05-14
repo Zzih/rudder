@@ -22,8 +22,7 @@ import lombok.Data;
 
 /**
  * OIDC source 的 config_json 载体。Spring Security 用 {@code issuer} 自动 discovery
- * 其余 endpoint,redirect_uri 由 {@code {baseUrl}/login/oauth2/code/{sourceId}} 模板构造。
- * {@code clientSecret} 落库前由 AES 加密。
+ * 其余 endpoint。{@code clientSecret} 落库前由 AES 加密。
  */
 @Data
 public final class OidcSourceConfigData {
@@ -40,6 +39,5 @@ public final class OidcSourceConfigData {
     /** 逗号分隔 / 空格分隔均可。默认 {@code "openid,profile,email"}。 */
     private String scopes = "openid,profile,email";
 
-    @NotBlank
-    private String frontendRedirectUrl;
+    private String callbackBaseUrl;
 }

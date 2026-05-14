@@ -20,9 +20,7 @@ package io.github.zzih.rudder.api.security;
 import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.entity.User;
 import io.github.zzih.rudder.dao.enums.AuthSourceType;
-import io.github.zzih.rudder.service.auth.AuthSourceService;
 import io.github.zzih.rudder.service.auth.security.JwtTokenIssuer;
-import io.github.zzih.rudder.service.auth.security.OidcSourceConfigData;
 
 import java.io.IOException;
 
@@ -38,15 +36,17 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** OIDC 登录成功 → 签 Rudder JWT → 302 前端 callback URL(token 作为 query 参数)。 */
+/** OIDC 登录成功 → 签 Rudder JWT → 302 到 SPA 落地页 {@value SPA_CALLBACK_PATH}(token 作为 query)。 */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtIssuanceSuccessHandler implements AuthenticationSuccessHandler {
 
+    /** 与 vite.config base 对齐;改这里需同步改 vite。 */
+    private static final String SPA_CALLBACK_PATH = "/ui/sso/callback";
+
     private final JwtTokenIssuer jwtTokenIssuer;
     private final UserDao userDao;
-    private final AuthSourceService authSourceService;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -70,9 +70,7 @@ public class JwtIssuanceSuccessHandler implements AuthenticationSuccessHandler {
             return;
         }
         String token = jwtTokenIssuer.issue(user);
-        OidcSourceConfigData cfg = authSourceService.getOidcConfig(sourceId);
-        // 用 UriComponentsBuilder 拼 token query,确保 SPA hash 路由(#/sso/callback)正常
-        String redirectUrl = UriComponentsBuilder.fromUriString(cfg.getFrontendRedirectUrl())
+        String redirectUrl = UriComponentsBuilder.fromUriString(SPA_CALLBACK_PATH)
                 .queryParam("token", token)
                 .build()
                 .toUriString();

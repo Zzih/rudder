@@ -28,7 +28,7 @@ import lombok.Data;
 /**
  * 新建 auth source。{@link #config} 为协议字段透传 map,后端按 {@link #type} 序列化为 JSON 落库:
  * <ul>
- *   <li>{@code OIDC}: {@code clientId / clientSecret / issuer / scopes / frontendRedirectUrl}</li>
+ *   <li>{@code OIDC}: {@code clientId / clientSecret / issuer / scopes / callbackBaseUrl}</li>
  *   <li>{@code LDAP}: {@code url / baseDn / bindDn / bindPassword / userSearchFilter / ...}</li>
  * </ul>
  * 字段级校验由 service 层 + Jackson 反序列化为具体 config POJO 时完成。
