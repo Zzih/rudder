@@ -20,6 +20,7 @@ import router from './router'
 import i18n from './locales'
 import './styles/theme.scss'
 import './styles/global.scss'
+import './styles/sidebar.scss'
 import 'highlight.js/styles/github.css'
 
 const app = createApp(App)

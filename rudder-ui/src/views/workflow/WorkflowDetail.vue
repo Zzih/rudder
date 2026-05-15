@@ -10,9 +10,8 @@ import {
   type EditLockHolder,
 } from '@/api/workflow'
 import { useUserStore } from '@/stores/user'
+import { useWorkflowContext } from '@/composables/useWorkflowContext'
 import { formatDate } from '@/utils/dateFormat'
-import { getProject } from '@/api/workspace'
-import { cardColor } from '@/utils/colorMeta'
 
 import DagEditor from './DagEditor.vue'
 import CronEditor from '@/components/CronEditor.vue'
@@ -35,10 +34,7 @@ const workspaceId = Number(route.params.workspaceId)
 const projectCode = route.params.projectCode as string
 const workflowDefinitionCode = route.params.workflowDefinitionCode as string
 
-const projectName = ref('')
-const projectId = ref(0)
-const avatarColor = computed(() => cardColor(projectId.value))
-const workflowName = ref('')
+const { workflowName } = useWorkflowContext()
 const workflowDesc = ref('')
 const activeTab = ref('editor')
 const dagEditorRef = ref<InstanceType<typeof DagEditor> | null>(null)
@@ -101,17 +97,9 @@ const timezones = [
 ]
 
 async function fetchWorkflow() {
-  const [projRes, wfRes] = await Promise.allSettled([
-    getProject(workspaceId, projectCode),
-    getWorkflowDefinition(workspaceId, projectCode, workflowDefinitionCode),
-  ])
-  if (projRes.status === 'fulfilled') {
-    const d = projRes.value.data
-    projectName.value = d?.name ?? ''
-    projectId.value = d?.id ?? 0
-  }
-  if (wfRes.status === 'fulfilled') {
-    const d = wfRes.value.data
+  const wfRes = await getWorkflowDefinition(workspaceId, projectCode, workflowDefinitionCode).catch(() => null)
+  if (wfRes) {
+    const d = wfRes.data
     workflowName.value = d?.name ?? ''
     workflowDesc.value = d?.description ?? ''
     saveForm.cronExpression = d?.cronExpression || ''
@@ -311,6 +299,7 @@ onMounted(async () => {
 let released = false
 function teardown() {
   stopHeartbeat(); stopPoll()
+  workflowName.value = ''
   if (released || !isMine.value) return
   released = true
   releaseWorkflowLock(workspaceId, projectCode, workflowDefinitionCode).catch(() => { /* best-effort */ })
@@ -324,20 +313,6 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
   <div class="wfd">
     <!-- ═══ Top bar ═══ -->
     <div class="wfd-bar">
-      <div class="wfd-bar__nav">
-        <button class="wfd-back" @click="handleBack">
-          <el-icon size="14"><ArrowLeft /></el-icon>
-        </button>
-        <div class="wfd-bar__avatar" :style="{ background: avatarColor }" @click="handleBack">
-          <el-icon size="14"><Folder /></el-icon>
-        </div>
-        <div class="wfd-bar__crumbs">
-          <span class="wfd-bar__project-name" @click="handleBack">{{ projectName }}</span>
-          <span class="wfd-bar__sep">/</span>
-          <span class="wfd-bar__wf-name">{{ workflowName }}</span>
-        </div>
-      </div>
-
       <div class="wfd-bar__main">
         <nav class="wfd-tabs" role="tablist">
           <button
@@ -367,6 +342,7 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
           <el-button class="wfd-btn wfd-btn--run" size="small" :disabled="readOnly" @click="handleRun">
             <el-icon><VideoPlay /></el-icon> {{ t('workflow.run') }}
           </el-button>
+          <span class="wfd-bar__divider" aria-hidden="true" />
           <el-button class="wfd-btn" size="small" :disabled="readOnly" @click="openSaveDialog">
             <el-icon><FolderChecked /></el-icon> {{ t('ide.save') }}
           </el-button>
@@ -573,17 +549,17 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
 .wfd-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  font-size: var(--r-font-xs);
+  font-weight: var(--r-weight-medium);
   letter-spacing: 0.01em;
   margin-right: 4px;
   user-select: none;
 
-  .el-icon { font-size: 12px; }
+  .el-icon { font-size: 11px; }
 
   &.is-readonly {
     color: var(--r-warning);
@@ -611,7 +587,7 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
 .wfd-bar {
   display: flex;
   align-items: stretch;
-  height: 48px;
+  height: 52px;
   background: var(--r-bg-card);
   border-bottom: 1px solid var(--r-border);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
@@ -620,96 +596,6 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
   z-index: 10;
 }
 
-/* ── Left: breadcrumb nav ── */
-.wfd-bar__nav {
-  width: 208px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 12px;
-  border-right: 1px solid var(--r-border);
-  overflow: hidden;
-}
-
-.wfd-back {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--r-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    background: var(--r-bg-hover);
-    color: var(--r-text-primary);
-    transform: translateX(-1px);
-  }
-}
-
-.wfd-bar__avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  color: #fff;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    opacity: 0.85;
-    transform: scale(1.06);
-  }
-}
-
-.wfd-bar__crumbs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-}
-
-.wfd-bar__sep {
-  color: var(--r-text-disabled);
-  font-size: 12px;
-  flex-shrink: 0;
-  user-select: none;
-}
-
-.wfd-bar__project-name {
-  font-size: 12px;
-  color: var(--r-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  transition: color 0.15s;
-  flex-shrink: 0;
-  max-width: 70px;
-
-  &:hover { color: var(--r-accent); }
-}
-
-.wfd-bar__wf-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--r-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── Right: tabs + actions ── */
 .wfd-bar__main {
   flex: 1;
   display: flex;
@@ -777,7 +663,15 @@ onBeforeRouteLeave((_to, _from, next) => { teardown(); next() })
 .wfd-bar__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--r-space-2);
+}
+
+.wfd-bar__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--r-border);
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 
 .wfd-bar__actions .wfd-btn {

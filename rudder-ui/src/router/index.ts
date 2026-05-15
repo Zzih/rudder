@@ -56,6 +56,11 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/workflow/WorkflowDefinitions.vue'),
           },
           {
+            path: 'workflow-definitions/:workflowDefinitionCode',
+            name: 'WorkflowDetail',
+            component: () => import('@/views/workflow/WorkflowDetail.vue'),
+          },
+          {
             path: 'instances',
             name: 'WorkflowInstances',
             component: () => import('@/views/workflow/WorkflowInstances.vue'),
@@ -71,11 +76,6 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/project/PublishRecords.vue'),
           },
         ],
-      },
-      {
-        path: 'projects/:projectCode/workflow-definitions/:workflowDefinitionCode',
-        name: 'WorkflowDetail',
-        component: () => import('@/views/workflow/WorkflowDetail.vue'),
       },
       {
         path: 'jobs',

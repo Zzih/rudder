@@ -1,0 +1,41 @@
+// 平台管理 / 项目层左侧边栏共用结构。
+// 各 Layout 只额外处理 header 区域(返回按钮、上下文标识),nav 部分全部走这里。
+
+.sidebar-title {
+  font-size: var(--r-font-xs);
+  font-weight: var(--r-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--r-text-muted);
+  padding: 0 var(--r-space-3) var(--r-space-4);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--r-space-3);
+  padding: 9px var(--r-space-3);
+  border: none;
+  border-radius: var(--r-radius-md);
+  background: transparent;
+  font-size: var(--r-font-base);
+  color: var(--r-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  text-align: left;
+
+  &:hover { background: var(--r-bg-hover); color: var(--r-text-primary); }
+  &.active,
+  &.is-active {
+    background: var(--r-accent-bg);
+    color: var(--r-accent);
+    font-weight: var(--r-weight-semibold);
+  }
+}

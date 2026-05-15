@@ -570,7 +570,7 @@ function initGraph() {
     container,
     autoResize: true,
     background: { color: cv('--r-bg-panel') },
-    grid: { visible: true, type: 'dot', size: 16, args: { color: cv('--r-border'), thickness: 1 } },
+    grid: { visible: true, type: 'dot', size: 20, args: { color: cv('--r-border-dark'), thickness: 1 } },
     panning: { enabled: true, eventTypes: ['leftMouseDown'] },
     mousewheel: { enabled: true, factor: 1.05, modifiers: ['ctrl', 'meta'] },
     // fn 形式让 X6 每次交互重评,响应 prop 变化(返回 false = 全禁)
@@ -1183,17 +1183,18 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
       <!-- Palette: teleport to sidebar slot if available, otherwise inline -->
       <Teleport to="#wfd-palette-target" :disabled="!paletteTarget">
         <div class="dag-palette">
-          <div class="palette-search">
-            <el-input size="small" :placeholder="t('common.search')" clearable />
-          </div>
           <div v-for="cat in nodeCategories" :key="cat.name" class="palette-group">
-            <div class="palette-group__title">{{ categoryLabels[cat.name] ?? cat.name }}</div>
+            <div class="palette-group__title">
+              <span>{{ categoryLabels[cat.name] ?? cat.name }}</span>
+              <span class="palette-group__count">{{ cat.types.length }}</span>
+            </div>
             <div v-for="nt in cat.types" :key="nt.value"
                  class="palette-item" :class="{ 'is-disabled': props.readOnly }"
                  :draggable="!props.readOnly"
                  @dragstart="handleDragStart($event, nt)">
               <TaskIcon :type="nt.value" :size="20" />
-              <span>{{ nt.label }}</span>
+              <span class="palette-item__label">{{ nt.label }}</span>
+              <span class="palette-item__grip" aria-hidden="true">⋮⋮</span>
             </div>
           </div>
         </div>
@@ -1920,52 +1921,92 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
   flex-direction: column;
 }
 
-.palette-search {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--r-border-light);
-}
-
 .palette-group {
-  padding: 10px 10px 2px;
+  padding: var(--r-space-3) var(--r-space-3) var(--r-space-1);
 }
 
 .palette-group__title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--r-text-disabled);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--r-space-2);
+  margin-bottom: var(--r-space-2);
+  font-size: var(--r-font-xs);
+  font-weight: var(--r-weight-bold);
+  color: var(--r-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
-  padding-left: 6px;
+  letter-spacing: 0.08em;
+}
+
+.palette-group__count {
+  font-weight: var(--r-weight-medium);
+  color: var(--r-text-disabled);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .palette-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--r-space-2);
+  padding: var(--r-space-2) var(--r-space-3);
   margin-bottom: 2px;
-  font-size: 13px;
-  color: var(--r-text-tertiary);
-  border-radius: 6px;
+  font-size: var(--r-font-sm);
+  color: var(--r-text-secondary);
+  border-radius: var(--r-radius-md);
   cursor: grab;
   user-select: none;
   border: 1px solid transparent;
-  transition: all 0.12s;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
-  &:hover {
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: var(--r-space-2);
+    bottom: var(--r-space-2);
+    width: 2px;
+    background: var(--r-accent);
+    border-radius: 0 2px 2px 0;
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  &__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__grip {
+    color: var(--r-text-disabled);
+    font-size: 10px;
+    letter-spacing: -2px;
+    line-height: 1;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  &:hover:not(.is-disabled) {
     background: var(--r-bg-hover);
-    border-color: var(--r-border);
     color: var(--r-text-primary);
+    border-color: var(--r-border-light);
+
+    &::before { transform: scaleY(1); }
+    .palette-item__grip { opacity: 1; transform: translateX(0); }
   }
 
   &.is-disabled {
-    opacity: 0.4;
+    opacity: 0.45;
     cursor: not-allowed;
-    &:hover { background: transparent; border-color: transparent; color: var(--r-text-tertiary); }
   }
 
-  &:active {
+  &:active:not(.is-disabled) {
     cursor: grabbing;
     background: var(--r-accent-bg);
     border-color: var(--r-accent-border);
@@ -1973,8 +2014,12 @@ defineExpose({ handleSave, handleRun, reload: fetchWorkflow })
   }
 }
 
-/* Canvas */
-.dag-canvas-wrap { flex: 1; overflow: hidden; position: relative; background: var(--r-bg-panel); }
+.dag-canvas-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: var(--r-bg-panel);
+}
 .dag-canvas { width: 100%; height: 100%; }
 .dag-zoom-controls {
   position: absolute; bottom: 16px; right: 16px; z-index: 10;

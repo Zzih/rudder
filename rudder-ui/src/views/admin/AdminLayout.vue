@@ -104,35 +104,6 @@ function navigate(key: string) {
   padding: var(--r-space-6) var(--r-space-3);
 }
 
-.sidebar-title {
-  font-size: var(--r-font-xs);
-  font-weight: var(--r-weight-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--r-text-muted);
-  padding: 0 var(--r-space-3) var(--r-space-4);
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: var(--r-space-3);
-  padding: 9px var(--r-space-3);
-  border-radius: var(--r-radius-md);
-  font-size: var(--r-font-base);
-  color: var(--r-text-secondary);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  &:hover { color: var(--r-text-primary); background: var(--r-bg-hover); }
-  &.active { color: var(--r-accent); background: var(--r-accent-bg); font-weight: var(--r-weight-semibold); }
-}
-
 .admin-content {
   flex: 1;
   overflow: auto;
