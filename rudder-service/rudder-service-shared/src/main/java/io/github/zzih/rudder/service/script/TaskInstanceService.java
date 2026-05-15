@@ -30,16 +30,12 @@ import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.io.StoragePathUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.common.utils.naming.InstanceNameUtils;
-import io.github.zzih.rudder.common.utils.placeholder.BuiltInParams;
 import io.github.zzih.rudder.dao.dao.*;
-import io.github.zzih.rudder.dao.entity.Project;
 import io.github.zzih.rudder.dao.entity.Script;
-import io.github.zzih.rudder.dao.entity.TaskDefinition;
 import io.github.zzih.rudder.dao.entity.TaskInstance;
 import io.github.zzih.rudder.dao.entity.WorkflowDefinition;
 import io.github.zzih.rudder.dao.entity.WorkflowInstance;
 import io.github.zzih.rudder.dao.enums.InstanceStatus;
-import io.github.zzih.rudder.dao.enums.RuntimeType;
 import io.github.zzih.rudder.dao.enums.SourceType;
 import io.github.zzih.rudder.dao.enums.TriggerType;
 import io.github.zzih.rudder.service.download.DownloadFormat;
@@ -442,95 +438,4 @@ public class TaskInstanceService {
         }
     }
 
-    // Internal API:供 Worker / RPC 回调等无 UserContext 的内部场景用,**不做权限校验**。
-
-    /** 直接按 id 拉,不做工作空间/权限校验。仅供 Worker 内部异步链路用,公网入口必须用 {@link #getById}。 */
-    public TaskInstance findByIdInternal(Long id) {
-        return taskInstanceDao.selectById(id);
-    }
-
-    /** 直接 update,不做权限校验。Worker 内部用。 */
-    public void updateInternal(TaskInstance instance) {
-        taskInstanceDao.updateById(instance);
-    }
-
-    /** Worker 启动时的幂等 CAS:仅当 status=PENDING 才成功转 RUNNING,返回更新行数。 */
-    public int claimPending(Long id, RuntimeType runtimeType, LocalDateTime startedAt) {
-        return taskInstanceDao.claimPending(id, runtimeType, startedAt);
-    }
-
-    /** Worker 拉 task definition timeout(分钟数)。返回 null 表示未配置。 */
-    public Integer findTaskDefinitionTimeoutMinutes(Long taskDefinitionCode) {
-        if (taskDefinitionCode == null) {
-            return null;
-        }
-        var def = taskDefinitionDao.selectByCode(taskDefinitionCode);
-        return def != null ? def.getTimeout() : null;
-    }
-
-    /**
-     * Worker 拉 task definition 上的 OUT 白名单(对齐 DS localParams Direct.OUT)。
-     * Task 内部 dealOutParam 时按这份过滤,没声明的 prop 不进 varPool。
-     * IDE 直跑等无 task definition 的场景返回空列表,Task 自然不产出 varPool。
-     */
-    public List<io.github.zzih.rudder.common.param.Property> findTaskDefinitionOutputParams(Long taskDefinitionCode) {
-        if (taskDefinitionCode == null) {
-            return List.of();
-        }
-        TaskDefinition def = taskDefinitionDao.selectByCode(taskDefinitionCode);
-        if (def == null || def.getOutputParams() == null || def.getOutputParams().isBlank()) {
-            return List.of();
-        }
-        return JsonUtils.toList(def.getOutputParams(), io.github.zzih.rudder.common.param.Property.class);
-    }
-
-    /**
-     * 装填 {@link BuiltInParams.BuiltInContext}:Worker 在解析占位符之前调用,把 system.* 内置变量
-     * (task/workflow/project 的 id+name+code,以及 baseTime)注入到 paramMap 最低优先级槽位。
-     *
-     * <p>缺失字段(比如 IDE 直接执行没有 workflowInstance)按 nullable 留空,BuiltInParams.build
-     * 跳过 null 字段,占位符未解析时保留原样。
-     *
-     * <p>baseTime 用 instance.startedAt(Worker 真正开跑时间) — Rudder 没有 commandType 概念,
-     * 不做 DS 那种业务时间补跑。
-     *
-     * @param executePath Worker 端任务工作目录(资源解析后的绝对路径),DAO 拿不到由 caller 传。
-     */
-    public BuiltInParams.BuiltInContext buildBuiltInContext(TaskInstance instance, String executePath) {
-        BuiltInParams.BuiltInContext ctx = BuiltInParams.BuiltInContext.builder()
-                .taskInstanceId(instance.getId())
-                .taskDefinitionCode(instance.getTaskDefinitionCode())
-                .workflowInstanceId(instance.getWorkflowInstanceId())
-                .baseTime(instance.getStartedAt() != null ? instance.getStartedAt() : LocalDateTime.now())
-                .executePath(executePath);
-
-        if (instance.getTaskDefinitionCode() != null) {
-            TaskDefinition def = taskDefinitionDao.selectByCode(instance.getTaskDefinitionCode());
-            if (def != null) {
-                ctx.taskDefinitionName(def.getName());
-            }
-        }
-
-        // workflow / project 信息只在 workflow 触发的 task 上有(IDE 直跑没 workflowInstance)
-        if (instance.getWorkflowInstanceId() != null) {
-            WorkflowInstance wfInstance = workflowInstanceDao.selectById(instance.getWorkflowInstanceId());
-            if (wfInstance != null) {
-                ctx.workflowDefinitionCode(wfInstance.getWorkflowDefinitionCode());
-                ctx.projectCode(wfInstance.getProjectCode());
-                if (wfInstance.getWorkflowDefinitionCode() != null) {
-                    WorkflowDefinition def = workflowDefinitionDao.selectByCode(wfInstance.getWorkflowDefinitionCode());
-                    if (def != null) {
-                        ctx.workflowDefinitionName(def.getName());
-                    }
-                }
-                if (wfInstance.getProjectCode() != null) {
-                    Project project = projectDao.selectByCode(wfInstance.getProjectCode());
-                    if (project != null) {
-                        ctx.projectName(project.getName());
-                    }
-                }
-            }
-        }
-        return ctx;
-    }
 }

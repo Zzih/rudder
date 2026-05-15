@@ -27,7 +27,7 @@ import io.github.zzih.rudder.rpc.client.RpcClient;
 import io.github.zzih.rudder.rpc.service.ILogService;
 import io.github.zzih.rudder.rpc.service.IResultService;
 import io.github.zzih.rudder.rpc.service.ITaskExecutionService;
-import io.github.zzih.rudder.service.registry.NodeAddress;
+import io.github.zzih.rudder.service.coordination.registry.NodeAddress;
 import io.github.zzih.rudder.service.registry.ServiceRegistryService;
 
 import java.util.ArrayList;

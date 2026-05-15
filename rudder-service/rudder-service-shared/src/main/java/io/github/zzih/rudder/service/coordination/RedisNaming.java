@@ -91,16 +91,23 @@ public final class RedisNaming {
         }
     }
 
-    /** 节点注册命名空间 —— TTL 心跳 + leader 选举。 */
+    /** 节点注册命名空间 —— TTL 心跳。 */
     public static final class Registry {
 
         /** 节点心跳 key 前缀。完整 key:{@code rudder:registry:node:{type}:{host}:{port}}。 */
         public static final String NODE_PREFIX = ROOT + ":registry:node:";
 
-        /** Leader 选举锁 key。 */
-        public static final String LEADER_KEY = ROOT + ":registry:leader";
-
         private Registry() {
+        }
+    }
+
+    /** Leader 锁命名空间 —— 单 leader 接管的协调任务。 */
+    public static final class LeaderLock {
+
+        /** Leader 锁 key 前缀。完整 key:{@code rudder:leader:{resource}}。 */
+        public static final String PREFIX = ROOT + ":leader:";
+
+        private LeaderLock() {
         }
     }
 }

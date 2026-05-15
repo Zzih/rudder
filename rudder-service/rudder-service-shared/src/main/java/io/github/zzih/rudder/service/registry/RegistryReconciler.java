@@ -20,7 +20,8 @@ package io.github.zzih.rudder.service.registry;
 import io.github.zzih.rudder.dao.dao.ServiceRegistryDao;
 import io.github.zzih.rudder.dao.entity.ServiceRegistry;
 import io.github.zzih.rudder.notification.api.model.NodeInfo;
-import io.github.zzih.rudder.service.coordination.RedisNaming;
+import io.github.zzih.rudder.service.coordination.lock.LeaderLockService;
+import io.github.zzih.rudder.service.coordination.registry.NodeRegistryService;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -29,9 +30,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -45,34 +43,28 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>OFFLINE 超 {@link #CLEANUP_AFTER} 未恢复 → 物理删除,防 pod IP 漂移导致 DB 膨胀</li>
  * </ul>
  *
- * <p>选举 = Redis SET NX PX + Lua "owner 续约"原子脚本。租约 TTL ≥ 2 倍 tick 周期,
- * leader 漏一次 tick 不会失主。
+ * <p>选举走 {@link LeaderLockService}(coordination 层原语),抢占 / 续约原子。
+ * 租约 ≥ 2 倍 tick 周期,leader 漏 1 次 tick 不会失主。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RegistryReconciler {
 
+    private static final String RESOURCE = "registry";
     private static final Duration LEASE_TTL = Duration.ofSeconds(15);
     private static final Duration CLEANUP_AFTER = Duration.ofHours(1);
 
     private static final String OWNER_ID = UUID.randomUUID().toString();
 
-    private static final RedisScript<Long> ACQUIRE_OR_RENEW = new DefaultRedisScript<>(
-            "if redis.call('exists', KEYS[1]) == 0 then "
-                    + "  redis.call('set', KEYS[1], ARGV[1], 'PX', ARGV[2]) return 1 "
-                    + "elseif redis.call('get', KEYS[1]) == ARGV[1] then "
-                    + "  redis.call('pexpire', KEYS[1], ARGV[2]) return 1 "
-                    + "else return 0 end",
-            Long.class);
-
-    private final StringRedisTemplate redis;
+    private final LeaderLockService leaderLock;
+    private final NodeRegistryService nodeRegistry;
     private final ServiceRegistryDao serviceRegistryDao;
     private final ServiceRegistryService registryService;
 
     @Scheduled(fixedRate = 5_000, initialDelay = 30_000)
     public void tick() {
-        if (!tryBeLeader()) {
+        if (!leaderLock.tryAcquireOrRenew(RESOURCE, OWNER_ID, LEASE_TTL)) {
             return;
         }
         try {
@@ -83,23 +75,16 @@ public class RegistryReconciler {
         }
     }
 
-    private boolean tryBeLeader() {
-        Long ok = redis.execute(ACQUIRE_OR_RENEW,
-                List.of(RedisNaming.Registry.LEADER_KEY),
-                OWNER_ID, String.valueOf(LEASE_TTL.toMillis()));
-        return ok != null && ok == 1L;
-    }
-
     private void reconcileStaleOnline() {
         List<ServiceRegistry> online = serviceRegistryDao.selectAllOnline();
         if (online.isEmpty()) {
             return;
         }
-        Set<String> alive = registryService.scanAllAliveKeys();
+        Set<String> alive = nodeRegistry.aliveKeys();
         LocalDateTime now = LocalDateTime.now();
         List<NodeInfo> flipped = new ArrayList<>();
         for (ServiceRegistry row : online) {
-            String expectedKey = ServiceRegistryService.nodeKeyOf(row.getType(), row.getHost(), row.getPort());
+            String expectedKey = nodeRegistry.keyOf(row.getType(), row.getHost(), row.getPort());
             if (alive.contains(expectedKey)) {
                 continue;
             }
