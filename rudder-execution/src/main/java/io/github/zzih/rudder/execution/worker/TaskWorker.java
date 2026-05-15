@@ -40,7 +40,7 @@ import io.github.zzih.rudder.service.config.LogStorageService;
 import io.github.zzih.rudder.service.config.ResultConfigService;
 import io.github.zzih.rudder.service.config.RuntimeConfigService;
 import io.github.zzih.rudder.service.registry.TaskCountProvider;
-import io.github.zzih.rudder.service.script.TaskInstanceService;
+import io.github.zzih.rudder.service.script.TaskExecutionStateService;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.log.TaskLogUtils;
 import io.github.zzih.rudder.task.api.params.AbstractTaskParams;
@@ -82,7 +82,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class TaskWorker implements TaskCountProvider {
 
-    private final TaskInstanceService taskInstanceService;
+    private final TaskExecutionStateService taskExecutionState;
     private final TaskPluginManager taskPluginManager;
     private final TaskPipeline pipeline;
     private final ResourceResolver resourceResolver;
@@ -163,7 +163,7 @@ public class TaskWorker implements TaskCountProvider {
                 log.warn("Failed to cancel task {}: {}", taskInstanceId, e.getMessage());
             }
         }
-        TaskInstance instance = taskInstanceService.findByIdInternal(taskInstanceId);
+        TaskInstance instance = taskExecutionState.findByIdInternal(taskInstanceId);
         if (instance != null && !instance.getStatus().isFinished()) {
             markFinished(instance, InstanceStatus.CANCELLED, CANCELLED_BY_USER);
         }
@@ -177,21 +177,21 @@ public class TaskWorker implements TaskCountProvider {
         if (instance.getStartedAt() != null) {
             instance.setDuration(Duration.between(instance.getStartedAt(), instance.getFinishedAt()).toMillis());
         }
-        taskInstanceService.updateInternal(instance);
+        taskExecutionState.updateInternal(instance);
     }
 
     private void executeTask(Long taskInstanceId) {
         // 幂等 CAS：仅当 status=PENDING 时才转 RUNNING，避免 RPC 重试/双派发导致同一实例被跑两次
         LocalDateTime startedAt = LocalDateTime.now();
         RuntimeType rtType = RuntimeType.fromValue(runtimeConfigService.activeProvider());
-        int claimed = taskInstanceService.claimPending(taskInstanceId, rtType, startedAt);
+        int claimed = taskExecutionState.claimPending(taskInstanceId, rtType, startedAt);
         if (claimed == 0) {
             log.warn("Task instance {} is not PENDING (already claimed or finished), skipping", taskInstanceId);
             callbackAddresses.remove(taskInstanceId);
             return;
         }
 
-        TaskInstance instance = taskInstanceService.findByIdInternal(taskInstanceId);
+        TaskInstance instance = taskExecutionState.findByIdInternal(taskInstanceId);
         String storageLogPath = instance.getLogPath();
         logService.ensureLogDir(storageLogPath);
         String localLogPath = logService.toLocalPath(storageLogPath);
@@ -214,7 +214,7 @@ public class TaskWorker implements TaskCountProvider {
                 // 内置参数 (system.*) 上下文构建一次,paramMap 第一次解析(executePath=null)用,
                 // 后面 prepareParams 装填(executePath 解析后)再用一次 — 避免两次 DAO 查 wf/project。
                 BuiltInParams.BuiltInContext builtInCtx =
-                        taskInstanceService.buildBuiltInContext(instance, null);
+                        taskExecutionState.buildBuiltInContext(instance, null);
                 // putIfAbsent: built-in 优先级最低,用户 project/global/runtime/local 同名时覆盖之
                 BuiltInParams.build(builtInCtx).forEach(paramMap::putIfAbsent);
 
@@ -274,7 +274,7 @@ public class TaskWorker implements TaskCountProvider {
                 // timeout 从 TaskDefinition 获取（通过 task_definition_code 查询）
                 int timeoutSeconds = 0;
                 Integer timeoutMinutes =
-                        taskInstanceService.findTaskDefinitionTimeoutMinutes(instance.getTaskDefinitionCode());
+                        taskExecutionState.findTaskDefinitionTimeoutMinutes(instance.getTaskDefinitionCode());
                 if (timeoutMinutes != null && timeoutMinutes > 0) {
                     timeoutSeconds = timeoutMinutes * 60;
                 }
@@ -316,7 +316,7 @@ public class TaskWorker implements TaskCountProvider {
 
                 // task_definition.output_params 是 OUT 白名单 — Task 内部 dealOutParam 时按这份过滤
                 List<Property> outputParamsSpec =
-                        taskInstanceService.findTaskDefinitionOutputParams(instance.getTaskDefinitionCode());
+                        taskExecutionState.findTaskDefinitionOutputParams(instance.getTaskDefinitionCode());
 
                 TaskExecutionContext ctx = TaskExecutionContext.builder()
                         .taskInstanceId(taskInstanceId)
@@ -353,7 +353,7 @@ public class TaskWorker implements TaskCountProvider {
                 // 检查执行期间是否被取消
                 if (task.getStatus() == TaskStatus.CANCELLED) {
                     log.info("Task was cancelled during execution");
-                    TaskInstance current = taskInstanceService.findByIdInternal(taskInstanceId);
+                    TaskInstance current = taskExecutionState.findByIdInternal(taskInstanceId);
                     if (current != null && current.getStatus() != InstanceStatus.CANCELLED) {
                         markFinished(current, InstanceStatus.CANCELLED, CANCELLED_BY_USER);
                     }
@@ -381,7 +381,7 @@ public class TaskWorker implements TaskCountProvider {
                 // 流式作业:handle() 提交后返回,作业在集群侧保持 RUNNING
                 if (streaming) {
                     instance.setStatus(InstanceStatus.RUNNING);
-                    taskInstanceService.updateInternal(instance);
+                    taskExecutionState.updateInternal(instance);
                     log.info("Streaming task submitted, appId={}, job stays RUNNING", instance.getAppId());
                     return;
                 }
@@ -399,7 +399,7 @@ public class TaskWorker implements TaskCountProvider {
                     instance.setVarPool(JsonUtils.toJson(outputs));
                 }
 
-                taskInstanceService.updateInternal(instance);
+                taskExecutionState.updateInternal(instance);
                 log.info("Done ✓ {} rows, {}ms", instance.getRowCount(), instance.getDuration());
 
             } catch (Throwable e) {
