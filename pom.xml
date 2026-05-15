@@ -510,6 +510,7 @@
                     <exclusion><groupId>org.apache.hadoop</groupId><artifactId>hadoop-auth</artifactId></exclusion>
                     <exclusion><groupId>org.apache.hadoop</groupId><artifactId>hadoop-mapreduce-client-core</artifactId></exclusion>
                     <exclusion><groupId>org.apache.hadoop</groupId><artifactId>hadoop-yarn-api</artifactId></exclusion>
+                    <exclusion><groupId>org.apache.parquet</groupId><artifactId>parquet-hadoop-bundle</artifactId></exclusion>
                     <!-- HBase -->
                     <exclusion><groupId>org.apache.hbase</groupId><artifactId>*</artifactId></exclusion>
                     <!-- Hive internals -->
