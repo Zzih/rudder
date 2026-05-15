@@ -193,16 +193,18 @@ JWT 过期时间硬编码 `12h`（`43200000` ms），改需要直接改 `applica
 
 ## 十五、SPI provider 配置（**不在这里**）
 
-| 类别 | 在哪里配 | 落表 |
+所有 SPI provider 的 access key / endpoint / webhook 等参数统一落 `t_r_spi_config` 表（按 `type` 区分），由管理后台写入，提交即生效。
+
+| 类别 | 在哪里配 | `type` |
 |:---|:---|:---|
-| AI（LLM / Embedding / Vector） | `管理 → AI 配置` | `t_r_ai_config` |
-| 元数据（DataHub / OpenMetadata / JDBC） | `管理 → 元数据` | `t_r_metadata_config` |
-| 文件存储（HDFS / OSS / S3 / Local） | `管理 → 文件存储` | `t_r_file_config` |
-| 审批（飞书 / Slack / KissFlow） | `管理 → 审批渠道` | `t_r_approval_config` |
-| 通知（飞书 / 钉钉 / Slack） | `管理 → 通知渠道` | `t_r_notification_config` |
-| 版本（MySQL / Git） | `管理 → 版本存储` | `t_r_version_config` |
-| Runtime（local / aliyun / aws） | `管理 → Runtime` | `t_r_runtime_config` |
-| 结果格式 | `管理 → 结果格式` | `t_r_result_config` |
+| AI（LLM / Embedding / Vector / Rerank） | `管理 → AI 配置` | `LLM` / `EMBEDDING` / `VECTOR` / `RERANK` |
+| 元数据（DataHub / OpenMetadata / JDBC） | `管理 → 元数据` | `METADATA` |
+| 文件存储（HDFS / OSS / S3 / Local） | `管理 → 文件存储` | `FILE` |
+| 审批（飞书 / Slack / KissFlow） | `管理 → 审批渠道` | `APPROVAL` |
+| 通知（飞书 / 钉钉 / Slack）—— 详见 [notification.md](notification.md) | `管理 → 通知渠道` | `NOTIFICATION` |
+| 版本（MySQL / Git） | `管理 → 版本存储` | `VERSION` |
+| Runtime（local / aliyun / aws） | `管理 → Runtime` | `RUNTIME` |
+| 结果格式 | `管理 → 结果格式` | `RESULT` |
 
 > 历史 env 变量 `RUDDER_AI_*` / `RUDDER_VERSION_STORE` / `RUDDER_GIT_*` 已废弃，会被忽略。
 

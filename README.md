@@ -340,6 +340,7 @@ rudder-<version>/
   - [数据源](docs/datasource.md)
   - [权限模型](docs/permissions.md)
   - [DolphinScheduler 集成](docs/dolphinscheduler.md)
+  - [消息通知](docs/notification.md)
 - 进阶
   - [SPI 开发指南](docs/spi-guide.md)
   - [RPC 协议](docs/rpc.md)
