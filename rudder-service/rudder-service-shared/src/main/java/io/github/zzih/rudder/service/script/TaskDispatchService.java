@@ -28,11 +28,10 @@ import io.github.zzih.rudder.rpc.service.ILogService;
 import io.github.zzih.rudder.rpc.service.IResultService;
 import io.github.zzih.rudder.rpc.service.ITaskExecutionService;
 import io.github.zzih.rudder.service.registry.NodeAddress;
+import io.github.zzih.rudder.service.registry.NodeSelector;
 import io.github.zzih.rudder.service.registry.ServiceRegistryService;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
 
@@ -48,22 +47,17 @@ import lombok.extern.slf4j.Slf4j;
 public class TaskDispatchService {
 
     private final ServiceRegistryService registryService;
+    private final NodeSelector nodeSelector;
     private final RpcClient rpcClient;
 
-    /**
-     * 选择一个可用的执行节点并分发任务。从 taskCount 最小的候选里随机挑一个,避免
-     * 并发派发全打到排序首位的单节点。
-     *
-     * @return 执行节点的 RPC 地址（host:rpcPort）
-     */
+    /** @return 接收任务的 EXECUTION 节点 RPC 地址 (host:rpcPort)。 */
     public String dispatch(Long taskInstanceId) {
         List<NodeAddress> nodes = registryService.getOnlineExecutions();
         if (nodes.isEmpty()) {
             throw new BizException(ScriptErrorCode.DISPATCH_NO_EXECUTION_NODE);
         }
 
-        NodeAddress node = pickLeastLoaded(nodes);
-        String rpcAddress = node.rpcAddress();
+        String rpcAddress = nodeSelector.select(taskInstanceId, nodes).rpcAddress();
         String callbackAddress = registryService.getLocalRpcAddress();
 
         log.info("Dispatching task {} to execution node {}", taskInstanceId, rpcAddress);
@@ -80,25 +74,6 @@ public class TaskDispatchService {
         }
 
         return rpcAddress;
-    }
-
-    private NodeAddress pickLeastLoaded(List<NodeAddress> nodes) {
-        if (nodes.size() == 1) {
-            return nodes.get(0);
-        }
-        int min = Integer.MAX_VALUE;
-        for (NodeAddress n : nodes) {
-            if (n.taskCount() < min) {
-                min = n.taskCount();
-            }
-        }
-        List<NodeAddress> candidates = new ArrayList<>();
-        for (NodeAddress n : nodes) {
-            if (n.taskCount() == min) {
-                candidates.add(n);
-            }
-        }
-        return candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
     }
 
     /**
