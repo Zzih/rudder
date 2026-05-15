@@ -57,6 +57,7 @@ public class ServiceRegistryService {
 
     private static final Duration STALE_AFTER = Duration.ofSeconds(30);
     private static final Duration CLEANUP_AFTER = Duration.ofHours(1);
+    private static final long ONLINE_EXEC_CACHE_TTL_MS = 1_000L;
 
     private final ServiceRegistryDao serviceRegistryDao;
     private final RpcProperties rpcProperties;
@@ -69,6 +70,10 @@ public class ServiceRegistryService {
     private ServiceType serviceType;
     private String localHost;
     private int rpcPort;
+
+    // Server-local 缓存,1s TTL 抵消 UI 多 tab 轮询日志/结果时的重复 SELECT 压力。
+    private volatile List<NodeAddress> cachedOnlineExecutions = List.of();
+    private volatile long cachedOnlineExecutionsAt = 0L;
 
     @PostConstruct
     public void register() {
@@ -134,13 +139,19 @@ public class ServiceRegistryService {
     }
 
     public List<NodeAddress> getOnlineExecutions() {
+        long now = System.currentTimeMillis();
+        if (now - cachedOnlineExecutionsAt < ONLINE_EXEC_CACHE_TTL_MS) {
+            return cachedOnlineExecutions;
+        }
         List<ServiceRegistry> rows = serviceRegistryDao.selectOnlineByType(ServiceType.EXECUTION);
-        List<NodeAddress> out = new ArrayList<>(rows.size());
+        List<NodeAddress> fresh = new ArrayList<>(rows.size());
         for (ServiceRegistry r : rows) {
             int count = r.getTaskCount() != null ? r.getTaskCount() : 0;
-            out.add(new NodeAddress(r.getType(), r.getHost(), r.getPort(), count));
+            fresh.add(new NodeAddress(r.getType(), r.getHost(), r.getPort(), count));
         }
-        return out;
+        cachedOnlineExecutions = fresh;
+        cachedOnlineExecutionsAt = now;
+        return fresh;
     }
 
     public List<ServiceRegistryDTO> listAllDetail() {

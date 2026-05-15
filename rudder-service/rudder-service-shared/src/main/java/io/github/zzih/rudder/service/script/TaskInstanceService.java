@@ -40,6 +40,7 @@ import io.github.zzih.rudder.dao.enums.SourceType;
 import io.github.zzih.rudder.dao.enums.TriggerType;
 import io.github.zzih.rudder.service.download.DownloadFormat;
 import io.github.zzih.rudder.service.download.ResultDownloadWriter;
+import io.github.zzih.rudder.service.registry.NodeRouter;
 import io.github.zzih.rudder.service.script.dto.TaskInstanceDTO;
 import io.github.zzih.rudder.task.api.task.enums.ExecutionMode;
 import io.github.zzih.rudder.task.api.task.enums.TaskCategory;
@@ -72,6 +73,7 @@ public class TaskInstanceService {
     private final WorkspaceDao workspaceDao;
     private final ProjectDao projectDao;
     private final TaskDispatchService taskDispatchService;
+    private final NodeRouter nodeRouter;
 
     public TaskInstance executeDirect(TaskType taskType, Long datasourceId, String sql, String executionMode) {
         return executeDirect(null, taskType, datasourceId, sql, executionMode, null);
@@ -359,7 +361,8 @@ public class TaskInstanceService {
 
     public LogResponse getLog(Long id, int offsetLine) {
         TaskInstance instance = getById(id);
-        return taskDispatchService.fetchLog(instance.getExecutionHost(), instance.getLogPath(), offsetLine);
+        String host = nodeRouter.pickFetchHost(id, instance.getExecutionHost());
+        return taskDispatchService.fetchLog(host, instance.getLogPath(), offsetLine);
     }
 
     // ==================== DTO-returning methods for Controller ====================
@@ -393,8 +396,8 @@ public class TaskInstanceService {
 
     public ResultResponse getResult(Long id, int offset, int limit) {
         TaskInstance instance = getById(id);
-        return taskDispatchService.fetchResult(
-                instance.getExecutionHost(), instance.getResultPath(), offset, limit);
+        String host = nodeRouter.pickFetchHost(id, instance.getExecutionHost());
+        return taskDispatchService.fetchResult(host, instance.getResultPath(), offset, limit);
     }
 
     /** 1000 行 ≈ 1MB 量级,内存峰值 = 1 batch + writer buffer。 */
@@ -412,7 +415,8 @@ public class TaskInstanceService {
         String name = instance.getName() != null && !instance.getName().isBlank()
                 ? instance.getName() + "-" + id
                 : "result-" + id;
-        return new DownloadHandle(name, instance.getExecutionHost(), instance.getResultPath());
+        String host = nodeRouter.pickFetchHost(id, instance.getExecutionHost());
+        return new DownloadHandle(name, host, instance.getResultPath());
     }
 
     public void streamDownloadBody(DownloadHandle handle, DownloadFormat format, OutputStream out) throws IOException {
