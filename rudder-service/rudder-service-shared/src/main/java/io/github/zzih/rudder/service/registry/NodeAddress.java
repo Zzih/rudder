@@ -15,30 +15,14 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.dao.dao;
+package io.github.zzih.rudder.service.registry;
 
-import io.github.zzih.rudder.dao.entity.ServiceRegistry;
 import io.github.zzih.rudder.dao.enums.ServiceType;
 
-import java.time.LocalDateTime;
-import java.util.List;
+/** 节点寻址三元组 + 自报 task count。 */
+public record NodeAddress(ServiceType type, String host, int port, int taskCount) {
 
-public interface ServiceRegistryDao {
-
-    ServiceRegistry selectByTypeAndHostAndPort(ServiceType type, String host, int port);
-
-    List<ServiceRegistry> selectOnlineByType(ServiceType type);
-
-    List<ServiceRegistry> selectAllOnline();
-
-    int insert(ServiceRegistry registry);
-
-    int updateById(ServiceRegistry registry);
-
-    /** Atomic CAS:仅 ONLINE → OFFLINE 并写 heartbeat。返回 1 表示本节点完成翻转。 */
-    int markOfflineIfOnline(ServiceType type, String host, int port, LocalDateTime heartbeat);
-
-    int deleteOfflineOlderThan(LocalDateTime threshold);
-
-    List<ServiceRegistry> selectAll();
+    public String rpcAddress() {
+        return host + ":" + port;
+    }
 }

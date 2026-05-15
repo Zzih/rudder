@@ -28,13 +28,26 @@ import io.github.zzih.rudder.notification.api.model.NodeOfflineMessage;
 import io.github.zzih.rudder.notification.api.model.NodeOnlineMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
 import io.github.zzih.rudder.rpc.spring.RpcProperties;
+import io.github.zzih.rudder.service.coordination.RedisNaming;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.registry.dto.ServiceRegistryDTO;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -43,20 +56,28 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 节点注册与心跳。Liveness 由 Redis TTL 表达,DB 仅做事件历史与 UI 展示。
+ *
+ * <p>Redis value = taskCount(整数 string),由 {@link TaskCountProvider} 在心跳时填入。
+ * NodeOnline 通知绑 DB 状态翻转,重启时 DB 仍 ONLINE 不重发,避免 crash loop 噪音。
+ * OFFLINE 翻转见 {@link RegistryReconciler}。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ServiceRegistryService {
 
+    private static final Duration NODE_TTL = Duration.ofSeconds(30);
+
     private final ServiceRegistryDao serviceRegistryDao;
     private final RpcProperties rpcProperties;
     private final NotificationService notificationService;
+    private final StringRedisTemplate redis;
+    private final ObjectProvider<TaskCountProvider> taskCountProvider;
 
     @Value("${rudder.service.type:SERVER}")
     private String serviceTypeStr;
-
-    @Value("${rudder.service.heartbeat-timeout:30}")
-    private int heartbeatTimeoutSeconds;
 
     private ServiceType serviceType;
     private String localHost;
@@ -66,19 +87,14 @@ public class ServiceRegistryService {
     public void register() {
         serviceType = ServiceType.valueOf(serviceTypeStr);
         rpcPort = rpcProperties.getPort();
-
         localHost = NetUtils.getLocalIp();
+
+        refreshSelfTtl();
 
         LocalDateTime now = LocalDateTime.now();
         ServiceRegistry existing = serviceRegistryDao.selectByTypeAndHostAndPort(serviceType, localHost, rpcPort);
-
-        if (existing != null) {
-            existing.setStartTime(now);
-            existing.setHeartbeat(now);
-            existing.setStatus(ServiceStatus.ONLINE);
-            existing.setTaskCount(0);
-            serviceRegistryDao.updateById(existing);
-        } else {
+        boolean flipped;
+        if (existing == null) {
             ServiceRegistry reg = new ServiceRegistry();
             reg.setType(serviceType);
             reg.setHost(localHost);
@@ -88,92 +104,42 @@ public class ServiceRegistryService {
             reg.setStatus(ServiceStatus.ONLINE);
             reg.setTaskCount(0);
             serviceRegistryDao.insert(reg);
+            flipped = true;
+        } else {
+            flipped = existing.getStatus() != ServiceStatus.ONLINE;
+            existing.setStartTime(now);
+            existing.setHeartbeat(now);
+            existing.setStatus(ServiceStatus.ONLINE);
+            existing.setTaskCount(0);
+            serviceRegistryDao.updateById(existing);
         }
 
-        log.info("Service registered: type={}, rpc={}:{}", serviceType, localHost, rpcPort);
-        notificationService.notify(NodeOnlineMessage.builder()
-                .level(NotificationLevel.SUCCESS)
-                .nodes(List.of(selfInfo()))
-                .build());
+        log.info("Service registered: type={}, rpc={}:{}, flipped={}",
+                serviceType, localHost, rpcPort, flipped);
+        if (flipped) {
+            notificationService.notify(NodeOnlineMessage.builder()
+                    .level(NotificationLevel.SUCCESS)
+                    .nodes(List.of(selfInfo()))
+                    .build());
+        }
     }
 
-    /**
-     * 心跳:正常路径单 UPDATE 完成,只在被 cleanExpired 误判翻成 OFFLINE 后(网络抖动场景)
-     * 才走复活路径并补发 NODE_ONLINE 通知。
-     * <p>
-     * 拆成 if-online vs revive 两步是为了把"我以为我活着但已被宣告死亡"这种边界状态显式化 —
-     * 单 UPDATE 不区分这两种语义,无法精准发通知。
-     */
     @Scheduled(fixedRate = 10_000)
     public void heartbeat() {
-        LocalDateTime now = LocalDateTime.now();
-        int affected = serviceRegistryDao.updateHeartbeatIfOnline(serviceType, localHost, rpcPort, now);
-        if (affected > 0) {
+        if (serviceType == null) {
             return;
         }
-        // 0 行:status 不是 ONLINE(被 cleanExpired 翻成 OFFLINE 或行被外部删了)
-        ServiceRegistry existing = serviceRegistryDao.selectByTypeAndHostAndPort(serviceType, localHost, rpcPort);
-        if (existing == null) {
-            // 极端:DB row 没了,重走一遍 register 把行补回来
-            log.warn("Service registry row missing, re-registering: type={}, rpc={}:{}",
-                    serviceType, localHost, rpcPort);
-            register();
-            return;
-        }
-        serviceRegistryDao.reviveAndUpdateHeartbeat(serviceType, localHost, rpcPort, now);
-        log.warn("Service revived from OFFLINE: type={}, rpc={}:{}", serviceType, localHost, rpcPort);
-        notificationService.notify(NodeOnlineMessage.builder()
-                .level(NotificationLevel.SUCCESS)
-                .nodes(List.of(selfInfo()))
-                .build());
+        refreshSelfTtl();
     }
 
-    /**
-     * 清理过期节点。多节点同时跑这个 Scheduled,如果不做 CAS 会每个 alive 节点都给同一个 dead
-     * 节点发一条通知 — 改成对每个候选独立调 markOfflineIfOnline (UPDATE ... AND status='ONLINE'),
-     * 只有 affected=1 的节点(本节点抢到了翻转)才入通知列表。
-     */
-    @Scheduled(fixedRate = 15_000)
-    public void cleanExpired() {
-        LocalDateTime threshold = LocalDateTime.now().minusSeconds(heartbeatTimeoutSeconds);
-        List<ServiceRegistry> candidates = serviceRegistryDao.selectExpiredOnline(threshold);
-        if (candidates.isEmpty()) {
-            return;
-        }
-
-        List<ServiceRegistry> flipped = new java.util.ArrayList<>();
-        for (ServiceRegistry node : candidates) {
-            int affected = serviceRegistryDao.markOfflineIfOnline(node.getType(), node.getHost(), node.getPort());
-            if (affected > 0) {
-                flipped.add(node);
-            }
-        }
-        if (flipped.isEmpty()) {
-            return;
-        }
-
-        log.warn("Marked {} expired service(s) as OFFLINE", flipped.size());
-        List<NodeInfo> nodes = flipped.stream()
-                .map(n -> new NodeInfo(n.getType().name(), n.getHost(), n.getPort()))
-                .toList();
-        notificationService.notify(NodeOfflineMessage.builder()
-                .level(NotificationLevel.ERROR)
-                .nodes(nodes)
-                .graceful(false)
-                .build());
-    }
-
-    private NodeInfo selfInfo() {
-        return new NodeInfo(serviceType.name(), localHost, rpcPort);
-    }
-
-    /**
-     * 优雅下线。CAS markOfflineIfOnline:只有从 ONLINE 翻 OFFLINE 才发通知 — 避免和
-     * cleanExpired 同时翻转造成重复通知(那条通道会自己发)。
-     */
     @PreDestroy
     public void deregister() {
-        int affected = serviceRegistryDao.markOfflineIfOnline(serviceType, localHost, rpcPort);
+        if (serviceType == null) {
+            return;
+        }
+        redis.delete(nodeKeyOf(serviceType, localHost, rpcPort));
+        int affected = serviceRegistryDao.markOfflineIfOnline(
+                serviceType, localHost, rpcPort, LocalDateTime.now());
         log.info("Service deregistered: type={}, rpc={}:{}, flipped={}",
                 serviceType, localHost, rpcPort, affected);
         if (affected > 0) {
@@ -185,20 +151,128 @@ public class ServiceRegistryService {
         }
     }
 
-    /** Controller 用:列所有 service 实例(DTO 形态),避免直连 DAO。 */
+    public List<NodeAddress> getOnlineExecutions() {
+        return scanNodes(RedisNaming.Registry.NODE_PREFIX + ServiceType.EXECUTION.name() + ":*");
+    }
+
+    /** DB task_count 仅终态写入,ONLINE 行以 Redis 实时值为准。 */
     public List<ServiceRegistryDTO> listAllDetail() {
-        return BeanConvertUtils.convertList(serviceRegistryDao.selectAll(), ServiceRegistryDTO.class);
+        List<ServiceRegistryDTO> rows = BeanConvertUtils.convertList(
+                serviceRegistryDao.selectAll(), ServiceRegistryDTO.class);
+        Map<String, Integer> liveCounts = liveCountsByRpcAddress();
+        for (ServiceRegistryDTO row : rows) {
+            if (row.getStatus() == ServiceStatus.ONLINE) {
+                Integer live = liveCounts.get(rpcAddressOf(row.getHost(), row.getPort()));
+                if (live != null) {
+                    row.setTaskCount(live);
+                }
+            }
+        }
+        return rows;
     }
 
-    public List<ServiceRegistry> getOnlineExecutions() {
-        return serviceRegistryDao.selectOnlineByType(ServiceType.EXECUTION);
-    }
-
-    /**
-     * 本机 RPC 地址（host:port），供回调和内部通信使用。
-     */
     public String getLocalRpcAddress() {
         return localHost + ":" + rpcPort;
     }
 
+    Set<String> scanAllAliveKeys() {
+        Set<String> keys = new HashSet<>();
+        scanKeys(RedisNaming.Registry.NODE_PREFIX + "*", keys::add);
+        return keys;
+    }
+
+    static String nodeKeyOf(ServiceType type, String host, int port) {
+        return RedisNaming.Registry.NODE_PREFIX + type.name() + ":" + host + ":" + port;
+    }
+
+    static NodeAddress parseNodeKey(String key, String value) {
+        if (!key.startsWith(RedisNaming.Registry.NODE_PREFIX)) {
+            return null;
+        }
+        String rest = key.substring(RedisNaming.Registry.NODE_PREFIX.length());
+        // 格式:{TYPE}:{HOST}:{PORT}。type 在首段,port 在末段,中段可含 ":" 以兼容 IPv6 host。
+        int firstColon = rest.indexOf(':');
+        int lastColon = rest.lastIndexOf(':');
+        if (firstColon < 0 || lastColon <= firstColon) {
+            return null;
+        }
+        try {
+            ServiceType type = ServiceType.valueOf(rest.substring(0, firstColon));
+            String host = rest.substring(firstColon + 1, lastColon);
+            int port = Integer.parseInt(rest.substring(lastColon + 1));
+            return new NodeAddress(type, host, port, parseTaskCount(value));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    void notifyOffline(Collection<NodeInfo> nodes) {
+        if (nodes.isEmpty()) {
+            return;
+        }
+        notificationService.notify(NodeOfflineMessage.builder()
+                .level(NotificationLevel.ERROR)
+                .nodes(List.copyOf(nodes))
+                .graceful(false)
+                .build());
+    }
+
+    private List<NodeAddress> scanNodes(String pattern) {
+        List<String> keys = new ArrayList<>();
+        scanKeys(pattern, keys::add);
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+        List<String> values = redis.opsForValue().multiGet(keys);
+        List<NodeAddress> out = new ArrayList<>(keys.size());
+        for (int i = 0; i < keys.size(); i++) {
+            NodeAddress addr = parseNodeKey(keys.get(i), values == null ? null : values.get(i));
+            if (addr != null) {
+                out.add(addr);
+            }
+        }
+        return out;
+    }
+
+    private Map<String, Integer> liveCountsByRpcAddress() {
+        List<NodeAddress> all = scanNodes(RedisNaming.Registry.NODE_PREFIX + "*");
+        Map<String, Integer> map = new HashMap<>(all.size());
+        for (NodeAddress n : all) {
+            map.put(n.rpcAddress(), n.taskCount());
+        }
+        return map;
+    }
+
+    private void refreshSelfTtl() {
+        int count = taskCountProvider.getIfAvailable(() -> TaskCountProvider.ZERO).currentRunningCount();
+        redis.opsForValue().set(nodeKeyOf(serviceType, localHost, rpcPort),
+                String.valueOf(count), NODE_TTL);
+    }
+
+    private static String rpcAddressOf(String host, int port) {
+        return host + ":" + port;
+    }
+
+    private void scanKeys(String pattern, Consumer<String> consumer) {
+        try (
+                Cursor<String> cursor = redis.scan(
+                        ScanOptions.scanOptions().match(pattern).count(200).build())) {
+            cursor.forEachRemaining(consumer);
+        }
+    }
+
+    private static int parseTaskCount(String value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private NodeInfo selfInfo() {
+        return new NodeInfo(serviceType.name(), localHost, rpcPort);
+    }
 }
