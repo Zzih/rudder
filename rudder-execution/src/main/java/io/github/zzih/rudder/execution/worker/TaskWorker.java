@@ -126,7 +126,14 @@ public class TaskWorker {
         if (callbackAddress != null) {
             callbackAddresses.put(taskInstanceId, callbackAddress);
         }
-        executor.submit(() -> executeTask(taskInstanceId));
+        // FutureTask 静默吞 Throwable,显式 catch 保证 Error 也落日志。
+        executor.submit(() -> {
+            try {
+                executeTask(taskInstanceId);
+            } catch (Throwable t) {
+                log.error("Unhandled throwable in task worker (taskInstanceId={})", taskInstanceId, t);
+            }
+        });
     }
 
     public void cancelTask(Long taskInstanceId) {
@@ -389,7 +396,8 @@ public class TaskWorker {
                 taskInstanceService.updateInternal(instance);
                 log.info("Done ✓ {} rows, {}ms", instance.getRowCount(), instance.getDuration());
 
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // Error 也要标 FAILED,否则 DB 行卡 RUNNING、Server 永远收不到完成回调。
                 runningTasks.remove(taskInstanceId);
 
                 boolean cancelled = task != null && task.getStatus() == TaskStatus.CANCELLED;
