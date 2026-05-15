@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
@@ -40,6 +40,22 @@ const stats = ref<OverviewStats>({ workspaceCount: 0, workflowCount: 0, scriptCo
 
 const username = computed(() => userStore.userInfo?.username ?? 'User')
 const isSuperAdmin = computed(() => userStore.userInfo?.role === 'SUPER_ADMIN')
+
+const nameRef = ref<HTMLElement | null>(null)
+
+async function fitNameSize() {
+  await nextTick()
+  const el = nameRef.value
+  if (!el) return
+  let size = 14
+  el.style.fontSize = size + 'px'
+  while (el.scrollWidth > el.clientWidth && size > 9) {
+    size -= 0.5
+    el.style.fontSize = size + 'px'
+  }
+}
+
+watch(username, fitNameSize, { immediate: true })
 
 async function fetchWorkspaces() {
   loading.value = true
@@ -245,7 +261,7 @@ onMounted(() => {
           <div class="profile__row">
             <el-avatar :size="40" class="user-avatar">{{ username.charAt(0).toUpperCase() }}</el-avatar>
             <div class="profile__info">
-              <div class="profile__name">{{ username }}</div>
+              <div class="profile__name" ref="nameRef">{{ username }}</div>
               <el-tag v-if="isSuperAdmin" size="small" type="danger" effect="light" round>{{ t('sidebar.superAdmin') }}</el-tag>
               <el-tag v-else size="small" effect="light" round>{{ t('sidebar.member') }}</el-tag>
             </div>
@@ -355,7 +371,7 @@ onMounted(() => {
   background: var(--r-bg-panel);
 }
 
-.user-avatar { background: var(--r-logo-bg); font-size: 11px; font-weight: 600; color: #fff; }
+.user-avatar { background: var(--r-logo-bg); font-size: 11px; font-weight: 600; color: #fff; flex-shrink: 0; }
 
 /* ===== Body ===== */
 .body {
@@ -541,8 +557,11 @@ onMounted(() => {
 .sb-profile { padding: 18px; }
 .profile__greeting { font-size: 12px; color: var(--r-text-muted); margin-bottom: 10px; }
 .profile__row { display: flex; align-items: center; gap: 10px; }
-.profile__info { display: flex; flex-direction: column; gap: 3px; }
-.profile__name { font-size: 14px; font-weight: 700; color: var(--r-text-primary); letter-spacing: -0.01em; }
+.profile__info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.profile__name {
+  font-size: 14px; font-weight: 700; color: var(--r-text-primary); letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* Stats */
 .stats { display: flex; gap: 8px; }
@@ -560,7 +579,7 @@ onMounted(() => {
 /* Links */
 .link-list { display: flex; flex-direction: column; gap: 1px; }
 .link-item {
-  display: flex; align-items: flex-start; gap: 9px;
+  display: flex; align-items: center; gap: 9px;
   padding: 7px 8px; border-radius: 6px;
   font-size: 12px; color: var(--r-text-secondary);
   cursor: pointer; text-decoration: none;
@@ -568,13 +587,13 @@ onMounted(() => {
   &:hover { background: var(--r-bg-hover); }
 }
 .link-item__icon {
-  width: 26px; height: 26px; border-radius: 6px;
+  width: 32px; height: 32px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   background: var(--r-accent-bg);
 }
-.link-item__svg { width: 16px; height: 16px; object-fit: contain; }
-.link-item__text { flex: 1; min-width: 0; padding-top: 2px; }
+.link-item__svg { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.link-item__text { flex: 1; min-width: 0; }
 .link-item__sub { font-size: 11px; color: var(--r-text-disabled); margin-top: 1px; }
 
 /* ===== Footer ===== */
