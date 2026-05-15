@@ -90,4 +90,17 @@ public final class RedisNaming {
         private EditLock() {
         }
     }
+
+    /** 节点注册命名空间 —— TTL 心跳 + leader 选举。 */
+    public static final class Registry {
+
+        /** 节点心跳 key 前缀。完整 key:{@code rudder:registry:node:{type}:{host}:{port}}。 */
+        public static final String NODE_PREFIX = ROOT + ":registry:node:";
+
+        /** Leader 选举锁 key。 */
+        public static final String LEADER_KEY = ROOT + ":registry:leader";
+
+        private Registry() {
+        }
+    }
 }

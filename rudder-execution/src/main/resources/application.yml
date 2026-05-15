@@ -37,7 +37,6 @@ mybatis-plus:
 rudder:
   service:
     type: EXECUTION
-    heartbeat-timeout: 30
   rpc:
     port: ${RUDDER_EXECUTION_RPC_PORT:5691}
     # Server 和 Execution 必须配置相同值（至少 32 字节）。未配置时启动失败

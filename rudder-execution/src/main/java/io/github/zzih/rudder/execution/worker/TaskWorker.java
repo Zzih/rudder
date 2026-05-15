@@ -39,6 +39,7 @@ import io.github.zzih.rudder.runtime.api.TaskFactory;
 import io.github.zzih.rudder.service.config.LogStorageService;
 import io.github.zzih.rudder.service.config.ResultConfigService;
 import io.github.zzih.rudder.service.config.RuntimeConfigService;
+import io.github.zzih.rudder.service.registry.TaskCountProvider;
 import io.github.zzih.rudder.service.script.TaskInstanceService;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.log.TaskLogUtils;
@@ -79,7 +80,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class TaskWorker {
+public class TaskWorker implements TaskCountProvider {
 
     private final TaskInstanceService taskInstanceService;
     private final TaskPluginManager taskPluginManager;
@@ -103,6 +104,11 @@ public class TaskWorker {
 
     /** 以 taskInstanceId 为键的运行中任务，用于支持取消操作。 */
     private final ConcurrentHashMap<Long, Task> runningTasks = new ConcurrentHashMap<>();
+
+    @Override
+    public int currentRunningCount() {
+        return runningTasks.size();
+    }
 
     @PreDestroy
     public void shutdown() {

@@ -22,12 +22,12 @@ import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.execution.LogResponse;
 import io.github.zzih.rudder.common.execution.ResultResponse;
 import io.github.zzih.rudder.common.execution.TaskDispatchRequest;
-import io.github.zzih.rudder.dao.entity.ServiceRegistry;
 import io.github.zzih.rudder.rpc.client.Clients;
 import io.github.zzih.rudder.rpc.client.RpcClient;
 import io.github.zzih.rudder.rpc.service.ILogService;
 import io.github.zzih.rudder.rpc.service.IResultService;
 import io.github.zzih.rudder.rpc.service.ITaskExecutionService;
+import io.github.zzih.rudder.service.registry.NodeAddress;
 import io.github.zzih.rudder.service.registry.ServiceRegistryService;
 
 import java.util.ArrayList;
@@ -51,22 +51,19 @@ public class TaskDispatchService {
     private final RpcClient rpcClient;
 
     /**
-     * 选择一个可用的执行节点并分发任务。
-     * <p>
-     * 节点已由 mapper 按 {@code task_count ASC, heartbeat DESC} 预排序，
-     * 本方法在 {@code task_count} 最小的若干节点里随机挑选一个，避免并发派发全部打到
-     * 排序首位的单节点（经典的雷群效应）。
+     * 选择一个可用的执行节点并分发任务。在线列表来自 Redis SCAN,从 taskCount 最小的
+     * 候选里随机挑一个,避免并发派发全打到排序首位的单节点。
      *
      * @return 执行节点的 RPC 地址（host:rpcPort）
      */
     public String dispatch(Long taskInstanceId) {
-        List<ServiceRegistry> nodes = registryService.getOnlineExecutions();
+        List<NodeAddress> nodes = registryService.getOnlineExecutions();
         if (nodes.isEmpty()) {
             throw new BizException(ScriptErrorCode.DISPATCH_NO_EXECUTION_NODE);
         }
 
-        ServiceRegistry node = pickLeastLoaded(nodes);
-        String rpcAddress = node.getHost() + ":" + node.getPort();
+        NodeAddress node = pickLeastLoaded(nodes);
+        String rpcAddress = node.rpcAddress();
         String callbackAddress = registryService.getLocalRpcAddress();
 
         log.info("Dispatching task {} to execution node {}", taskInstanceId, rpcAddress);
@@ -85,21 +82,21 @@ public class TaskDispatchService {
         return rpcAddress;
     }
 
-    /**
-     * 在 task_count 最小的候选节点中随机挑选一个。nodes 已按 task_count 升序排好。
-     */
-    private ServiceRegistry pickLeastLoaded(List<ServiceRegistry> nodes) {
+    private NodeAddress pickLeastLoaded(List<NodeAddress> nodes) {
         if (nodes.size() == 1) {
             return nodes.get(0);
         }
-        int minCount = nodes.get(0).getTaskCount() != null ? nodes.get(0).getTaskCount() : 0;
-        List<ServiceRegistry> candidates = new ArrayList<>();
-        for (ServiceRegistry n : nodes) {
-            int count = n.getTaskCount() != null ? n.getTaskCount() : 0;
-            if (count != minCount) {
-                break;
+        int min = Integer.MAX_VALUE;
+        for (NodeAddress n : nodes) {
+            if (n.taskCount() < min) {
+                min = n.taskCount();
             }
-            candidates.add(n);
+        }
+        List<NodeAddress> candidates = new ArrayList<>();
+        for (NodeAddress n : nodes) {
+            if (n.taskCount() == min) {
+                candidates.add(n);
+            }
         }
         return candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
     }
