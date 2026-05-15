@@ -54,10 +54,11 @@ watch(() => props.content, async () => {
   height: 100%;
   overflow-y: auto;
   background: var(--r-bg-panel);
-  padding: 10px 14px;
+  padding: 10px 14px 0;
   font-family: var(--r-font-mono);
 }
 
+/* padding-bottom 必须在 <pre> 上,不能在 scroll container 上 —— 后者滚到底时不显示。 */
 .log-content {
   color: var(--r-text-secondary);
   font-size: 12px;
@@ -65,6 +66,7 @@ watch(() => props.content, async () => {
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
+  padding-bottom: 10px;
 }
 
 .log-viewer__truncated {
