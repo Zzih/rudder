@@ -112,8 +112,8 @@ onMounted(fetchUsers)
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="username" :label="t('admin.username')" width="160" />
-      <el-table-column prop="email" :label="t('admin.email')" />
+      <el-table-column prop="username" :label="t('admin.username')" min-width="260" show-overflow-tooltip />
+      <el-table-column prop="email" :label="t('admin.email')" min-width="240" show-overflow-tooltip />
       <el-table-column :label="t('admin.superAdmin')" width="120" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.isSuperAdmin" type="danger" size="small">SUPER</el-tag>

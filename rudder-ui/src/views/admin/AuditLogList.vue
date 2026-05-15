@@ -78,7 +78,7 @@ onMounted(fetchLogs)
 
     <div class="admin-card">
       <el-table :data="logs" v-loading="loading" :empty-text="t('common.noData')">
-        <el-table-column prop="username" :label="t('admin.username')" width="120" />
+        <el-table-column prop="username" :label="t('admin.username')" min-width="260" show-overflow-tooltip />
         <el-table-column prop="module" :label="t('admin.module')" width="120" />
         <el-table-column prop="action" :label="t('admin.action')" width="100" />
         <el-table-column prop="description" :label="t('admin.description')" show-overflow-tooltip />
