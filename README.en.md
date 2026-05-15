@@ -336,6 +336,7 @@ rudder-<version>/
   - [Datasources](docs/datasource.md)
   - [Permission model](docs/permissions.md)
   - [DolphinScheduler integration](docs/dolphinscheduler.md)
+  - [Notifications](docs/notification.md)
 - Advanced
   - [SPI development guide](docs/spi-guide.md)
   - [RPC protocol](docs/rpc.md)
