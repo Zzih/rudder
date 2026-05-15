@@ -23,17 +23,37 @@
         order by heartbeat desc
     </select>
 
-    <select id="queryAllOnline" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
-        select <include refid="baseSql"/>
-        from t_r_service_registry
-        where status = 'ONLINE'
-    </select>
-
     <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
         select <include refid="baseSql"/>
         from t_r_service_registry
         order by `type` asc, status desc, heartbeat desc
     </select>
+
+    <update id="updateHeartbeat">
+        update t_r_service_registry
+        set heartbeat = #{heartbeat},
+            task_count = #{taskCount},
+            status = 'ONLINE'
+        where `type` = #{type}
+          and host = #{host}
+          and port = #{port}
+    </update>
+
+    <select id="queryStaleOnline" resultType="io.github.zzih.rudder.dao.entity.ServiceRegistry">
+        select <include refid="baseSql"/>
+        from t_r_service_registry
+        where status = 'ONLINE'
+          and heartbeat <![CDATA[ < ]]> #{threshold}
+    </select>
+
+    <update id="markOfflineIfStale">
+        update t_r_service_registry
+        set status = 'OFFLINE',
+            heartbeat = #{offlineAt}
+        where id = #{id}
+          and status = 'ONLINE'
+          and heartbeat <![CDATA[ < ]]> #{threshold}
+    </update>
 
     <update id="markOfflineIfOnline">
         update t_r_service_registry

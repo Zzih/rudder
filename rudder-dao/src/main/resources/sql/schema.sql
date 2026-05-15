@@ -406,14 +406,14 @@ CREATE TABLE IF NOT EXISTS `t_r_service_registry` (
     `host`        VARCHAR(128) NOT NULL             COMMENT '主机地址',
     `port`        INT NOT NULL                      COMMENT '端口',
     `start_time`  DATETIME NOT NULL                 COMMENT '最近一次启动时间',
-    `heartbeat`   DATETIME NOT NULL                 COMMENT '最近一次状态翻转时间(Liveness 在 Redis TTL)',
+    `heartbeat`   DATETIME NOT NULL                 COMMENT 'ONLINE 行=上次心跳时间, OFFLINE 行=翻转时刻',
     `status`      VARCHAR(16) DEFAULT 'ONLINE'      COMMENT '状态: ONLINE/OFFLINE',
-    `task_count`  INT DEFAULT 0                     COMMENT '当前执行中任务数(预留, 未维护)',
+    `task_count`  INT DEFAULT 0                     COMMENT '当前执行中任务数(节点自报, 仅 ONLINE 行实时)',
     `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY `uk_type_host_port` (`type`, `host`, `port`),
     INDEX `idx_status_heartbeat` (`status`, `heartbeat`)
-) ENGINE=InnoDB COMMENT='服务注册事件表(Liveness 在 Redis TTL, OFFLINE 超 1h 物理删)';
+) ENGINE=InnoDB COMMENT='服务注册表(节点自报心跳, 心跳过期翻 OFFLINE 后定期物理删除)';
 
 -- ==================== Audit Log ====================
 

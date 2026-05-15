@@ -36,16 +36,29 @@ public interface ServiceRegistryMapper extends BaseMapper<ServiceRegistry> {
 
     List<ServiceRegistry> queryOnlineByType(@Param("type") String type);
 
-    List<ServiceRegistry> queryAllOnline();
-
     List<ServiceRegistry> queryAll();
 
-    /** Atomic CAS:仅当 ONLINE 时翻 OFFLINE 并写 heartbeat。返回 1=本节点翻的,可发通知。 */
+    /** UPSERT 心跳:heartbeat + task_count + status 回置 ONLINE。 */
+    int updateHeartbeat(@Param("type") String type,
+                        @Param("host") String host,
+                        @Param("port") int port,
+                        @Param("heartbeat") LocalDateTime heartbeat,
+                        @Param("taskCount") int taskCount);
+
+    /** ONLINE 且 heartbeat<threshold 的待回收节点。 */
+    List<ServiceRegistry> queryStaleOnline(@Param("threshold") LocalDateTime threshold);
+
+    /** Atomic CAS:ONLINE 且 heartbeat<threshold 才翻 OFFLINE。heartbeat 字段在 OFFLINE 行复用为翻转时刻。 */
+    int markOfflineIfStale(@Param("id") Long id,
+                           @Param("threshold") LocalDateTime threshold,
+                           @Param("offlineAt") LocalDateTime offlineAt);
+
+    /** Atomic CAS:ONLINE → OFFLINE 无 heartbeat 前置条件。 */
     int markOfflineIfOnline(@Param("type") String type,
                             @Param("host") String host,
                             @Param("port") int port,
                             @Param("heartbeat") LocalDateTime heartbeat);
 
-    /** OFFLINE 且 heartbeat 早于 threshold 的物理删除,防 pod IP 漂移导致 DB 膨胀。 */
+    /** 物理删除 OFFLINE 且 heartbeat 早于 threshold 的行,防 pod IP 漂移导致 DB 膨胀。 */
     int deleteOfflineOlderThan(@Param("threshold") LocalDateTime threshold);
 }

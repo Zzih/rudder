@@ -29,13 +29,20 @@ public interface ServiceRegistryDao {
 
     List<ServiceRegistry> selectOnlineByType(ServiceType type);
 
-    List<ServiceRegistry> selectAllOnline();
-
     int insert(ServiceRegistry registry);
 
     int updateById(ServiceRegistry registry);
 
-    /** Atomic CAS:仅 ONLINE → OFFLINE 并写 heartbeat。返回 1 表示本节点完成翻转。 */
+    /** UPSERT 心跳:刷 heartbeat + task_count + 把 status 回置 ONLINE(覆盖误翻场景)。 */
+    int updateHeartbeat(ServiceType type, String host, int port, LocalDateTime heartbeat, int taskCount);
+
+    /** ONLINE 且 heartbeat 早于 threshold 的待回收节点。 */
+    List<ServiceRegistry> selectStaleOnline(LocalDateTime threshold);
+
+    /** Atomic CAS:仅 ONLINE 且 heartbeat<threshold 才翻 OFFLINE,返回 1=CAS 成功。 */
+    int markOfflineIfStale(Long id, LocalDateTime threshold, LocalDateTime offlineAt);
+
+    /** Atomic CAS:ONLINE → OFFLINE 无 heartbeat 前置条件,返回 1=CAS 成功。 */
     int markOfflineIfOnline(ServiceType type, String host, int port, LocalDateTime heartbeat);
 
     int deleteOfflineOlderThan(LocalDateTime threshold);

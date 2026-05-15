@@ -28,17 +28,13 @@ import io.github.zzih.rudder.notification.api.model.NodeOfflineMessage;
 import io.github.zzih.rudder.notification.api.model.NodeOnlineMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
 import io.github.zzih.rudder.rpc.spring.RpcProperties;
-import io.github.zzih.rudder.service.coordination.registry.NodeAddress;
-import io.github.zzih.rudder.service.coordination.registry.NodeRegistryService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.registry.dto.ServiceRegistryDTO;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,23 +47,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 节点注册与心跳。Liveness 真理来源 = Redis TTL,DB 仅做事件历史与 UI 展示。
- *
- * <p>所有 Redis 操作走 {@link NodeRegistryService} 协调原语,业务层不直接持 Template。
- * NodeOnline 通知绑 DB 状态翻转,重启时 DB 仍 ONLINE 不重发,避免 crash loop 噪音。
- * OFFLINE 翻转见 {@link RegistryReconciler}。
+ * 节点注册与心跳。DB 为单一真理源,每节点自报 heartbeat,心跳 tick 顺带扫 stale 行并以 DB
+ * 行级锁 + CAS 串行化翻转,翻成功者独占发通知,避免重复。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ServiceRegistryService {
 
-    private static final Duration NODE_TTL = Duration.ofSeconds(30);
+    private static final Duration STALE_AFTER = Duration.ofSeconds(30);
+    private static final Duration CLEANUP_AFTER = Duration.ofHours(1);
 
     private final ServiceRegistryDao serviceRegistryDao;
     private final RpcProperties rpcProperties;
     private final NotificationService notificationService;
-    private final NodeRegistryService nodeRegistry;
     private final ObjectProvider<TaskCountProvider> taskCountProvider;
 
     @Value("${rudder.service.type:SERVER}")
@@ -83,11 +76,8 @@ public class ServiceRegistryService {
         rpcPort = rpcProperties.getPort();
         localHost = NetUtils.getLocalIp();
 
-        publishHeartbeat();
-
         LocalDateTime now = LocalDateTime.now();
         ServiceRegistry existing = serviceRegistryDao.selectByTypeAndHostAndPort(serviceType, localHost, rpcPort);
-        boolean flipped;
         if (existing == null) {
             ServiceRegistry reg = new ServiceRegistry();
             reg.setType(serviceType);
@@ -98,9 +88,7 @@ public class ServiceRegistryService {
             reg.setStatus(ServiceStatus.ONLINE);
             reg.setTaskCount(0);
             serviceRegistryDao.insert(reg);
-            flipped = true;
         } else {
-            flipped = existing.getStatus() != ServiceStatus.ONLINE;
             existing.setStartTime(now);
             existing.setHeartbeat(now);
             existing.setStatus(ServiceStatus.ONLINE);
@@ -108,14 +96,11 @@ public class ServiceRegistryService {
             serviceRegistryDao.updateById(existing);
         }
 
-        log.info("Service registered: type={}, rpc={}:{}, flipped={}",
-                serviceType, localHost, rpcPort, flipped);
-        if (flipped) {
-            notificationService.notify(NodeOnlineMessage.builder()
-                    .level(NotificationLevel.SUCCESS)
-                    .nodes(List.of(selfInfo()))
-                    .build());
-        }
+        log.info("Service registered: type={}, rpc={}:{}", serviceType, localHost, rpcPort);
+        notificationService.notify(NodeOnlineMessage.builder()
+                .level(NotificationLevel.SUCCESS)
+                .nodes(List.of(selfInfo()))
+                .build());
     }
 
     @Scheduled(fixedRate = 10_000)
@@ -123,7 +108,15 @@ public class ServiceRegistryService {
         if (serviceType == null) {
             return;
         }
-        publishHeartbeat();
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            int count = taskCountProvider.getIfAvailable(() -> TaskCountProvider.ZERO).currentRunningCount();
+            serviceRegistryDao.updateHeartbeat(serviceType, localHost, rpcPort, now, count);
+            reapStaleNodes(now);
+            cleanupOldOffline(now);
+        } catch (Exception e) {
+            log.warn("Heartbeat tick error", e);
+        }
     }
 
     @PreDestroy
@@ -131,67 +124,66 @@ public class ServiceRegistryService {
         if (serviceType == null) {
             return;
         }
-        nodeRegistry.revoke(serviceType, localHost, rpcPort);
         int affected = serviceRegistryDao.markOfflineIfOnline(
                 serviceType, localHost, rpcPort, LocalDateTime.now());
         log.info("Service deregistered: type={}, rpc={}:{}, flipped={}",
                 serviceType, localHost, rpcPort, affected);
         if (affected > 0) {
-            notificationService.notify(NodeOfflineMessage.builder()
-                    .level(NotificationLevel.WARN)
-                    .nodes(List.of(selfInfo()))
-                    .graceful(true)
-                    .build());
+            notifyOffline(List.of(selfInfo()), true, NotificationLevel.WARN);
         }
     }
 
     public List<NodeAddress> getOnlineExecutions() {
-        return nodeRegistry.aliveByType(ServiceType.EXECUTION);
+        List<ServiceRegistry> rows = serviceRegistryDao.selectOnlineByType(ServiceType.EXECUTION);
+        List<NodeAddress> out = new ArrayList<>(rows.size());
+        for (ServiceRegistry r : rows) {
+            int count = r.getTaskCount() != null ? r.getTaskCount() : 0;
+            out.add(new NodeAddress(r.getType(), r.getHost(), r.getPort(), count));
+        }
+        return out;
     }
 
-    /** DB task_count 仅终态写入,ONLINE 行以 Redis 实时值为准。 */
     public List<ServiceRegistryDTO> listAllDetail() {
-        List<ServiceRegistryDTO> rows = BeanConvertUtils.convertList(
-                serviceRegistryDao.selectAll(), ServiceRegistryDTO.class);
-        Map<String, Integer> liveCounts = liveCountsByRpcAddress();
-        for (ServiceRegistryDTO row : rows) {
-            if (row.getStatus() == ServiceStatus.ONLINE) {
-                Integer live = liveCounts.get(row.getHost() + ":" + row.getPort());
-                if (live != null) {
-                    row.setTaskCount(live);
-                }
-            }
-        }
-        return rows;
+        return BeanConvertUtils.convertList(serviceRegistryDao.selectAll(), ServiceRegistryDTO.class);
     }
 
     public String getLocalRpcAddress() {
         return localHost + ":" + rpcPort;
     }
 
-    void notifyOffline(Collection<NodeInfo> nodes) {
-        if (nodes.isEmpty()) {
+    // SELECT-then-CAS 而非批量 UPDATE:为保留 attribution(哪些 row 是本节点翻的,只发对应通知)。
+    private void reapStaleNodes(LocalDateTime now) {
+        LocalDateTime threshold = now.minus(STALE_AFTER);
+        List<ServiceRegistry> stale = serviceRegistryDao.selectStaleOnline(threshold);
+        if (stale.isEmpty()) {
             return;
         }
-        notificationService.notify(NodeOfflineMessage.builder()
-                .level(NotificationLevel.ERROR)
-                .nodes(List.copyOf(nodes))
-                .graceful(false)
-                .build());
-    }
-
-    private void publishHeartbeat() {
-        int count = taskCountProvider.getIfAvailable(() -> TaskCountProvider.ZERO).currentRunningCount();
-        nodeRegistry.publish(serviceType, localHost, rpcPort, count, NODE_TTL);
-    }
-
-    private Map<String, Integer> liveCountsByRpcAddress() {
-        List<NodeAddress> all = nodeRegistry.aliveAll();
-        Map<String, Integer> map = new HashMap<>(all.size());
-        for (NodeAddress n : all) {
-            map.put(n.rpcAddress(), n.taskCount());
+        List<NodeInfo> flipped = new ArrayList<>();
+        for (ServiceRegistry row : stale) {
+            int affected = serviceRegistryDao.markOfflineIfStale(row.getId(), threshold, now);
+            if (affected > 0) {
+                flipped.add(new NodeInfo(row.getType().name(), row.getHost(), row.getPort()));
+            }
         }
-        return map;
+        if (!flipped.isEmpty()) {
+            log.warn("Reaped {} stale ONLINE node(s) to OFFLINE", flipped.size());
+            notifyOffline(flipped, false, NotificationLevel.ERROR);
+        }
+    }
+
+    private void cleanupOldOffline(LocalDateTime now) {
+        int deleted = serviceRegistryDao.deleteOfflineOlderThan(now.minus(CLEANUP_AFTER));
+        if (deleted > 0) {
+            log.info("Cleaned up {} old OFFLINE registry row(s)", deleted);
+        }
+    }
+
+    private void notifyOffline(List<NodeInfo> nodes, boolean graceful, NotificationLevel level) {
+        notificationService.notify(NodeOfflineMessage.builder()
+                .level(level)
+                .nodes(nodes)
+                .graceful(graceful)
+                .build());
     }
 
     private NodeInfo selfInfo() {

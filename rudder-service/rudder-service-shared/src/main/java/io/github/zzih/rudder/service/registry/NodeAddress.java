@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.service.coordination.registry;
+package io.github.zzih.rudder.service.registry;
 
 import io.github.zzih.rudder.dao.enums.ServiceType;
 

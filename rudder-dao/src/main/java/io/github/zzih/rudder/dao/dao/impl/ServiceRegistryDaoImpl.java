@@ -46,11 +46,6 @@ public class ServiceRegistryDaoImpl implements ServiceRegistryDao {
     }
 
     @Override
-    public List<ServiceRegistry> selectAllOnline() {
-        return registryMapper.queryAllOnline();
-    }
-
-    @Override
     public int insert(ServiceRegistry registry) {
         return registryMapper.insert(registry);
     }
@@ -58,6 +53,21 @@ public class ServiceRegistryDaoImpl implements ServiceRegistryDao {
     @Override
     public int updateById(ServiceRegistry registry) {
         return registryMapper.updateById(registry);
+    }
+
+    @Override
+    public int updateHeartbeat(ServiceType type, String host, int port, LocalDateTime heartbeat, int taskCount) {
+        return registryMapper.updateHeartbeat(type.name(), host, port, heartbeat, taskCount);
+    }
+
+    @Override
+    public List<ServiceRegistry> selectStaleOnline(LocalDateTime threshold) {
+        return registryMapper.queryStaleOnline(threshold);
+    }
+
+    @Override
+    public int markOfflineIfStale(Long id, LocalDateTime threshold, LocalDateTime offlineAt) {
+        return registryMapper.markOfflineIfStale(id, threshold, offlineAt);
     }
 
     @Override
