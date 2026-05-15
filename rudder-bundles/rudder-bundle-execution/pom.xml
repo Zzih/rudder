@@ -19,9 +19,12 @@
     <packaging>pom</packaging>
 
     <dependencies>
-        <!-- File storage（Execution 侧仅资源下载用） -->
+        <!-- File storage：Server / Worker 共享 active provider,必须装齐。 -->
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-api</artifactId><version>${revision}</version></dependency>
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-local</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-hdfs</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-oss</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-s3</artifactId><version>${revision}</version></dependency>
 
         <!-- Runtime provider -->
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-runtime-api</artifactId><version>${revision}</version></dependency>

@@ -9,6 +9,10 @@ ENV DOCKER=true
 ENV TZ=Asia/Shanghai
 ENV RUDDER_HOME=/opt/rudder
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR $RUDDER_HOME
 
 COPY --from=extract /build/ $RUDDER_HOME/
