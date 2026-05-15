@@ -11,6 +11,7 @@ export default {
     edit: 'Edit',
     delete: 'Delete',
     save: 'Save',
+    clear: 'Clear',
     select: 'Select',
     search: 'Search...',
     actions: 'Actions',

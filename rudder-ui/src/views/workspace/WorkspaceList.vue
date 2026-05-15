@@ -289,7 +289,10 @@ onMounted(() => {
               <div class="link-item__icon">
                 <img v-if="item.icon" :src="item.icon" :alt="item.name" class="link-item__svg" />
               </div>
-              <span>{{ item.name }}</span>
+              <div class="link-item__text">
+                <div>{{ item.name }}</div>
+                <div class="link-item__sub" v-if="item.description">{{ item.description }}</div>
+              </div>
             </a>
           </div>
         </div>

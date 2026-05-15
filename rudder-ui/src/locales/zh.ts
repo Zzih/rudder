@@ -11,6 +11,7 @@ export default {
     edit: '编辑',
     delete: '删除',
     save: '保存',
+    clear: '清除',
     select: '选择',
     search: '搜索...',
     actions: '操作',
