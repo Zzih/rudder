@@ -27,7 +27,7 @@ import io.github.zzih.rudder.rpc.client.RpcClient;
 import io.github.zzih.rudder.rpc.service.ILogService;
 import io.github.zzih.rudder.rpc.service.IResultService;
 import io.github.zzih.rudder.rpc.service.ITaskExecutionService;
-import io.github.zzih.rudder.service.coordination.registry.NodeAddress;
+import io.github.zzih.rudder.service.registry.NodeAddress;
 import io.github.zzih.rudder.service.registry.ServiceRegistryService;
 
 import java.util.ArrayList;
@@ -51,8 +51,8 @@ public class TaskDispatchService {
     private final RpcClient rpcClient;
 
     /**
-     * 选择一个可用的执行节点并分发任务。在线列表来自 Redis SCAN,从 taskCount 最小的
-     * 候选里随机挑一个,避免并发派发全打到排序首位的单节点。
+     * 选择一个可用的执行节点并分发任务。从 taskCount 最小的候选里随机挑一个,避免
+     * 并发派发全打到排序首位的单节点。
      *
      * @return 执行节点的 RPC 地址（host:rpcPort）
      */
