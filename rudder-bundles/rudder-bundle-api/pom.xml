@@ -33,6 +33,18 @@
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-runtime-api</artifactId><version>${revision}</version></dependency>
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-task-api</artifactId><version>${revision}</version></dependency>
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-result-api</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-api</artifactId><version>${revision}</version></dependency>
+
+        <!-- Datasource provider: 9 个 DB plugin,每个带自家 JDBC 驱动 + @AutoService 注册 -->
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-mysql</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-postgres</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-hive</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-trino</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-clickhouse</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-doris</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-starrocks</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-spark</artifactId><version>${revision}</version></dependency>
+        <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-datasource-flink</artifactId><version>${revision}</version></dependency>
 
         <!-- File storage provider -->
         <dependency><groupId>io.github.zzih</groupId><artifactId>rudder-file-local</artifactId><version>${revision}</version></dependency>

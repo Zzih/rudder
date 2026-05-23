@@ -18,8 +18,8 @@
 package io.github.zzih.rudder.ai.tool.builtin;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
 import io.github.zzih.rudder.llm.api.tool.ToolExecutionContext;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 
 import org.springframework.stereotype.Component;
 

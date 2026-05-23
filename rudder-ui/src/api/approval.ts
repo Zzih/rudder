@@ -2,12 +2,51 @@ import request from '@/utils/request'
 
 // --- Approval Records ---
 
+export interface ApprovalDecision {
+  id: number
+  approvalId: number
+  stage: string
+  deciderUserId: number
+  deciderUsername: string
+  decision: 'APPROVE' | 'REJECT'
+  decidedAt: string
+  remark: string
+}
+
+export interface ApprovalDetail {
+  id: number
+  channel: string
+  externalApprovalId: string
+  resourceType: string
+  resourceCode: number
+  workspaceId: number
+  projectCode: number
+  title: string
+  description: string
+  submitRemark: string
+  status: string
+  stageChain: string[]
+  currentStage: string
+  decisionRule: string
+  requiredCount: number
+  resolvedAt: string
+  expiresAt: string
+  withdrawnAt: string
+  withdrawnReason: string
+  createdBy: number
+  createdByUsername: string
+  workspaceName: string
+  createdAt: string
+  updatedAt: string
+  decisions: ApprovalDecision[]
+}
+
 export function pageApprovals(params: { pageNum?: number; pageSize?: number; status?: string }) {
   return request.get('/approvals', { params })
 }
 
 export function getApproval(id: number) {
-  return request.get(`/approvals/${id}`)
+  return request.get<ApprovalDetail>(`/approvals/${id}`)
 }
 
 export function listApprovalsByResource(resourceType: string, resourceId: number) {

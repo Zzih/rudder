@@ -6,10 +6,11 @@ import { ElMessage } from 'element-plus'
 import {
   getWorkflowDefinition, listWorkflowDefinitionVersions, rollbackWorkflowDefinition,
   diffWorkflowDefinitionVersions, commitWorkflowDefinitionVersion,
-  acquireWorkflowLock, heartbeatWorkflowLock, releaseWorkflowLock,
+  peekWorkflowLock, acquireWorkflowLock, heartbeatWorkflowLock, releaseWorkflowLock,
   type EditLockHolder,
 } from '@/api/workflow'
 import { useUserStore } from '@/stores/user'
+import { usePermission } from '@/composables/usePermission'
 import { useWorkflowContext } from '@/composables/useWorkflowContext'
 import { formatDate } from '@/utils/dateFormat'
 
@@ -30,6 +31,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const { canEdit } = usePermission()
 const workspaceId = Number(route.params.workspaceId)
 const projectCode = route.params.projectCode as string
 const workflowDefinitionCode = route.params.workflowDefinitionCode as string
@@ -231,7 +233,8 @@ async function doCommit() {
 // ===== 编辑锁 =====
 const lockHolder = ref<EditLockHolder | null>(null)
 const isMine = computed(() => lockHolder.value?.userId === userStore.userInfo?.userId)
-const readOnly = computed(() => !!lockHolder.value && !isMine.value)
+const lockBlocked = computed(() => !!lockHolder.value && !isMine.value)
+const readOnly = computed(() => !canEdit.value || lockBlocked.value)
 let heartbeatTimer: number | null = null
 let pollTimer: number | null = null
 
@@ -290,9 +293,21 @@ function stopPoll() {
   if (pollTimer != null) { clearInterval(pollTimer); pollTimer = null }
 }
 
+async function peekLock() {
+  try {
+    const res: any = await peekWorkflowLock(workspaceId, projectCode, workflowDefinitionCode)
+    lockHolder.value = (res?.data as EditLockHolder | null) ?? null
+  } catch { /* 拦截器已 toast */ }
+}
+
 onMounted(async () => {
-  await fetchWorkflow()
-  await tryAcquire()
+  // viewer 无写权限,peek 锁仅用于展示;developer+ 走原 acquire 路径(POST 早于 fetch 顺序保留)
+  if (canEdit.value) {
+    await fetchWorkflow()
+    await tryAcquire()
+  } else {
+    await Promise.all([fetchWorkflow(), peekLock()])
+  }
 })
 
 // SPA 路由跳转触发顺序:onBeforeRouteLeave → onBeforeUnmount,两钩子都会跑;released 旗标避免发 2 次 DELETE

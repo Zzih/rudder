@@ -8,6 +8,15 @@
         order by priority asc, id asc
     </select>
 
+    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.RedactionRuleEntity">
+        select *
+        from t_r_redaction_rule
+        <where>
+            <if test="type != null">and type = #{type}</if>
+        </where>
+        order by priority asc, id asc
+    </select>
+
     <select id="countByStrategyCode" resultType="long">
         select count(*)
         from t_r_redaction_rule

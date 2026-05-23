@@ -19,7 +19,7 @@ package io.github.zzih.rudder.task.hive;
 
 import io.github.zzih.rudder.common.enums.error.TaskErrorCode;
 import io.github.zzih.rudder.common.exception.TaskException;
-import io.github.zzih.rudder.common.sql.SqlDialect;
+import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.params.SqlTaskParams;
 import io.github.zzih.rudder.task.api.task.AbstractJdbcSqlTask;
@@ -43,8 +43,8 @@ public class HiveTask extends AbstractJdbcSqlTask {
     }
 
     @Override
-    protected SqlDialect dialect() {
-        return SqlDialect.HIVE;
+    protected DatasourceType type() {
+        return DatasourceType.HIVE;
     }
 
     /** Hive 在主 SQL 之前需要 SET hive.execution.engine=tez 之类的引擎参数。 */
@@ -57,7 +57,7 @@ public class HiveTask extends AbstractJdbcSqlTask {
             validateEngineParam(entry.getKey(), entry.getValue());
             String setStmt = "SET " + entry.getKey() + "=" + entry.getValue();
             log.info("SET  → {}", setStmt);
-            SqlExecutor.execute(stmt, setStmt, params.getQueryLimit(), dialect(), null, false, null);
+            SqlExecutor.execute(stmt, setStmt, params.getQueryLimit(), provider(), null, false, null);
         }
     }
 

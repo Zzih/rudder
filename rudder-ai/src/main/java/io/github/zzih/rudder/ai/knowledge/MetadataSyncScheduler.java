@@ -18,38 +18,60 @@
 package io.github.zzih.rudder.ai.knowledge;
 
 import io.github.zzih.rudder.dao.entity.AiMetadataSyncConfig;
+import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduledTask;
+import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduler;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** 每分钟扫描启用 cron 的元数据同步配置,按 cron 到期触发。 */
+/**
+ * 每分钟扫描启用 cron 的元数据同步配置,按 cron 到期触发同步。
+ * 走 ClusterScheduler 保证全集群单 leader 跑,避免多 server 节点重复触发同一 datasource 同步。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MetadataSyncScheduler {
 
+    public static final String SCHEDULER_KEY = "rudder:ai:metadata-sync";
+
+    private final ClusterScheduler clusterScheduler;
     private final MetadataSyncService syncService;
 
     private final ConcurrentMap<Long, LocalDateTime> nextFire = new ConcurrentHashMap<>();
 
-    @Scheduled(fixedDelay = 60_000L, initialDelay = 60_000L)
+    @PostConstruct
+    public void registerScheduler() {
+        clusterScheduler.schedule(new ClusterScheduledTask(
+                SCHEDULER_KEY, Duration.ofSeconds(60), Duration.ofSeconds(120), this::tick));
+    }
+
     public void tick() {
         LocalDateTime now = LocalDateTime.now();
-        for (AiMetadataSyncConfig c : syncService.listScheduled()) {
+        List<AiMetadataSyncConfig> configs = syncService.listScheduled();
+        Set<Long> alive = new HashSet<>();
+        for (AiMetadataSyncConfig c : configs) {
+            alive.add(c.getId());
             try {
                 handle(c, now);
             } catch (Exception e) {
                 log.warn("metadata sync scheduler {} failed: {}", c.getId(), e.getMessage());
             }
         }
+        // 清掉已删除 / 已禁用 config 对应的 nextFire 条目,防长跑实例无界累积。
+        nextFire.keySet().retainAll(alive);
     }
 
     private void handle(AiMetadataSyncConfig c, LocalDateTime now) {

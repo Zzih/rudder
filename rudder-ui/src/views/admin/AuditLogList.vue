@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listAuditLogs } from '@/api/admin'
+import { usePagination } from '@/composables/usePagination'
 
 const { t } = useI18n()
 
@@ -15,37 +16,32 @@ interface AuditLogRow {
   createdAt: string
 }
 
-const logs = ref<AuditLogRow[]>([])
-const loading = ref(false)
-const pageNum = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
 const filterModule = ref('')
 const filterAction = ref('')
 const filterUsername = ref('')
 const filterDateRange = ref<string[]>([])
 
-async function fetchLogs() {
-  loading.value = true
-  try {
-    const res: any = await listAuditLogs({
-      module: filterModule.value || undefined,
-      action: filterAction.value || undefined,
-      username: filterUsername.value.trim() || undefined,
-      startTime: filterDateRange.value?.[0] || undefined,
-      endTime: filterDateRange.value?.[1] || undefined,
-      pageNum: pageNum.value,
-      pageSize: pageSize.value,
-    })
-    logs.value = res.data ?? []
-    total.value = res.total ?? 0
-  } finally {
-    loading.value = false
-  }
-}
+const {
+  data: logs,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: fetchLogs,
+  handlePageChange,
+  resetAndFetch,
+} = usePagination<AuditLogRow>({
+  fetchApi: (params) => listAuditLogs({
+    ...params,
+    module: filterModule.value || undefined,
+    action: filterAction.value || undefined,
+    username: filterUsername.value.trim() || undefined,
+    startTime: filterDateRange.value?.[0] || undefined,
+    endTime: filterDateRange.value?.[1] || undefined,
+  } as never),
+})
 
-function handleSearch() { pageNum.value = 1; fetchLogs() }
-function handlePageChange(page: number) { pageNum.value = page; fetchLogs() }
+function handleSearch() { resetAndFetch() }
 function handleReset() {
   filterModule.value = ''
   filterAction.value = ''

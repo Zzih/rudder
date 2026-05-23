@@ -49,7 +49,7 @@ public final class ExceptionFormatter {
                 sb.append(CAUSED_BY);
             }
             sb.append(t.getClass().getSimpleName());
-            String msg = messageOf(t);
+            String msg = t.getLocalizedMessage();
             if (msg != null && !msg.isBlank()) {
                 sb.append(": ").append(msg);
             }
@@ -60,9 +60,5 @@ public final class ExceptionFormatter {
             return sb.substring(0, MAX_LENGTH) + TRUNCATED;
         }
         return sb.toString();
-    }
-
-    private static String messageOf(Throwable t) {
-        return t instanceof RudderException re ? re.resolvedMessage() : t.getMessage();
     }
 }

@@ -41,7 +41,7 @@ public class ScriptDispatchService {
     public Script getScriptForDispatch(Long scriptCode) {
         Script script = scriptDao.selectByCode(scriptCode);
         if (script == null) {
-            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND);
+            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND, scriptCode);
         }
         if (script.getContent() == null || script.getContent().isBlank()) {
             throw new BizException(ScriptErrorCode.SCRIPT_CONTENT_EMPTY);

@@ -32,9 +32,9 @@ import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.error.ApprovalErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.page.PageRequest;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.entity.ApprovalDecision;
 import io.github.zzih.rudder.service.workflow.ApprovalService;
 import io.github.zzih.rudder.service.workflow.dto.ApprovalRecordDTO;
@@ -42,8 +42,6 @@ import io.github.zzih.rudder.service.workflow.dto.ApprovalRecordDTO;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.*;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import lombok.RequiredArgsConstructor;
 
@@ -56,14 +54,15 @@ public class ApprovalController {
     private final ApprovalService approvalService;
 
     @GetMapping
-    public Result<IPage<ApprovalRecordResponse>> page(
-                                                      @RequestParam(defaultValue = "1") int pageNum,
-                                                      @RequestParam(defaultValue = "20") int pageSize,
-                                                      @RequestParam(required = false) String status) {
-        IPage<ApprovalRecordDTO> page = approvalService.page(
-                PageRequest.normalizePageNum(pageNum),
-                PageRequest.normalizePageSize(pageSize), status);
-        return Result.ok(BeanConvertUtils.convertPage(page, ApprovalRecordResponse.class));
+    public PageResult<ApprovalRecordResponse> page(
+                                                   @RequestParam(defaultValue = "1") int pageNum,
+                                                   @RequestParam(defaultValue = "20") int pageSize,
+                                                   @RequestParam(required = false) String status) {
+        return PageResult.of(
+                approvalService.page(
+                        PageRequest.normalizePageNum(pageNum),
+                        PageRequest.normalizePageSize(pageSize), status),
+                ApprovalRecordResponse.class);
     }
 
     @GetMapping("/{id}")
@@ -73,7 +72,6 @@ public class ApprovalController {
             return Result.ok(null);
         }
         ApprovalRecordResponse resp = BeanConvertUtils.convert(dto, ApprovalRecordResponse.class);
-        resp.setStageChain(JsonUtils.toList(dto.getStageChain(), String.class));
         List<ApprovalDecision> decisions = approvalService.listDecisions(id);
         resp.setDecisions(BeanConvertUtils.convertList(decisions, ApprovalDecisionResponse.class));
         return Result.ok(resp);

@@ -1,5 +1,29 @@
 import request from '@/utils/request'
 
+/** Plugin 自报的可调字段元数据(后端 PluginParamDefinition)。 */
+export interface PluginParamDefinition {
+  name: string
+  label: string
+  /** input / password / number / switch / select / textarea */
+  type: string
+  required: boolean
+  placeholder?: string
+  defaultValue?: string
+}
+
+/** 一个数据源类型 + 它的所有可调字段。前端据此动态渲染表单。 */
+export interface DatasourceTypeMeta {
+  type: string
+  hasCatalog: boolean
+  validationQuery: string
+  params: PluginParamDefinition[]
+}
+
+/** 拉取 9 种 datasource 类型 + 各自的字段元数据。前端表单据此渲染。 */
+export function listDatasourceTypes() {
+  return request.get<DatasourceTypeMeta[]>('/datasources/types')
+}
+
 /** 平台管理:列出全部 datasource (SUPER_ADMIN)。 */
 export function listDatasources() {
   return request.get('/datasources')
@@ -59,7 +83,7 @@ export function listMetaTables(workspaceId: number | undefined, datasourceId: nu
   )
 }
 
-export function listMetaColumns(workspaceId: number, datasourceId: number, database: string, table: string,
+export function listMetaColumns(workspaceId: number | undefined, datasourceId: number, database: string, table: string,
   catalog?: string | null) {
   return request.get<{ name: string; type: string; comment: string }[]>(
     `/datasources/${datasourceId}/meta/databases/${database}/tables/${table}/columns`,

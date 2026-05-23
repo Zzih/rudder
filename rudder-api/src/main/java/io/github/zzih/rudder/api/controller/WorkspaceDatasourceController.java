@@ -22,7 +22,7 @@ import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 
 import java.util.List;
 

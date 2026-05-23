@@ -19,6 +19,7 @@ package io.github.zzih.rudder.ai.orchestrator;
 
 import io.github.zzih.rudder.ai.orchestrator.advisor.RedactionAdvisor;
 import io.github.zzih.rudder.ai.orchestrator.advisor.UsageMetricsAdvisor;
+import io.github.zzih.rudder.ai.orchestrator.dto.RagPipelineConfigDTO;
 import io.github.zzih.rudder.ai.rag.DocumentRetrievalService;
 import io.github.zzih.rudder.ai.rag.RudderDocumentRetriever;
 import io.github.zzih.rudder.ai.rerank.RerankConfigService;
@@ -109,7 +110,7 @@ public class ChatClientFactory {
     }
 
     private Advisor buildRagAdvisor(ChatModel chatModel) {
-        RagPipelineSettings pipeline = ragPipelineConfigService.active();
+        RagPipelineConfigDTO pipeline = ragPipelineConfigService.active();
 
         RetrievalAugmentationAdvisor.Builder builder = RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(new RudderDocumentRetriever(documentRetrievalService))
@@ -119,18 +120,18 @@ public class ChatClientFactory {
         // 多轮先压成单 query,再翻译,最后改写提升召回)
         // 每个 transformer 都包 fail-safe: LLM 失败时退回原 query,**不阻断主对话**
         List<QueryTransformer> transformers = new ArrayList<>();
-        if (pipeline.compressionEnabled()) {
+        if (pipeline.getCompressionEnabled()) {
             transformers.add(failSafe("compression", CompressionQueryTransformer.builder()
                     .chatClientBuilder(vanillaChatClientBuilder(chatModel))
                     .build()));
         }
-        if (pipeline.translationEnabled()) {
+        if (pipeline.getTranslationEnabled()) {
             transformers.add(failSafe("translation", TranslationQueryTransformer.builder()
                     .chatClientBuilder(vanillaChatClientBuilder(chatModel))
-                    .targetLanguage(pipeline.translationTargetLanguage())
+                    .targetLanguage(pipeline.getTranslationTargetLanguage())
                     .build()));
         }
-        if (pipeline.rewriteEnabled()) {
+        if (pipeline.getRewriteEnabled()) {
             transformers.add(failSafe("rewrite", RewriteQueryTransformer.builder()
                     .chatClientBuilder(vanillaChatClientBuilder(chatModel))
                     .build()));
@@ -139,11 +140,11 @@ public class ChatClientFactory {
             builder.queryTransformers(transformers.toArray(new QueryTransformer[0]));
         }
 
-        if (pipeline.multiQueryEnabled()) {
+        if (pipeline.getMultiQueryEnabled()) {
             builder.queryExpander(failSafeExpander(MultiQueryExpander.builder()
                     .chatClientBuilder(vanillaChatClientBuilder(chatModel))
-                    .numberOfQueries(pipeline.multiQueryCount())
-                    .includeOriginal(pipeline.multiQueryIncludeOriginal())
+                    .numberOfQueries(pipeline.getMultiQueryCount())
+                    .includeOriginal(pipeline.getMultiQueryIncludeOriginal())
                     .build()));
         }
 
@@ -153,7 +154,7 @@ public class ChatClientFactory {
         }
 
         builder.queryAugmenter(ContextualQueryAugmenter.builder()
-                .allowEmptyContext(pipeline.augmenterAllowEmptyContext())
+                .allowEmptyContext(pipeline.getAugmenterAllowEmptyContext())
                 .build());
 
         return builder.build();
@@ -174,15 +175,15 @@ public class ChatClientFactory {
      * </ol>
      * 任一不满足返回 null,advisor 跳过 Post-Retrieval 阶段。
      */
-    private DocumentPostProcessor buildRerankProcessor(RagPipelineSettings pipeline) {
-        if (!pipeline.rerankStageEnabled()) {
+    private DocumentPostProcessor buildRerankProcessor(RagPipelineConfigDTO pipeline) {
+        if (!pipeline.getRerankStageEnabled()) {
             return null;
         }
         RerankClient client = rerankConfigService.active();
         if (client == null) {
             return null;
         }
-        return new RerankDocumentPostProcessor(client, pipeline.rerankTopN());
+        return new RerankDocumentPostProcessor(client, pipeline.getRerankTopN());
     }
 
     /**

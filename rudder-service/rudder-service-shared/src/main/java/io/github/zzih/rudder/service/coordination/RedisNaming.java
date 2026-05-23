@@ -91,4 +91,20 @@ public final class RedisNaming {
         }
     }
 
+    /** 集群级单触发调度 —— {@code ClusterScheduler} 专用。 */
+    public static final class Scheduler {
+
+        /** 抢锁 key 前缀。完整 key:{@code rudder:scheduler:lock:{taskKey}}。 */
+        public static final String LOCK_PREFIX = ROOT + ":scheduler:lock:";
+
+        /** 上次执行结束时间 key 前缀。{@code rudder:scheduler:last-end:{taskKey}}。 */
+        public static final String LAST_END_PREFIX = ROOT + ":scheduler:last-end:";
+
+        /** {@code triggerNow} 标记 key 前缀。{@code rudder:scheduler:trigger:{taskKey}}。 */
+        public static final String TRIGGER_PREFIX = ROOT + ":scheduler:trigger:";
+
+        private Scheduler() {
+        }
+    }
+
 }

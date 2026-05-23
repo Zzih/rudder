@@ -39,6 +39,7 @@ import io.github.zzih.rudder.runtime.api.TaskFactory;
 import io.github.zzih.rudder.service.config.LogStorageService;
 import io.github.zzih.rudder.service.config.ResultConfigService;
 import io.github.zzih.rudder.service.config.RuntimeConfigService;
+import io.github.zzih.rudder.service.dataperm.auth.DataPermLocalAuthorizer;
 import io.github.zzih.rudder.service.registry.TaskCountProvider;
 import io.github.zzih.rudder.service.script.TaskExecutionStateService;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
@@ -90,6 +91,7 @@ public class TaskWorker implements TaskCountProvider {
     private final LogStorageService logService;
     private final RuntimeConfigService runtimeConfigService;
     private final ResultConfigService resultConfigService;
+    private final DataPermLocalAuthorizer dataPermLocalAuthorizer;
 
     private static final AtomicInteger THREAD_SEQ = new AtomicInteger(1);
     private static final String CANCELLED_BY_USER = "Cancelled by user";
@@ -344,6 +346,15 @@ public class TaskWorker implements TaskCountProvider {
                         .instance(instance)
                         .build();
                 pipeline.injectResources(task, injCtx);
+
+                // Local 数据权限鉴权:仅实现 DataPermAwareTask 的 task 参与。authorizer 按 ctx.taskType 反查
+                // Scope.managedTaskTypes 命中即鉴权,缺权抛 BizException 进 catch 标 FAILED,跳过 init 不建无谓的 JDBC 连接。
+                if (task instanceof DataPermAwareTask permTask) {
+                    dataPermLocalAuthorizer.authorize(
+                            instance.getCreatedBy(),
+                            ctx.getTaskType(),
+                            permTask.resolveAccessIntent(ctx));
+                }
 
                 task.init(ctx);
                 task.handle();

@@ -22,6 +22,7 @@ import io.github.zzih.rudder.common.param.Property;
 import io.github.zzih.rudder.common.sql.ResolvedColumn;
 import io.github.zzih.rudder.common.sql.SqlDialect;
 import io.github.zzih.rudder.common.sql.SqlProjectionResolver;
+import io.github.zzih.rudder.datasource.api.DatasourceTypeProvider;
 import io.github.zzih.rudder.task.api.task.sink.ResultSink;
 
 import java.sql.*;
@@ -57,7 +58,7 @@ public final class SqlExecutor {
      *                 null 等价空 map(SQL 里没有占位符的纯文本路径)。
      */
     public static void executePrepared(Connection conn, String sqlText, Map<String, Property> paramMap,
-                                       int maxRows, int timeoutSeconds, SqlDialect dialect,
+                                       int maxRows, int timeoutSeconds, DatasourceTypeProvider<?> provider,
                                        String datasourceName, ResultSink sink,
                                        Consumer<Statement> activeRegistrar) throws SQLException {
         if (sink == null) {
@@ -96,13 +97,13 @@ public final class SqlExecutor {
                             log.warn("setQueryTimeout not supported, skipping: {}", e.getMessage());
                         }
                     }
-                    applyStreamingFetch(ps, dialect);
+                    applyStreamingFetch(ps, provider);
                     SqlParamBinder.bindAll(ps, prep.binds());
 
                     boolean hasResultSet = ps.execute();
                     if (hasResultSet) {
                         try (ResultSet rs = ps.getResultSet()) {
-                            sinkInitialized = drainResultSet(rs, rawSql, dialect, datasourceName, sink);
+                            sinkInitialized = drainResultSet(rs, rawSql, provider, datasourceName, sink);
                         }
                     } else {
                         log.info("{} rows affected", ps.getUpdateCount());
@@ -122,7 +123,7 @@ public final class SqlExecutor {
     }
 
     /** 拉一个 ResultSet 全量喂给 sink。返回 true 表示已 init 过(避免重复 init)。 */
-    private static boolean drainResultSet(ResultSet rs, String sql, SqlDialect dialect,
+    private static boolean drainResultSet(ResultSet rs, String sql, DatasourceTypeProvider<?> provider,
                                           String datasourceName, ResultSink sink) throws SQLException {
         ResultSetMetaData meta = rs.getMetaData();
         int colCount = meta.getColumnCount();
@@ -132,6 +133,7 @@ public final class SqlExecutor {
             cols.add(meta.getColumnLabel(i));
         }
         // 原始 SQL(替换前)更适合喂 SqlProjectionResolver — 它需要看到 alias 文本
+        SqlDialect dialect = provider != null ? provider.dialect() : null;
         List<ColumnMeta> columnMetas = buildColumnMetas(cols, sql, dialect, datasourceName);
         sink.init(columnMetas);
 
@@ -153,9 +155,9 @@ public final class SqlExecutor {
     /**
      * 在给定的 Statement 上执行可能包含多条语句的 SQL 文本。结果通过 {@link ResultSink} 流式喂出。
      *
-     * @param dialect SQL 方言。给 {@link SqlProjectionResolver} 选 Calcite Lex,给
-     *                {@link #applyStreamingFetch} 选 JDBC fetch 策略。null 表示未知,走默认 lex
-     *                + 通用 fetchSize(1000)。
+     * @param provider 数据源类型 Provider。给 {@link #applyStreamingFetch} 选 JDBC fetch 策略,
+     *                 给 {@link SqlProjectionResolver} 喂 dialect 选 Calcite Lex。null 表示未知,
+     *                 走默认 lex + 兜底 fetchSize(1000)。
      * @param datasourceName Rudder 数据源名,写进 ColumnMeta 给元数据 tag 解析用。可空。
      * @param expectResultSet {@code true}:要求调用方提供 sink,每行 {@code sink.write} 喂出;
      *                返回结果集前先 {@code sink.init(columnMetas)}。
@@ -164,7 +166,7 @@ public final class SqlExecutor {
      * @param sink expectResultSet=true 时必须非空;false 时忽略。
      */
     public static void execute(Statement stmt, String sqlText, int maxRows,
-                               SqlDialect dialect, String datasourceName,
+                               DatasourceTypeProvider<?> provider, String datasourceName,
                                boolean expectResultSet, ResultSink sink) throws SQLException {
         if (expectResultSet && sink == null) {
             throw new IllegalArgumentException("sink must not be null when expectResultSet=true");
@@ -178,7 +180,7 @@ public final class SqlExecutor {
         }
 
         if (expectResultSet) {
-            applyStreamingFetch(stmt, dialect);
+            applyStreamingFetch(stmt, provider);
         }
 
         boolean sinkInitialized = false;
@@ -204,7 +206,7 @@ public final class SqlExecutor {
 
             if (hasResultSet) {
                 try (ResultSet rs = stmt.getResultSet()) {
-                    sinkInitialized = drainResultSet(rs, sql, dialect, datasourceName, sink);
+                    sinkInitialized = drainResultSet(rs, sql, provider, datasourceName, sink);
                 }
             } else {
                 log.info("{} rows affected", stmt.getUpdateCount());
@@ -219,31 +221,22 @@ public final class SqlExecutor {
 
     /**
      * 配置 JDBC 驱动按游标拉行,避免一次把整个结果集 buffer 到客户端内存。
-     * 不同 dialect 的开关不一样:
-     * <ul>
-     *   <li>MySQL / Doris / StarRocks:{@code setFetchSize(Integer.MIN_VALUE)} —— MySQL Connector/J
-     *       的行级流式魔法值,与 ResultSet TYPE_FORWARD_ONLY + CONCUR_READ_ONLY 配合工作</li>
-     *   <li>POSTGRES:必须 {@code setAutoCommit(false)} + {@code setFetchSize(N)} 才走游标</li>
-     *   <li>其他 (Hive / Trino / ClickHouse / Spark / Flink):默认就是流式或按 fetchSize 拉</li>
-     * </ul>
+     * 具体策略由 {@link DatasourceTypeProvider#applyStreamingFetch} 多态承接 ——
+     * MySQL 家族用 {@code Integer.MIN_VALUE} 魔法值,Postgres 需 autoCommit=false + 游标,
+     * 其余统一 fetchSize=1000。provider 为 null 时走通用兜底。
+     * <p>
      * 失败只记 warn,不阻断执行 —— 大不了退化到一次性拉(但内存就受总行数 / maxRows 影响)。
      */
-    private static void applyStreamingFetch(Statement stmt, SqlDialect dialect) {
+    private static void applyStreamingFetch(Statement stmt, DatasourceTypeProvider<?> provider) {
         try {
-            if (dialect == null) {
+            if (provider != null) {
+                provider.applyStreamingFetch(stmt);
+            } else {
                 stmt.setFetchSize(1000);
-                return;
-            }
-            switch (dialect) {
-                case MYSQL, DORIS, STARROCKS -> stmt.setFetchSize(Integer.MIN_VALUE);
-                case POSTGRES -> {
-                    stmt.getConnection().setAutoCommit(false);
-                    stmt.setFetchSize(1000);
-                }
-                case HIVE, TRINO, CLICKHOUSE, SPARK, FLINK -> stmt.setFetchSize(1000);
             }
         } catch (SQLException e) {
-            log.warn("setFetchSize not supported for dialect {}, skipping: {}", dialect, e.getMessage());
+            log.warn("setFetchSize not supported for provider {}, skipping: {}",
+                    provider != null ? provider.dbType() : "null", e.getMessage());
         }
     }
 

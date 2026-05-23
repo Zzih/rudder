@@ -19,7 +19,7 @@ package io.github.zzih.rudder.execution.worker.injector;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.entity.TaskInstance;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 import io.github.zzih.rudder.task.api.task.DataSourceAwareTask;
 
 import java.util.Map;

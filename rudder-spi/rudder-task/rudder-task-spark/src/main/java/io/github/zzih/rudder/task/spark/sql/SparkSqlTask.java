@@ -17,7 +17,7 @@
 
 package io.github.zzih.rudder.task.spark.sql;
 
-import io.github.zzih.rudder.common.sql.SqlDialect;
+import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.params.SqlTaskParams;
 import io.github.zzih.rudder.task.api.task.AbstractJdbcSqlTask;
@@ -41,8 +41,8 @@ public class SparkSqlTask extends AbstractJdbcSqlTask {
     }
 
     @Override
-    protected SqlDialect dialect() {
-        return SqlDialect.SPARK;
+    protected DatasourceType type() {
+        return DatasourceType.SPARK;
     }
 
     @Override
@@ -53,7 +53,7 @@ public class SparkSqlTask extends AbstractJdbcSqlTask {
         for (Map.Entry<String, String> entry : params.getEngineParams().entrySet()) {
             String setStmt = "SET " + entry.getKey() + "=" + entry.getValue();
             log.info("SET  → {}", setStmt);
-            SqlExecutor.execute(stmt, setStmt, params.getQueryLimit(), dialect(), null, false, null);
+            SqlExecutor.execute(stmt, setStmt, params.getQueryLimit(), provider(), null, false, null);
         }
     }
 }

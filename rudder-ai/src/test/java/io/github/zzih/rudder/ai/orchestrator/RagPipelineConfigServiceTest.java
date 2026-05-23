@@ -24,6 +24,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.zzih.rudder.ai.orchestrator.dto.RagPipelineConfigDTO;
 import io.github.zzih.rudder.dao.dao.RagPipelineConfigDao;
 import io.github.zzih.rudder.dao.entity.RagPipelineConfig;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
@@ -41,7 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-/** 验证 RAG pipeline 配置加载/保存/容错。 */
+/** 验证 RAG pipeline 配置加载/保存。打平后字段从 DB 列直接映射,无 JSON 反序列化路径。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RagPipelineConfigServiceTest {
@@ -57,111 +58,67 @@ class RagPipelineConfigServiceTest {
     @BeforeEach
     void setUp() {
         service = new RagPipelineConfigService(cache, dao);
-        // 让 cache.getOrLoad 直接调 supplier (跳过缓存,简化测试)
         when(cache.getOrLoad(eq(GlobalCacheKey.RAG_PIPELINE), any()))
                 .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(1)).get());
     }
 
     @Test
-    @DisplayName("DB 没 row → 返回 defaults (active() 永不 null)")
+    @DisplayName("DB 无 row → 返回 defaults(全 false / 默认 int)")
     void active_noDbRow_returnsDefaults() {
         when(dao.selectActive()).thenReturn(null);
 
-        RagPipelineSettings result = service.active();
+        RagPipelineConfigDTO result = service.active();
 
-        assertThat(result).isEqualTo(RagPipelineSettings.defaults());
+        assertThat(result.getRewriteEnabled()).isFalse();
+        assertThat(result.getMultiQueryCount()).isEqualTo(3);
+        assertThat(result.getRerankTopN()).isEqualTo(5);
+        assertThat(result.getTranslationTargetLanguage()).isEqualTo("english");
     }
 
     @Test
-    @DisplayName("DB row 存在但 settings 空 → 返回 defaults")
-    void active_emptyParams_returnsDefaults() {
+    @DisplayName("DB row 字段齐全 → 按字段映射")
+    void active_validRow_mapsAllFields() {
         RagPipelineConfig c = new RagPipelineConfig();
-        c.setSettingsJson("");
+        c.setRewriteEnabled(true);
+        c.setMultiQueryEnabled(true);
+        c.setMultiQueryCount(4);
+        c.setMultiQueryIncludeOriginal(false);
+        c.setCompressionEnabled(false);
+        c.setTranslationEnabled(false);
+        c.setTranslationTargetLanguage("english");
+        c.setRerankStageEnabled(true);
+        c.setRerankTopN(10);
+        c.setKeywordEnricherEnabled(true);
+        c.setSummaryEnricherEnabled(false);
+        c.setAugmenterAllowEmptyContext(true);
         when(dao.selectActive()).thenReturn(c);
 
-        assertThat(service.active()).isEqualTo(RagPipelineSettings.defaults());
+        RagPipelineConfigDTO result = service.active();
+
+        assertThat(result.getRewriteEnabled()).isTrue();
+        assertThat(result.getMultiQueryCount()).isEqualTo(4);
+        assertThat(result.getRerankTopN()).isEqualTo(10);
+        assertThat(result.getKeywordEnricherEnabled()).isTrue();
+        assertThat(result.getTranslationTargetLanguage()).isEqualTo("english");
     }
 
     @Test
-    @DisplayName("正常路径: 解析 JSON 返回 RagPipelineSettings")
-    void active_validJson_parsedCorrectly() {
-        RagPipelineConfig c = new RagPipelineConfig();
-        c.setSettingsJson("""
-                {
-                  "rewriteEnabled": true,
-                  "multiQueryEnabled": true,
-                  "multiQueryCount": 4,
-                  "multiQueryIncludeOriginal": false,
-                  "compressionEnabled": false,
-                  "translationEnabled": false,
-                  "translationTargetLanguage": "english",
-                  "rerankStageEnabled": true,
-                  "rerankTopN": 10,
-                  "keywordEnricherEnabled": true,
-                  "summaryEnricherEnabled": false,
-                  "augmenterAllowEmptyContext": true
-                }
-                """);
-        when(dao.selectActive()).thenReturn(c);
-
-        RagPipelineSettings result = service.active();
-
-        assertThat(result.rewriteEnabled()).isTrue();
-        assertThat(result.multiQueryCount()).isEqualTo(4);
-        assertThat(result.rerankTopN()).isEqualTo(10);
-        assertThat(result.keywordEnricherEnabled()).isTrue();
-    }
-
-    @Test
-    @DisplayName("缺字段的旧 JSON → Jackson 默认值 + record compact constructor 规范化")
-    void active_partialJson_missingFieldsDefaultToFalse() {
-        // 模拟老 row 只有部分字段(后续加的字段缺失)
-        RagPipelineConfig c = new RagPipelineConfig();
-        c.setSettingsJson("""
-                {
-                  "rewriteEnabled": true,
-                  "multiQueryCount": 0
-                }
-                """);
-        when(dao.selectActive()).thenReturn(c);
-
-        RagPipelineSettings result = service.active();
-
-        assertThat(result.rewriteEnabled()).isTrue();
-        assertThat(result.multiQueryEnabled()).isFalse();
-        assertThat(result.keywordEnricherEnabled()).isFalse();
-        // compact constructor 把 0 normalize 成默认 3
-        assertThat(result.multiQueryCount()).isEqualTo(3);
-        // null targetLanguage 被规范化成 "english"
-        assertThat(result.translationTargetLanguage()).isEqualTo("english");
-    }
-
-    @Test
-    @DisplayName("malformed JSON → 不抛异常,降级到 defaults")
-    void active_malformedJson_fallsBackToDefaults() {
-        RagPipelineConfig c = new RagPipelineConfig();
-        c.setSettingsJson("{not json}");
-        when(dao.selectActive()).thenReturn(c);
-
-        assertThat(service.active()).isEqualTo(RagPipelineSettings.defaults());
-    }
-
-    @Test
-    @DisplayName("saveDetail: 没现有 row → 创建新行 + insert")
+    @DisplayName("saveDetail: 没现有 row → insert 新行,字段被赋值")
     void saveDetail_noExisting_inserts() {
         when(dao.selectActive()).thenReturn(null);
 
-        RagPipelineSettings settings = new RagPipelineSettings(
-                true, false, 3, true,
-                false, false, "english",
-                true, 5, false, false, true);
+        RagPipelineConfigDTO settings = new RagPipelineConfigDTO();
+        settings.setRewriteEnabled(true);
+        settings.setRerankStageEnabled(true);
+        settings.setMultiQueryCount(3);
         service.saveDetail(settings);
 
         ArgumentCaptor<RagPipelineConfig> captor = ArgumentCaptor.forClass(RagPipelineConfig.class);
         verify(dao, times(1)).insert(captor.capture());
         RagPipelineConfig saved = captor.getValue();
-        assertThat(saved.getEnabled()).isTrue();
-        assertThat(saved.getSettingsJson()).contains("\"rewriteEnabled\":true");
+        assertThat(saved.getRewriteEnabled()).isTrue();
+        assertThat(saved.getRerankStageEnabled()).isTrue();
+        assertThat(saved.getMultiQueryCount()).isEqualTo(3);
         verify(cache).invalidate(GlobalCacheKey.RAG_PIPELINE);
     }
 
@@ -172,7 +129,7 @@ class RagPipelineConfigServiceTest {
         existing.setId(42L);
         when(dao.selectActive()).thenReturn(existing);
 
-        service.saveDetail(RagPipelineSettings.defaults());
+        service.saveDetail(new RagPipelineConfigDTO());
 
         verify(dao, times(1)).updateById(any(RagPipelineConfig.class));
         verify(cache).invalidate(GlobalCacheKey.RAG_PIPELINE);

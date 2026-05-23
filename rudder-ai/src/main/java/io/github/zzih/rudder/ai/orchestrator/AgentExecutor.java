@@ -26,6 +26,7 @@ import io.github.zzih.rudder.ai.orchestrator.turn.TurnEvent;
 import io.github.zzih.rudder.ai.orchestrator.turn.TurnEventSink;
 import io.github.zzih.rudder.ai.orchestrator.turn.TurnRequest;
 import io.github.zzih.rudder.ai.orchestrator.turn.TurnTail;
+import io.github.zzih.rudder.ai.permission.ToolConfigService;
 import io.github.zzih.rudder.ai.rag.RudderDocumentRetriever;
 import io.github.zzih.rudder.ai.skill.SkillInvocationContext;
 import io.github.zzih.rudder.ai.skill.SkillToolProvider;
@@ -35,6 +36,7 @@ import io.github.zzih.rudder.common.exception.ExceptionFormatter;
 import io.github.zzih.rudder.dao.dao.AiMessageDao;
 import io.github.zzih.rudder.dao.entity.AiContextProfile;
 import io.github.zzih.rudder.dao.entity.AiSession;
+import io.github.zzih.rudder.dao.entity.AiToolConfig;
 import io.github.zzih.rudder.llm.api.LlmClient;
 import io.github.zzih.rudder.llm.api.tool.AgentTool;
 import io.github.zzih.rudder.llm.api.tool.ToolExecutionContext;
@@ -45,6 +47,7 @@ import io.github.zzih.rudder.service.stream.StreamRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -83,6 +86,7 @@ public class AgentExecutor {
     private final StreamRegistry streamRegistry;
     private final ToolRegistry toolRegistry;
     private final PermissionGate permissionGate;
+    private final ToolConfigService toolConfigService;
     private final ContextBuilder contextBuilder;
     private final ToolApprovalRegistry approvalRegistry;
     private final ContextProfileService contextProfileService;
@@ -270,8 +274,15 @@ public class AgentExecutor {
                 handle, request.getSessionId(), turnId);
         List<AgentTool> tools = toolRegistry.allForWorkspace(request.getWorkspaceId());
         tools.addAll(skillToolProvider.buildFor(request.getWorkspaceId(), skillCtx));
+        // 一次性预取 override map,避免循环里 per-tool lookup 触发 N+1 DB 查询
+        Map<String, AiToolConfig> toolOverrides = toolConfigService.mapEnabledForWorkspace(
+                request.getWorkspaceId());
         List<ToolCallback> out = new ArrayList<>(tools.size());
         for (AgentTool t : tools) {
+            // 按 caller 角色过滤,避免无权限工具进入 LLM 上下文造成无效调用
+            if (!permissionGate.canInvoke(t.name(), toolOverrides.get(t.name()), toolCtx)) {
+                continue;
+            }
             out.add(new RudderToolCallback(
                     t, t.name(), toolCtx, sink, persistence, messageDao,
                     permissionGate, approvalRegistry, redactionService, handle,

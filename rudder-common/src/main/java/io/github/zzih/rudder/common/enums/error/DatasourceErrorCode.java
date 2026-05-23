@@ -34,7 +34,9 @@ public enum DatasourceErrorCode implements ErrorCode {
     DS_NAME_IMMUTABLE(2006, "err.DatasourceErrorCode.DS_NAME_IMMUTABLE"),
     DS_CRED_ENCRYPT_FAILED(2007, "err.DatasourceErrorCode.DS_CRED_ENCRYPT_FAILED"),
     DS_CRED_DECRYPT_FAILED(2008, "err.DatasourceErrorCode.DS_CRED_DECRYPT_FAILED"),
-    DS_PREVIEW_SQL_EMPTY(2009, "err.DatasourceErrorCode.DS_PREVIEW_SQL_EMPTY");
+    DS_PREVIEW_SQL_EMPTY(2009, "err.DatasourceErrorCode.DS_PREVIEW_SQL_EMPTY"),
+    DS_PARAMS_INVALID(2010, "err.DatasourceErrorCode.DS_PARAMS_INVALID"),
+    DS_TYPE_UNKNOWN(2011, "err.DatasourceErrorCode.DS_TYPE_UNKNOWN");
 
     private final int code;
     private final String message;

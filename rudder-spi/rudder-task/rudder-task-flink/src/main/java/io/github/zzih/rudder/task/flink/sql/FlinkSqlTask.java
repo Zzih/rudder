@@ -19,7 +19,7 @@ package io.github.zzih.rudder.task.flink.sql;
 
 import io.github.zzih.rudder.common.enums.error.TaskErrorCode;
 import io.github.zzih.rudder.common.exception.TaskException;
-import io.github.zzih.rudder.common.sql.SqlDialect;
+import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.params.SqlTaskParams;
 import io.github.zzih.rudder.task.api.task.AbstractJdbcSqlTask;
@@ -56,8 +56,8 @@ public class FlinkSqlTask extends AbstractJdbcSqlTask implements JobTask {
     }
 
     @Override
-    protected SqlDialect dialect() {
-        return SqlDialect.FLINK;
+    protected DatasourceType type() {
+        return DatasourceType.FLINK;
     }
 
     @Override
@@ -133,7 +133,7 @@ public class FlinkSqlTask extends AbstractJdbcSqlTask implements JobTask {
                 ? ExecutionMode.STREAMING.name().toLowerCase()
                 : ExecutionMode.BATCH.name().toLowerCase();
         SqlExecutor.execute(stmt, "SET 'execution.runtime-mode' = '" + mode + "'",
-                params.getQueryLimit(), dialect(), null, false, null);
+                params.getQueryLimit(), provider(), null, false, null);
     }
 
     private void applyEngineParams(Statement stmt) throws SQLException {
@@ -143,7 +143,7 @@ public class FlinkSqlTask extends AbstractJdbcSqlTask implements JobTask {
         for (Map.Entry<String, String> entry : params.getEngineParams().entrySet()) {
             String setStmt = "SET '" + entry.getKey() + "' = '" + entry.getValue() + "'";
             log.info("SET  → {}", setStmt);
-            SqlExecutor.execute(stmt, setStmt, params.getQueryLimit(), dialect(), null, false, null);
+            SqlExecutor.execute(stmt, setStmt, params.getQueryLimit(), provider(), null, false, null);
         }
     }
 }

@@ -108,12 +108,16 @@ public class LayeringArchitectureTest {
     // ====================================================================
 
     /**
-     * SPI 契约层不得 import 业务服务/数据源/DAO 模块。
+     * SPI 契约层不得 import 业务服务/数据源实现/DAO 模块。
      * 已知违规:metadata-api → datasource (DatasourceService + ConnectionPoolManager 暴露在 ProviderContext)。
      *
      * <p>注:SPI provider 模块(-local/-{provider})也用同包前缀,但因其位于子包(file.local..)
      * 不在此 scope 内。这里只锁 -api 的契约纯净度。各 SPI 的 -api 包形如:
      * {@code io.github.zzih.rudder.{file,result,llm,task,...}.api..}。
+     *
+     * <p>例外:{@code io.github.zzih.rudder.datasource.api..} 是 {@code rudder-datasource-api}
+     * 模块的 SPI 契约层(参考 dolphin DataSourceClientProvider 模式),其它 SPI -api 可以依赖它,
+     * 因此从禁令中排除 —— 禁的是 datasource 的 service/spi/dto/model 实现包。
      */
     @ArchTest
     static final ArchRule spi_api_must_not_depend_on_business_layers =
@@ -132,7 +136,11 @@ public class LayeringArchitectureTest {
                             "io.github.zzih.rudder.vector.api..",
                             "io.github.zzih.rudder.version.api..")
                     .should().dependOnClassesThat().resideInAPackage("io.github.zzih.rudder.dao..")
-                    .orShould().dependOnClassesThat().resideInAPackage("io.github.zzih.rudder.datasource..")
+                    .orShould().dependOnClassesThat().resideInAnyPackage(
+                            "io.github.zzih.rudder.service.datasource..",
+                            "io.github.zzih.rudder.datasource.spi..",
+                            "io.github.zzih.rudder.service.datasource.dto..",
+                            "io.github.zzih.rudder.service.datasource.model..")
                     .orShould().dependOnClassesThat().resideInAPackage("io.github.zzih.rudder.service..");
 
     // ====================================================================

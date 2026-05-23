@@ -46,13 +46,13 @@ public class I18nConfig {
     public MessageSource messageSource() {
         ResourceBundleMessageSource ms = new ResourceBundleMessageSource();
         ms.setBasenames("i18n/messages", "i18n/errors", "i18n/spi-params",
-                "i18n/capabilities", "i18n/validation");
+                "i18n/capabilities", "i18n/validation", "i18n/dataperm");
         ms.setDefaultEncoding("UTF-8");
         ms.setFallbackToSystemLocale(false);
         ms.setUseCodeAsDefaultMessage(true);
         I18n.bind(ms);
         log.info(
-                "I18n bundles loaded: i18n/{{messages, errors, spi-params, capabilities, validation}}_{{zh, en}}.properties");
+                "I18n bundles loaded: i18n/{{messages, errors, spi-params, capabilities, validation, dataperm}}_{{zh, en}}.properties");
         return ms;
     }
 

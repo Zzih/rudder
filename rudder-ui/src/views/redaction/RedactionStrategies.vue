@@ -4,12 +4,13 @@
       <el-button type="primary" size="small" @click="openEdit()">
         <el-icon><Plus /></el-icon>{{ t('common.create') }}
       </el-button>
-      <el-button size="small" :loading="loading" @click="load">
+      <el-button size="small" :loading="loading" @click="() => load()">
         <el-icon><Refresh /></el-icon>{{ t('common.refresh') }}
       </el-button>
     </div>
 
-    <el-table :data="rows" v-loading="loading" size="small" stripe>
+    <div class="admin-card">
+    <el-table :data="rows" v-loading="loading">
       <el-table-column prop="code" :label="t('redaction.strategy.code')" width="180" />
 
       <el-table-column prop="name" :label="t('redaction.col.name')" width="160" />
@@ -33,6 +34,12 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+
+    <el-pagination v-if="total > pageSize" class="admin-pagination" background
+                   layout="total, prev, pager, next"
+                   :total="total" :page-size="pageSize" :current-page="pageNum"
+                   @current-change="handlePageChange" />
 
     <el-dialog v-model="editing" :title="form.id ? t('common.edit') : t('common.create')" width="640">
       <el-form label-position="top">
@@ -125,17 +132,28 @@ import { useI18n } from 'vue-i18n'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminRedaction, type RedactionStrategyVO, type RedactionExecutorType } from '@/api/ai'
+import { usePagination } from '@/composables/usePagination'
 
 const { t } = useI18n()
 
-const rows = ref<RedactionStrategyVO[]>([])
-const loading = ref(false)
 const editing = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const form = reactive<RedactionStrategyVO>(empty())
 const testSample = ref('')
 const testOutput = ref('')
+
+const {
+  data: rows,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: load,
+  handlePageChange,
+} = usePagination<RedactionStrategyVO>({
+  fetchApi: (params) => adminRedaction.pageStrategies(params),
+})
 
 function empty(): RedactionStrategyVO {
   return {
@@ -181,16 +199,6 @@ function configSummary(row: RedactionStrategyVO): string {
       return `SHA256[0..${row.hashLength ?? 8}]`
     case 'REMOVE':
       return 'null'
-  }
-}
-
-async function load() {
-  loading.value = true
-  try {
-    const { data } = await adminRedaction.listStrategies()
-    rows.value = data ?? []
-  } finally {
-    loading.value = false
   }
 }
 
@@ -260,6 +268,8 @@ onMounted(load)
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .tab-pane { padding: 8px 0; }
 .tab-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .field-hint { font-size: 12px; color: var(--r-text-muted); margin-top: 4px; line-height: 1.4; }

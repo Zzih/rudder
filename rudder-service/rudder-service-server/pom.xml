@@ -23,12 +23,6 @@
             <artifactId>rudder-service-shared</artifactId>
         </dependency>
 
-        <!-- Infrastructure -->
-        <dependency>
-            <groupId>io.github.zzih</groupId>
-            <artifactId>rudder-datasource</artifactId>
-        </dependency>
-
         <!-- SwitchTask 用 nashorn-sandbox 跑用户 JS 表达式 -->
         <dependency>
             <groupId>org.javadelight</groupId>

@@ -40,4 +40,6 @@ public class DataSourceInfo {
     private String password;
     private String driverClass;
     private Map<String, String> properties;
+    /** Provider 自报的探活 SQL,HikariCP {@code connectionTestQuery} 用它。默认 {@code SELECT 1}。 */
+    private String validationQuery;
 }

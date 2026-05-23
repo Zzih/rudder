@@ -298,9 +298,9 @@ public class WorkflowInstanceRunner implements Runnable {
             dagState.set(node.getTaskCode(), NodeState.SUCCESS);
 
         } catch (Exception e) {
-            log.error("Status → FAILED: {}", e.getMessage());
+            log.error("Status → FAILED: {}", e.getLocalizedMessage());
             controlTask.setStatus(InstanceStatus.FAILED);
-            controlTask.setErrorMessage(e.getMessage());
+            controlTask.setErrorMessage(e.getLocalizedMessage());
             controlTask.setFinishedAt(LocalDateTime.now());
             controlTask
                     .setDuration(Duration.between(controlTask.getStartedAt(), controlTask.getFinishedAt()).toMillis());
@@ -418,7 +418,7 @@ public class WorkflowInstanceRunner implements Runnable {
                     instance.getId());
         } catch (Exception e) {
             execution.setStatus(InstanceStatus.FAILED);
-            execution.setErrorMessage("Dispatch failed: " + e.getMessage());
+            execution.setErrorMessage("Dispatch failed: " + e.getLocalizedMessage());
             execution.setFinishedAt(LocalDateTime.now());
             deps.taskInstanceDao().updateById(execution);
             dagState.set(node.getTaskCode(), NodeState.FAILED);

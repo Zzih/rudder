@@ -5,9 +5,17 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { pageApprovals, approveApproval, rejectApproval } from '@/api/approval'
 import { formatDate, relativeTime as relativeTimeUtil } from '@/utils/dateFormat'
-import { colorMeta } from '@/utils/colorMeta'
+import {
+  STAGE_LABEL_KEY,
+  TYPE_LABEL_KEY,
+  TYPE_CLASS_BY_RESOURCE,
+  getStatusMeta,
+  getStageState as resolveStageState,
+  type ApprovalStageState,
+} from './labels'
 import { usePagination } from '@/composables/usePagination'
 import { usePermission } from '@/composables/usePermission'
+import ApprovalDetailDrawer from './ApprovalDetailDrawer.vue'
 
 const { t } = useI18n()
 const { canEdit } = usePermission()
@@ -19,7 +27,9 @@ interface ApprovalRecord {
   description: string
   submitRemark: string
   status: string
-  approvalLevel: string
+  resourceType: string
+  stageChain: string[]
+  currentStage: string
   approver: string
   remark: string
   projectApprover: string
@@ -27,12 +37,6 @@ interface ApprovalRecord {
   resolvedAt: string
   createdAt: string
   workflows: string[]
-}
-
-const statusMeta: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  PENDING:  { ...colorMeta('#f59e0b'), label: 'approval.pending' },
-  APPROVED: { ...colorMeta('#10b981'), label: 'approval.approved' },
-  REJECTED: { ...colorMeta('#ef4444'), label: 'approval.rejected' },
 }
 
 const statusOptions = [
@@ -64,11 +68,10 @@ const {
     return pageApprovals(p as never)
   },
   extractData: (res: any) => {
-    const records = (res.data?.records as ApprovalRecord[]) || []
+    const records = (res.data as ApprovalRecord[]) || []
     records.forEach(r => { r.workflows = parseWorkflows(r.description) })
     return records
   },
-  extractTotal: (res: any) => (res.data?.total as number) || 0,
   defaultPageSize: 10,
   animated: true,
 })
@@ -78,6 +81,13 @@ const actionType = ref<'approve' | 'reject'>('approve')
 const actionId = ref(0)
 const actionComment = ref('')
 const actionLoading = ref(false)
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+function openDetail(id: number) {
+  detailId.value = id
+  detailVisible.value = true
+}
 
 watch(statusFilter, () => {
   resetAndFetch()
@@ -110,17 +120,15 @@ function relativeTime(d: string) {
 }
 
 function getMeta(status: string) {
-  return statusMeta[status] ?? { ...colorMeta('#64748b'), label: status }
+  return getStatusMeta(status)
 }
 
-function isProjectPublish(title: string): boolean {
-  return title?.startsWith('Project Publish') ?? false
+function typeLabel(resourceType: string): string {
+  return t(TYPE_LABEL_KEY[resourceType] ?? 'approval.unknownType')
 }
 
-function getPublishLabel(title: string): string {
-  const name = title?.replace(/^(Project|Workflow) Publish:\s*/, '') || title
-  const key = title?.startsWith('Project Publish') ? 'approval.projectName' : 'approval.workflowName'
-  return t(key) + name
+function typeClass(resourceType: string): string {
+  return TYPE_CLASS_BY_RESOURCE[resourceType] ?? 'ap-type-tag--workflow'
 }
 
 function parseWorkflows(desc: string): string[] {
@@ -132,16 +140,8 @@ function parseWorkflows(desc: string): string[] {
   return []
 }
 
-function getStep1State(row: ApprovalRecord): 'done' | 'active' | 'rejected' | 'waiting' {
-  if (row.status === 'REJECTED' && row.approvalLevel === 'PROJECT_OWNER') return 'rejected'
-  if (row.approvalLevel === 'PROJECT_OWNER' && row.status === 'PENDING') return 'active'
-  return 'done'
-}
-function getStep2State(row: ApprovalRecord): 'done' | 'active' | 'rejected' | 'waiting' {
-  if (row.status === 'APPROVED') return 'done'
-  if (row.status === 'REJECTED' && row.approvalLevel === 'WORKSPACE_OWNER') return 'rejected'
-  if (row.approvalLevel === 'WORKSPACE_OWNER' && row.status === 'PENDING') return 'active'
-  return 'waiting'
+function getStageState(row: ApprovalRecord, idx: number): ApprovalStageState {
+  return resolveStageState(row, idx)
 }
 
 onMounted(fetchApprovals)
@@ -196,8 +196,8 @@ onMounted(fetchApprovals)
             <!-- Line 1: badges -->
             <div class="ap-card__badges">
               <span class="ap-card__id">#{{ row.id }}</span>
-              <span :class="['ap-type-tag', isProjectPublish(row.title) ? 'ap-type-tag--project' : 'ap-type-tag--workflow']">
-                {{ isProjectPublish(row.title) ? t('approval.projectPublish') : t('approval.workflowPublish') }}
+              <span :class="['ap-type-tag', typeClass(row.resourceType)]">
+                {{ typeLabel(row.resourceType) }}
               </span>
               <span
                 class="ap-pill"
@@ -210,8 +210,8 @@ onMounted(fetchApprovals)
               <span class="ap-card__time" :title="formatDate(row.createdAt)">{{ relativeTime(row.createdAt) }}</span>
             </div>
 
-            <!-- Line 2: title (with label prefix) -->
-            <div class="ap-card__title" :title="row.title">{{ getPublishLabel(row.title) }}</div>
+            <!-- Line 2: title (后端原样返回,不再前端拼前缀) -->
+            <div class="ap-card__title" :title="row.title">{{ row.title }}</div>
 
             <!-- Line 3: workflow chips (parsed from description) -->
             <div v-if="row.workflows.length" class="ap-card__workflows">
@@ -233,41 +233,42 @@ onMounted(fetchApprovals)
 
           <!-- Right: steps + date + actions -->
           <div class="ap-card__aside">
-            <!-- Step flow -->
+            <!-- Step flow (按后端 stageChain 渲染 N 级) -->
             <div class="ap-flow">
-              <div :class="['ap-node', 'ap-node--' + getStep1State(row)]">
-                <div class="ap-node__circle">
-                  <svg v-if="getStep1State(row) === 'done'" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  <svg v-else-if="getStep1State(row) === 'rejected'" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                  <span v-else>1</span>
+              <template v-for="(stage, i) in row.stageChain ?? []" :key="stage">
+                <div v-if="i > 0" class="ap-flow__line"
+                  :class="{ 'ap-flow__line--done': getStageState(row, i - 1) === 'done' }" />
+                <div :class="['ap-node', 'ap-node--' + getStageState(row, i)]">
+                  <div class="ap-node__circle">
+                    <svg v-if="getStageState(row, i) === 'done'" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg v-else-if="getStageState(row, i) === 'rejected'" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                    <span v-else>{{ i + 1 }}</span>
+                  </div>
+                  <span class="ap-node__text">{{ t(STAGE_LABEL_KEY[stage] ?? stage) }}</span>
+                  <span v-if="i === 0 && row.projectApprover" class="ap-node__who">{{ row.projectApprover }}</span>
+                  <span v-else-if="i === (row.stageChain ?? []).length - 1 && row.approver && row.status !== 'PENDING'"
+                    class="ap-node__who">{{ row.approver }}</span>
                 </div>
-                <span class="ap-node__text">{{ t('approval.stepProject') }}</span>
-                <span v-if="row.projectApprover" class="ap-node__who">{{ row.projectApprover }}</span>
-              </div>
-              <div class="ap-flow__line" :class="{ 'ap-flow__line--done': getStep1State(row) === 'done' }" />
-              <div :class="['ap-node', 'ap-node--' + getStep2State(row)]">
-                <div class="ap-node__circle">
-                  <svg v-if="getStep2State(row) === 'done'" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  <svg v-else-if="getStep2State(row) === 'rejected'" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                  <span v-else>2</span>
-                </div>
-                <span class="ap-node__text">{{ t('approval.stepWorkspace') }}</span>
-                <span v-if="row.approver && row.status !== 'PENDING'" class="ap-node__who">{{ row.approver }}</span>
-              </div>
+              </template>
             </div>
 
             <!-- Date + Actions -->
             <div class="ap-card__footer">
               <span class="ap-card__date" :title="formatDate(row.createdAt)">{{ formatDate(row.createdAt) }}</span>
-              <div v-if="canEdit && row.status === 'PENDING' && row.channel === 'LOCAL'" class="ap-card__actions">
-                <button class="ap-btn ap-btn--approve" @click="openAction(row.id, 'approve')">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  {{ t('approval.approve') }}
+              <div class="ap-card__actions">
+                <button class="ap-btn ap-btn--detail" @click="openDetail(row.id)">
+                  {{ t('common.detail') }}
                 </button>
-                <button class="ap-btn ap-btn--reject" @click="openAction(row.id, 'reject')">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                  {{ t('approval.reject') }}
-                </button>
+                <template v-if="canEdit && row.status === 'PENDING' && row.channel === 'LOCAL'">
+                  <button class="ap-btn ap-btn--approve" @click="openAction(row.id, 'approve')">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    {{ t('approval.approve') }}
+                  </button>
+                  <button class="ap-btn ap-btn--reject" @click="openAction(row.id, 'reject')">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    {{ t('approval.reject') }}
+                  </button>
+                </template>
               </div>
             </div>
           </div>
@@ -325,6 +326,12 @@ onMounted(fetchApprovals)
         </el-button>
       </template>
     </el-dialog>
+
+    <ApprovalDetailDrawer
+      v-model="detailVisible"
+      :approval-id="detailId"
+      @resolved="() => fetchApprovals()"
+    />
   </div>
 </template>
 
@@ -489,8 +496,8 @@ onMounted(fetchApprovals)
   background: var(--r-bg-card);
   border: 1px solid var(--r-border);
   border-left: 3px solid var(--accent, var(--r-border));
-  border-radius: 10px;
-  padding: 14px 18px;
+  border-radius: var(--r-radius-lg);
+  padding: var(--r-space-3) var(--r-space-4);
   transition: border-color 0.15s, box-shadow 0.15s;
   opacity: 0;
   transform: translateY(4px);
@@ -597,6 +604,18 @@ onMounted(fetchApprovals)
     color: var(--r-cyan);
     background: var(--r-cyan-bg);
     border-color: var(--r-cyan-border);
+  }
+
+  &--dataperm {
+    color: var(--r-accent);
+    background: var(--r-accent-bg);
+    border-color: var(--r-accent-border);
+  }
+
+  &--mcp {
+    color: var(--r-warning);
+    background: var(--r-warning-bg);
+    border-color: var(--r-warning-border);
   }
 }
 
@@ -716,7 +735,11 @@ onMounted(fetchApprovals)
   .ap-node__text { color: var(--r-success); }
 }
 .ap-node--active {
-  .ap-node__circle { background: var(--r-accent-hover); color: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .ap-node__circle {
+    background: var(--r-accent-hover);
+    color: #fff;
+    box-shadow: 0 0 0 3px var(--r-accent-bg);
+  }
   .ap-node__text { color: var(--r-accent-hover); }
 }
 .ap-node--rejected {
@@ -763,10 +786,11 @@ onMounted(fetchApprovals)
   align-items: center;
   gap: 4px;
   padding: 5px 14px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-radius-md);
+  font-size: var(--r-font-sm);
   font-weight: 600;
+  line-height: 18px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
@@ -774,14 +798,27 @@ onMounted(fetchApprovals)
   &--approve {
     color: #fff;
     background: var(--r-success);
-    &:hover { background: var(--r-success); filter: brightness(0.9); transform: translateY(-0.5px); }
+    border-color: var(--r-success);
+    &:hover { filter: brightness(0.92); transform: translateY(-0.5px); }
   }
 
   &--reject {
     color: var(--r-danger);
     background: var(--r-danger-bg);
-    border: 1px solid var(--r-danger-border);
-    &:hover { background: var(--r-danger-bg); border-color: var(--r-danger-border); transform: translateY(-0.5px); }
+    border-color: var(--r-danger-border);
+    &:hover { transform: translateY(-0.5px); }
+  }
+
+  &--detail {
+    color: var(--r-text-muted);
+    background: transparent;
+    border-color: var(--r-border-light);
+    &:hover {
+      color: var(--r-text-primary);
+      background: var(--r-bg-panel);
+      border-color: var(--r-border);
+      transform: translateY(-0.5px);
+    }
   }
 
   &:active { transform: translateY(0); }

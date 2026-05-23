@@ -88,6 +88,14 @@ public class WorkspaceService {
         return BeanConvertUtils.convertList(workspaceDao.selectByIds(workspaceIds), WorkspaceDTO.class);
     }
 
+    /** 按 id 列表批量查 workspace。空入参返空 list,不打 db。 */
+    public List<WorkspaceDTO> listByIds(List<Long> workspaceIds) {
+        if (workspaceIds == null || workspaceIds.isEmpty()) {
+            return List.of();
+        }
+        return BeanConvertUtils.convertList(workspaceDao.selectByIds(workspaceIds), WorkspaceDTO.class);
+    }
+
     public com.baomidou.mybatisplus.core.metadata.IPage<WorkspaceDTO> pageByUserId(Long userId, String searchVal,
                                                                                    int pageNum, int pageSize) {
         List<WorkspaceMember> members = memberDao.selectByUserId(userId);

@@ -166,9 +166,10 @@ public class RudderToolCallback implements ToolCallback {
             success = false;
             errMsg = "rejected";
         } catch (Exception e) {
-            resultText = "Error: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            String localized = e.getLocalizedMessage();
+            resultText = "Error: " + (localized == null ? e.getClass().getSimpleName() : localized);
             success = false;
-            errMsg = e.getMessage();
+            errMsg = localized;
             log.warn("tool {} failed: {}", llmToolName, errMsg);
         }
         int latency = (int) (System.currentTimeMillis() - toolStart);

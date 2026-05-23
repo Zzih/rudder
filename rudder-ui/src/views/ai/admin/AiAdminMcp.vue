@@ -2,11 +2,12 @@
   <div class="tab-pane">
     <div class="tab-bar">
       <el-button type="primary" size="small" @click="openEdit()"><el-icon><Plus /></el-icon>{{ t('common.create') }}</el-button>
-      <el-button size="small" :loading="loading" @click="load"><el-icon><Refresh /></el-icon>{{ t('common.refresh') }}</el-button>
+      <el-button size="small" :loading="loading" @click="() => load()"><el-icon><Refresh /></el-icon>{{ t('common.refresh') }}</el-button>
       <el-button size="small" @click="refreshHealth"><el-icon><CircleCheck /></el-icon>{{ t('aiAdmin.mcpRefreshHealth') }}</el-button>
       <span class="bar-hint">{{ t('aiAdmin.mcpHint') }}</span>
     </div>
-    <el-table :data="rows" v-loading="loading" size="small" stripe>
+    <div class="admin-card">
+    <el-table :data="rows" v-loading="loading">
       <el-table-column prop="name" :label="t('aiAdmin.col.name')" width="180" />
       <el-table-column prop="transport" :label="t('aiAdmin.col.transport')" width="120" />
       <el-table-column prop="command" :label="t('aiAdmin.col.command')" />
@@ -28,8 +29,9 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-pagination class="pager" small background layout="total, prev, pager, next"
-      :total="total" :page-size="pageSize" :current-page="pageNum" @current-change="(n: number) => { pageNum = n; load() }" />
+    </div>
+    <el-pagination class="admin-pagination" background layout="total, prev, pager, next"
+      :total="total" :page-size="pageSize" :current-page="pageNum" @current-change="handlePageChange" />
 
     <el-dialog v-model="editing" :title="form.id ? t('common.edit') : t('common.create')" width="520">
       <el-form label-position="top">
@@ -62,18 +64,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, Refresh, CircleCheck } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminMcp, type AiMcpServerVO } from '@/api/ai'
+import { usePagination } from '@/composables/usePagination'
 
 const { t } = useI18n()
-const rows = ref<AiMcpServerVO[]>([])
-const total = ref(0)
-const pageNum = ref(1)
-const pageSize = ref(20)
-const loading = ref(false)
 const editing = ref(false)
 const saving = ref(false)
 const form = reactive<AiMcpServerVO>(empty())
@@ -82,14 +80,17 @@ function empty(): AiMcpServerVO {
   return { name: '', transport: 'STDIO', command: '', url: '', env: '', credentials: '', toolAllowlist: '', healthStatus: 'UNKNOWN', enabled: true }
 }
 
-async function load() {
-  loading.value = true
-  try {
-    const { data } = await adminMcp.list({ pageNum: pageNum.value, pageSize: pageSize.value })
-    rows.value = data?.records ?? []
-    total.value = data?.total ?? 0
-  } finally { loading.value = false }
-}
+const {
+  data: rows,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: load,
+  handlePageChange,
+} = usePagination<AiMcpServerVO>({
+  fetchApi: (params) => adminMcp.list(params),
+})
 
 function openEdit(row?: AiMcpServerVO) {
   Object.assign(form, row ? { ...row } : empty())
@@ -130,4 +131,8 @@ async function refreshHealth() {
 
 onMounted(load)
 </script>
+
+<style scoped lang="scss">
+@use '@/styles/admin.scss';
+</style>
 

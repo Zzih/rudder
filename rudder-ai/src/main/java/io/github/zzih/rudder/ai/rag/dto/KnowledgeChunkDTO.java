@@ -18,26 +18,21 @@
 package io.github.zzih.rudder.ai.rag.dto;
 
 import io.github.zzih.rudder.ai.rag.DocumentRetrievalService.RetrievedChunk;
+import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
-/**
- * MCP knowledge.search 返回的检索片段 DTO。
- *
- * <p>把 {@link RetrievedChunk}（service 内部类，含 score 等内部字段）翻译成对外稳定契约：
- * 调用方只关心命中文档的 id / 标题 / 片段正文 / 类型 / 相关度评分。
- */
-public record KnowledgeChunkDTO(
-        Long documentId,
-        String title,
-        String chunkText,
-        String docType,
-        float score) {
+import lombok.Data;
+
+/** MCP knowledge.search 返回的检索片段 DTO。把 {@link RetrievedChunk}(含 service 内部字段)翻译成对外稳定契约。 */
+@Data
+public class KnowledgeChunkDTO {
+
+    private Long documentId;
+    private String title;
+    private String chunkText;
+    private String docType;
+    private float score;
 
     public static KnowledgeChunkDTO from(RetrievedChunk chunk) {
-        return new KnowledgeChunkDTO(
-                chunk.getDocumentId(),
-                chunk.getTitle(),
-                chunk.getChunkText(),
-                chunk.getDocType(),
-                chunk.getScore());
+        return BeanConvertUtils.convert(chunk, KnowledgeChunkDTO.class);
     }
 }

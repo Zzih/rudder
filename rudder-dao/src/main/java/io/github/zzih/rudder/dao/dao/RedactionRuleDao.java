@@ -17,15 +17,20 @@
 
 package io.github.zzih.rudder.dao.dao;
 
+import io.github.zzih.rudder.common.enums.redaction.RedactionRuleType;
 import io.github.zzih.rudder.dao.entity.RedactionRuleEntity;
 
 import java.util.List;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 public interface RedactionRuleDao {
 
     List<RedactionRuleEntity> selectAllEnabled();
 
     List<RedactionRuleEntity> selectAll();
+
+    IPage<RedactionRuleEntity> selectPage(RedactionRuleType type, int pageNum, int pageSize);
 
     RedactionRuleEntity selectById(Long id);
 

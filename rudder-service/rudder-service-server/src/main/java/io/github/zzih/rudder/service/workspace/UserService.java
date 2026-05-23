@@ -26,6 +26,7 @@ import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.entity.User;
 import io.github.zzih.rudder.service.workspace.dto.UserDTO;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -133,5 +134,12 @@ public class UserService {
 
     public List<UserDTO> listAllDetail() {
         return BeanConvertUtils.convertList(listAll(), UserDTO.class);
+    }
+
+    public List<UserDTO> listByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return BeanConvertUtils.convertList(userDao.selectByIds(ids), UserDTO.class);
     }
 }

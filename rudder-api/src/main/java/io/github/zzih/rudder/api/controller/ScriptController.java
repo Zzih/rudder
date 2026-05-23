@@ -35,6 +35,7 @@ import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.enums.datatype.ResourceType;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.script.ScriptService;
@@ -46,8 +47,6 @@ import io.github.zzih.rudder.version.api.model.VersionRecord;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.*;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -93,12 +92,13 @@ public class ScriptController {
     }
 
     @GetMapping("/{code}/versions")
-    public Result<IPage<VersionRecord>> listVersions(@PathVariable Long workspaceId,
-                                                     @PathVariable Long code,
-                                                     @RequestParam(defaultValue = "1") int pageNum,
-                                                     @RequestParam(defaultValue = "20") int pageSize) {
+    public PageResult<VersionRecord> listVersions(@PathVariable Long workspaceId,
+                                                  @PathVariable Long code,
+                                                  @RequestParam(defaultValue = "1") int pageNum,
+                                                  @RequestParam(defaultValue = "20") int pageSize) {
         scriptService.getByCodeDetail(workspaceId, code); // validate access
-        return Result.ok(versionService.page(ResourceType.SCRIPT, code, pageNum, pageSize));
+        return PageResult.of(versionService.page(ResourceType.SCRIPT, code, pageNum, pageSize),
+                VersionRecord.class);
     }
 
     @PostMapping("/{code}/commit")

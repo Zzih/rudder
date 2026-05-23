@@ -21,6 +21,7 @@ import static io.github.zzih.rudder.approval.api.model.ApprovalExtraKeys.INITIAT
 
 import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
 import io.github.zzih.rudder.common.context.UserContext;
+import io.github.zzih.rudder.common.enums.approval.ApprovalResourceType;
 import io.github.zzih.rudder.common.enums.approval.ApprovalStatus;
 import io.github.zzih.rudder.common.enums.error.WorkflowErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
@@ -51,7 +52,6 @@ import io.github.zzih.rudder.dao.enums.PublishStatus;
 import io.github.zzih.rudder.dao.enums.PublishType;
 import io.github.zzih.rudder.dao.projection.PublishBatchDetailRow;
 import io.github.zzih.rudder.dao.projection.PublishBatchRow;
-import io.github.zzih.rudder.datasource.service.CredentialService;
 import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.notification.api.model.ApprovalSubmittedMessage;
 import io.github.zzih.rudder.notification.api.model.NotificationLevel;
@@ -67,6 +67,7 @@ import io.github.zzih.rudder.publish.api.bundle.WorkflowBundle;
 import io.github.zzih.rudder.publish.api.bundle.WorkflowPublishBundle;
 import io.github.zzih.rudder.service.config.FileConfigService;
 import io.github.zzih.rudder.service.config.PublishConfigService;
+import io.github.zzih.rudder.service.datasource.CredentialService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.version.VersionService;
 import io.github.zzih.rudder.service.workflow.dag.DagGraph;
@@ -102,8 +103,6 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class WorkflowPublishService {
-
-    static final String RESOURCE_TYPE_WORKFLOW_PUBLISH = "WORKFLOW_PUBLISH";
 
     private final PublishRecordDao publishRecordDao;
     private final WorkflowDefinitionDao workflowDefinitionDao;
@@ -173,9 +172,8 @@ public class WorkflowPublishService {
                                           Long projectCode, String remark) {
         WorkflowDefinition workflow = workflowDefinitionDao.selectByCode(workflowDefinitionCode);
         if (workflow == null) {
-            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, workflowDefinitionCode);
         }
-        Project project = projectDao.selectByCode(projectCode);
 
         int versionNo = resolveVersionNo(workflow, existingVersionId, remark);
         Long batchCode = CodeGenerateUtils.genCode();
@@ -190,15 +188,11 @@ public class WorkflowPublishService {
         record.setStatus(PublishStatus.PENDING_APPROVAL);
         publishRecordDao.insert(record);
 
-        if (UserContext.isSuperAdmin()) {
-            publishToTarget(batchCode, List.of(record), List.of(workflow));
-        } else {
-            triggerApproval(batchCode, PublishType.WORKFLOW,
-                    "Workflow Publish: " + workflow.getName(),
-                    "Publish workflow [" + workflow.getName() + "] v" + versionNo,
-                    workflow.getWorkspaceId(), projectCode,
-                    workflow.getName(), remark);
-        }
+        triggerApproval(batchCode, PublishType.WORKFLOW,
+                I18n.t("msg.approval.workflowPublish.title", workflow.getName()),
+                I18n.t("msg.approval.workflowPublish.content", workflow.getName(), versionNo),
+                workflow.getWorkspaceId(), projectCode,
+                workflow.getName(), remark);
 
         return BeanConvertUtils.convert(record, PublishRecordDTO.class);
     }
@@ -212,7 +206,7 @@ public class WorkflowPublishService {
                                                        String remark) {
         Project project = projectDao.selectByCode(projectCode);
         if (project == null) {
-            throw new NotFoundException(WorkflowErrorCode.PROJECT_NOT_FOUND);
+            throw new NotFoundException(WorkflowErrorCode.PROJECT_NOT_FOUND, projectCode);
         }
 
         Long batchCode = CodeGenerateUtils.genCode();
@@ -224,7 +218,7 @@ public class WorkflowPublishService {
         for (PublishItem item : items) {
             WorkflowDefinition workflow = workflowDefinitionDao.selectByCode(item.workflowDefinitionCode());
             if (workflow == null) {
-                throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+                throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, item.workflowDefinitionCode());
             }
 
             int versionNo = resolveVersionNo(workflow, item.versionId(), remark);
@@ -242,19 +236,16 @@ public class WorkflowPublishService {
             records.add(record);
             workflows.add(workflow);
             results.add(BeanConvertUtils.convert(record, PublishRecordDTO.class));
-            contentJoiner.add("- " + workflow.getName() + " (v" + versionNo + ")");
+            contentJoiner.add(I18n.t("msg.approval.projectPublish.content.item",
+                    workflow.getName(), versionNo));
         }
 
-        if (UserContext.isSuperAdmin()) {
-            publishToTarget(batchCode, records, workflows);
-        } else {
-            triggerApproval(batchCode, PublishType.PROJECT,
-                    "Project Publish: " + project.getName(),
-                    "Publish project [" + project.getName() + "] with " + items.size() + " workflows:\n"
-                            + contentJoiner,
-                    project.getWorkspaceId(), projectCode,
-                    project.getName(), remark);
-        }
+        triggerApproval(batchCode, PublishType.PROJECT,
+                I18n.t("msg.approval.projectPublish.title", project.getName()),
+                I18n.t("msg.approval.projectPublish.content.header", project.getName(), items.size())
+                        + "\n" + contentJoiner,
+                project.getWorkspaceId(), projectCode,
+                project.getName(), remark);
 
         return results;
     }
@@ -271,8 +262,10 @@ public class WorkflowPublishService {
             throw new NotFoundException(WorkflowErrorCode.PUBLISH_NOT_FOUND);
         }
 
-        List<ApprovalRecordDTO> approvals =
-                approvalService.listByResource(RESOURCE_TYPE_WORKFLOW_PUBLISH, batchCode);
+        String resourceType = records.get(0).getPublishType() == PublishType.PROJECT
+                ? ApprovalResourceType.PROJECT_PUBLISH
+                : ApprovalResourceType.WORKFLOW_PUBLISH;
+        List<ApprovalRecordDTO> approvals = approvalService.listByResource(resourceType, batchCode);
         boolean allApproved = !approvals.isEmpty()
                 && approvals.stream().allMatch(a -> a.getStatus() == ApprovalStatus.APPROVED);
         if (!allApproved) {
@@ -692,7 +685,7 @@ public class WorkflowPublishService {
         if (existingVersionId != null) {
             VersionRecord vr = versionService.get(existingVersionId);
             if (vr == null) {
-                throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+                throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, existingVersionId);
             }
             return vr.getVersionNo();
         }
@@ -718,8 +711,11 @@ public class WorkflowPublishService {
                     .content(content)
                     .extra(extra)
                     .build();
-            // 阶段链由 ApprovalService 内部 StageFlow 算（依据申请人是否为项目 owner）
-            approvalService.submit(approvalRequest, RESOURCE_TYPE_WORKFLOW_PUBLISH, batchCode,
+            // 按 publishType 路由到 WorkflowPublishStageFlow / ProjectPublishStageFlow,候选人解析逻辑不同
+            String resourceType = publishType == PublishType.PROJECT
+                    ? ApprovalResourceType.PROJECT_PUBLISH
+                    : ApprovalResourceType.WORKFLOW_PUBLISH;
+            approvalService.submit(approvalRequest, resourceType, batchCode,
                     workspaceId, projectCode, remark);
         } catch (Exception e) {
             log.warn("Failed to trigger approval notification", e);

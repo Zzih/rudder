@@ -1,13 +1,6 @@
 import { createParser } from 'eventsource-parser'
-import request from '@/utils/request'
+import request, { type PageResult } from '@/utils/request'
 import { useUserStore } from '@/stores/user'
-
-export interface PageVO<T> {
-  records: T[]
-  total: number
-  size: number
-  current: number
-}
 
 // ==================== AI Provider Config (legacy /api/ai/validate /test /health) ====================
 
@@ -191,7 +184,7 @@ export interface AiMessageVO {
 }
 
 export function listSessions(params: { pageNum?: number; pageSize?: number } = {}) {
-  return request.get<PageVO<AiSessionVO>>('/ai/sessions', {
+  return request.get<PageResult<AiSessionVO>>('/ai/sessions', {
     params: { pageNum: params.pageNum ?? 1, pageSize: params.pageSize ?? 20 },
   })
 }
@@ -246,7 +239,7 @@ export interface AiSkillAdminVO {
 
 export const adminSkill = {
   list: (params: { pageNum?: number; pageSize?: number } = {}) =>
-    request.get<PageVO<AiSkillAdminVO>>('/ai/skills/admin', {
+    request.get<PageResult<AiSkillAdminVO>>('/ai/skills/admin', {
       params: { pageNum: params.pageNum ?? 1, pageSize: params.pageSize ?? 20 },
     }),
   create: (body: AiSkillAdminVO) => request.post<AiSkillAdminVO>('/ai/skills', body),
@@ -289,7 +282,7 @@ export interface AiMcpServerVO {
 
 export const adminMcp = {
   list: (params: { pageNum?: number; pageSize?: number } = {}) =>
-    request.get<PageVO<AiMcpServerVO>>('/ai/mcp/servers', {
+    request.get<PageResult<AiMcpServerVO>>('/ai/mcp/servers', {
       params: { pageNum: params.pageNum ?? 1, pageSize: params.pageSize ?? 20 },
     }),
   create: (body: AiMcpServerVO) => request.post<AiMcpServerVO>('/ai/mcp/servers', body),
@@ -343,12 +336,16 @@ export interface RedactionTestRequest {
 }
 
 export const adminRedaction = {
-  listRules: () => request.get<RedactionRuleVO[]>('/platform/redaction/rules'),
+  pageRules: (params: { type?: RedactionRuleType; pageNum?: number; pageSize?: number } = {}) =>
+    request.get<PageResult<RedactionRuleVO>>('/platform/redaction/rules', { params }),
   createRule: (body: RedactionRuleVO) => request.post<RedactionRuleVO>('/platform/redaction/rules', body),
   updateRule: (id: number, body: RedactionRuleVO) => request.put(`/platform/redaction/rules/${id}`, body),
   deleteRule: (id: number) => request.delete(`/platform/redaction/rules/${id}`),
 
-  listStrategies: () => request.get<RedactionStrategyVO[]>('/platform/redaction/strategies'),
+  pageStrategies: (params: { pageNum?: number; pageSize?: number } = {}) =>
+    request.get<PageResult<RedactionStrategyVO>>('/platform/redaction/strategies', { params }),
+  listEnabledStrategies: () =>
+    request.get<RedactionStrategyVO[]>('/platform/redaction/strategies/enabled'),
   createStrategy: (body: RedactionStrategyVO) =>
     request.post<RedactionStrategyVO>('/platform/redaction/strategies', body),
   updateStrategy: (id: number, body: RedactionStrategyVO) =>
@@ -386,7 +383,7 @@ export interface RetrievedChunkVO {
 
 export const adminDocuments = {
   list: (params: { docType?: string; pageNum?: number; pageSize?: number }) =>
-    request.get<PageVO<AiDocumentVO>>('/ai/documents', { params }),
+    request.get<PageResult<AiDocumentVO>>('/ai/documents', { params }),
   get: (id: number) => request.get<AiDocumentVO>(`/ai/documents/${id}`),
   create: (body: AiDocumentVO) => request.post<AiDocumentVO>('/ai/documents', body),
   update: (id: number, body: AiDocumentVO) => request.put<AiDocumentVO>(`/ai/documents/${id}`, body),
@@ -438,7 +435,7 @@ export interface SyncResultVO {
 
 export const adminMetadataSync = {
   list: (params: { pageNum?: number; pageSize?: number } = {}) =>
-    request.get<PageVO<AiMetadataSyncConfigVO>>('/ai/metadata-sync', {
+    request.get<PageResult<AiMetadataSyncConfigVO>>('/ai/metadata-sync', {
       params: { pageNum: params.pageNum ?? 1, pageSize: params.pageSize ?? 20 },
     }),
   getByDatasource: (datasourceId: number) =>
@@ -506,7 +503,7 @@ export interface EvalBatchResultVO {
 
 export const adminEvals = {
   listCases: (params: { category?: string; activeOnly?: boolean; pageNum?: number; pageSize?: number }) =>
-    request.get<PageVO<AiEvalCaseVO>>('/ai/eval/cases', { params }),
+    request.get<PageResult<AiEvalCaseVO>>('/ai/eval/cases', { params }),
   getCase: (id: number) => request.get<AiEvalCaseVO>(`/ai/eval/cases/${id}`),
   createCase: (body: AiEvalCaseVO) => request.post<AiEvalCaseVO>('/ai/eval/cases', body),
   updateCase: (id: number, body: AiEvalCaseVO) => request.put(`/ai/eval/cases/${id}`, body),
@@ -515,7 +512,7 @@ export const adminEvals = {
     request.post<EvalBatchResultVO>('/ai/eval/batches', null, { params: { category } }),
   getBatch: (batchId: string) => request.get<AiEvalRunVO[]>(`/ai/eval/batches/${batchId}`),
   caseHistory: (caseId: number, pageNum: number = 1, pageSize: number = 20) =>
-    request.get<PageVO<AiEvalRunVO>>(`/ai/eval/cases/${caseId}/runs`, { params: { pageNum, pageSize } }),
+    request.get<PageResult<AiEvalRunVO>>(`/ai/eval/cases/${caseId}/runs`, { params: { pageNum, pageSize } }),
 }
 
 // ==================== Tool Configs(原 tool_permissions)====================
@@ -563,7 +560,7 @@ export function listTools(params: { source?: string; excludeSkill?: boolean } = 
 
 export const adminToolConfigs = {
   list: (params: { pageNum?: number; pageSize?: number } = {}) =>
-    request.get<PageVO<AiToolConfigVO>>('/ai/admin/tool-configs', {
+    request.get<PageResult<AiToolConfigVO>>('/ai/admin/tool-configs', {
       params: { pageNum: params.pageNum ?? 1, pageSize: params.pageSize ?? 20 },
     }),
   create: (body: AiToolConfigVO) => request.post<AiToolConfigVO>('/ai/admin/tool-configs', body),
@@ -586,7 +583,7 @@ export interface AiPinnedTableVO {
 
 export const pinnedTables = {
   list: (scope: 'USER' | 'WORKSPACE' = 'USER', pageNum: number = 1, pageSize: number = 20) =>
-    request.get<PageVO<AiPinnedTableVO>>('/ai/pinned-tables', { params: { scope, pageNum, pageSize } }),
+    request.get<PageResult<AiPinnedTableVO>>('/ai/pinned-tables', { params: { scope, pageNum, pageSize } }),
   pin: (body: Omit<AiPinnedTableVO, 'id' | 'scopeId' | 'createdAt'> & { database?: string; table?: string }) =>
     request.post<AiPinnedTableVO>('/ai/pinned-tables', body),
   unpinById: (id: number) => request.delete(`/ai/pinned-tables/${id}`),

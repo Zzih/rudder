@@ -17,26 +17,22 @@
 
 package io.github.zzih.rudder.ai.orchestrator;
 
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
+import io.github.zzih.rudder.ai.orchestrator.dto.RagPipelineConfigDTO;
 import io.github.zzih.rudder.dao.dao.RagPipelineConfigDao;
 import io.github.zzih.rudder.dao.entity.RagPipelineConfig;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 
+import java.util.Optional;
+
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * RAG 链路配置（{@code t_r_rag_pipeline_config} 单 row）。
- *
- * <p>不是 SPI 选型——承载 chunk size / topK / reranker enable 等参数；脱离 AbstractConfigService 基类自管缓存。
- *
- * <p>{@link #active()} 永远返回非 null：DB 没配 / JSON 解析失败时 fallback 到
- * {@link RagPipelineSettings#defaults()}，缓存正常生效，上游 {@code ChatClientFactory} 不用判空。
- */
+/** RAG 链路配置服务({@code t_r_rag_pipeline_config} 单 row,12 标量列打平)。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -45,7 +41,7 @@ public class RagPipelineConfigService {
     private final GlobalCacheService cache;
     private final RagPipelineConfigDao dao;
 
-    public RagPipelineSettings active() {
+    public RagPipelineConfigDTO active() {
         return cache.getOrLoad(GlobalCacheKey.RAG_PIPELINE, this::build);
     }
 
@@ -53,31 +49,41 @@ public class RagPipelineConfigService {
         return HealthStatus.healthy();
     }
 
-    public void saveDetail(RagPipelineSettings settings) {
-        RagPipelineConfig c = dao.selectActive();
-        if (c == null) {
-            c = new RagPipelineConfig();
-        }
-        c.setSettingsJson(JsonUtils.toJson(settings));
-        c.setEnabled(true);
-        if (c.getId() != null) {
-            dao.updateById(c);
-        } else {
+    public void saveDetail(RagPipelineConfigDTO settings) {
+        RagPipelineConfig c = Optional.ofNullable(dao.selectActive()).orElseGet(RagPipelineConfig::new);
+        BeanUtils.copyProperties(settings, c);
+        if (c.getId() == null) {
             dao.insert(c);
+        } else {
+            dao.updateById(c);
         }
         cache.invalidate(GlobalCacheKey.RAG_PIPELINE);
     }
 
-    private RagPipelineSettings build() {
+    private RagPipelineConfigDTO build() {
         RagPipelineConfig c = dao.selectActive();
-        if (c == null || c.getSettingsJson() == null || c.getSettingsJson().isBlank()) {
-            return RagPipelineSettings.defaults();
+        if (c == null) {
+            return defaultsDto();
         }
-        try {
-            return JsonUtils.fromJson(c.getSettingsJson(), RagPipelineSettings.class);
-        } catch (Exception e) {
-            log.warn("RAG pipeline config malformed JSON, falling back to defaults: {}", e.getMessage());
-            return RagPipelineSettings.defaults();
-        }
+        RagPipelineConfigDTO dto = new RagPipelineConfigDTO();
+        BeanUtils.copyProperties(c, dto);
+        return dto;
+    }
+
+    private static RagPipelineConfigDTO defaultsDto() {
+        RagPipelineConfigDTO d = new RagPipelineConfigDTO();
+        d.setRewriteEnabled(false);
+        d.setMultiQueryEnabled(false);
+        d.setMultiQueryCount(3);
+        d.setMultiQueryIncludeOriginal(true);
+        d.setCompressionEnabled(false);
+        d.setTranslationEnabled(false);
+        d.setTranslationTargetLanguage("english");
+        d.setRerankStageEnabled(false);
+        d.setRerankTopN(5);
+        d.setKeywordEnricherEnabled(false);
+        d.setSummaryEnricherEnabled(false);
+        d.setAugmenterAllowEmptyContext(true);
+        return d;
     }
 }

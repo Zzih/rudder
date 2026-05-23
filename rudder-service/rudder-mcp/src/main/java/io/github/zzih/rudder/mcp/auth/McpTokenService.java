@@ -42,8 +42,11 @@ import io.github.zzih.rudder.mcp.capability.Capability;
 import io.github.zzih.rudder.mcp.capability.CapabilityCatalog;
 import io.github.zzih.rudder.mcp.capability.RwClass;
 import io.github.zzih.rudder.service.workflow.ApprovalService;
+import io.github.zzih.rudder.service.workspace.WorkspaceService;
+import io.github.zzih.rudder.service.workspace.dto.WorkspaceDTO;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +56,8 @@ import java.util.Set;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,9 +73,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class McpTokenService {
 
+    private static final DateTimeFormatter EXPIRES_AT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final McpTokenDao tokenDao;
     private final McpTokenScopeGrantDao grantDao;
     private final WorkspaceMemberDao workspaceMemberDao;
+    private final WorkspaceService workspaceService;
     private final TokenViewCache tokenViewCache;
     private final ApprovalService approvalService;
 
@@ -103,13 +111,10 @@ public class McpTokenService {
         token.setCreatedBy(req.userId());
         tokenDao.insert(token);
 
-        boolean isSuperAdmin = UserContext.isSuperAdmin();
         List<Capability> writeCaps = caps.stream()
                 .filter(c -> c.rwClass() == RwClass.WRITE)
                 .toList();
-        Long sharedApprovalId = (!writeCaps.isEmpty() && !isSuperAdmin)
-                ? submitWriteApproval(token, req, writeCaps)
-                : null;
+        Long sharedApprovalId = writeCaps.isEmpty() ? null : submitWriteApproval(token, req, writeCaps);
 
         List<McpTokenScopeGrant> grants = new ArrayList<>(caps.size());
         LocalDateTime now = LocalDateTime.now();
@@ -118,7 +123,7 @@ public class McpTokenService {
             g.setTokenId(token.getId());
             g.setCapabilityId(c.id());
             g.setRwClass(c.rwClass().name());
-            if (c.rwClass() == RwClass.READ || isSuperAdmin) {
+            if (c.rwClass() == RwClass.READ) {
                 g.setStatus(McpScopeGrantStatus.ACTIVE);
                 g.setActivatedAt(now);
             } else {
@@ -153,21 +158,28 @@ public class McpTokenService {
      * {@code McpTokenStageFlow} 解析后按"最高敏感度"决定单级 / 二级审批链 —— 任意一个是 HIGH 即走双级。
      */
     private Long submitWriteApproval(McpToken token, CreateTokenCommand req, List<Capability> writeCaps) {
-        String expiresAt = req.expiresAt() != null ? req.expiresAt().toString() : "N/A";
+        String expiresAt = req.expiresAt() != null
+                ? req.expiresAt().format(EXPIRES_AT_FORMATTER)
+                : I18n.t("msg.dataperm.permanent");
+        WorkspaceDTO ws = workspaceService.getById(token.getWorkspaceId());
+        String workspaceName = ws == null ? ("workspace#" + token.getWorkspaceId()) : ws.getName();
+
         StringBuilder content = new StringBuilder();
-        content.append("Request write permission for MCP token \"").append(req.name()).append("\":\n");
+        content.append(I18n.t("msg.approval.mcp.content.header", req.name())).append('\n');
         for (Capability c : writeCaps) {
-            content.append("  • ").append(c.id()).append(" — ").append(I18n.t(c.description())).append('\n');
+            content.append(I18n.t("msg.approval.mcp.content.capability",
+                    c.id(), I18n.t(c.description()))).append('\n');
         }
-        content.append("  • Token prefix: ").append(token.getTokenPrefix()).append("...\n");
-        content.append("  • Workspace ID: ").append(token.getWorkspaceId()).append('\n');
-        content.append("  • Expires at: ").append(expiresAt).append('\n');
+        content.append(I18n.t("msg.approval.mcp.content.tokenPrefix", token.getTokenPrefix())).append('\n');
+        content.append(I18n.t("msg.approval.mcp.content.workspace", workspaceName)).append('\n');
+        content.append(I18n.t("msg.approval.mcp.content.expires", expiresAt)).append('\n');
         String capList = writeCaps.stream().map(Capability::id).collect(java.util.stream.Collectors.joining(","));
+        // 业务侧用 HTML 注释解析 cap 列表,不参与展示
         content.append("<!-- mcp-cap:").append(capList).append(" -->");
 
         String title = writeCaps.size() == 1
-                ? "[MCP] " + req.name() + " · " + writeCaps.get(0).id()
-                : "[MCP] " + req.name() + " · " + writeCaps.size() + " write scopes";
+                ? I18n.t("msg.approval.mcp.title.single", req.name(), writeCaps.get(0).id())
+                : I18n.t("msg.approval.mcp.title.multi", req.name(), writeCaps.size());
 
         ApprovalRequest request = ApprovalRequest.builder()
                 .title(title)
@@ -200,8 +212,9 @@ public class McpTokenService {
         log.info("MCP token revoked: id={}, reason={}", tokenId, reason);
     }
 
-    public List<McpTokenSummary> listByUserId(Long userId) {
-        return BeanConvertUtils.convertList(tokenDao.selectByUserId(userId), McpTokenSummary.class);
+    public IPage<McpTokenSummary> pageByUserId(Long userId, String search, int pageNum, int pageSize) {
+        return BeanConvertUtils.convertPage(
+                tokenDao.selectPageByUserId(userId, search, pageNum, pageSize), McpTokenSummary.class);
     }
 
     public List<McpTokenSummary> listByWorkspaceId(Long workspaceId) {
@@ -209,8 +222,7 @@ public class McpTokenService {
     }
 
     public McpTokenSummary getById(Long id) {
-        McpToken t = tokenDao.selectByIdWithWorkspaceName(id);
-        return t == null ? null : BeanConvertUtils.convert(t, McpTokenSummary.class);
+        return BeanConvertUtils.convert(tokenDao.selectDetailById(id), McpTokenSummary.class);
     }
 
     public List<McpGrantInfo> listGrants(Long tokenId) {

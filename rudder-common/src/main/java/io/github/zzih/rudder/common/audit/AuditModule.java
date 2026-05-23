@@ -29,6 +29,7 @@ public enum AuditModule {
     APPROVAL_CONFIG,
     AUTH,
     AUTH_SOURCE,
+    DATA_PERM,
     DATASOURCE,
     EXECUTION,
     FILE,

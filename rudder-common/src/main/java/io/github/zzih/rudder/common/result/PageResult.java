@@ -19,9 +19,13 @@ package io.github.zzih.rudder.common.result;
 
 import io.github.zzih.rudder.common.enums.error.SystemErrorCode;
 import io.github.zzih.rudder.common.i18n.I18n;
+import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.function.Function;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import lombok.Data;
 
@@ -49,5 +53,17 @@ public class PageResult<T> implements Serializable {
         result.setPageNum(pageNum);
         result.setPageSize(pageSize);
         return result;
+    }
+
+    /** 从 MP IPage 直接构造,自动走 BeanUtils 浅拷贝(同构镜像 + 同类型 enum)。 */
+    public static <S, T> PageResult<T> of(IPage<S> page, Class<T> targetClass) {
+        return of(BeanConvertUtils.convertList(page.getRecords(), targetClass),
+                page.getTotal(), (int) page.getCurrent(), (int) page.getSize());
+    }
+
+    /** 自定义 mapper 版本:enum 跨包或字段类型不一致时用,典型搭配 BeanConvertUtils.convertViaJson。 */
+    public static <S, T> PageResult<T> of(IPage<S> page, Function<? super S, ? extends T> mapper) {
+        return of(page.getRecords().stream().<T>map(mapper).toList(),
+                page.getTotal(), (int) page.getCurrent(), (int) page.getSize());
     }
 }

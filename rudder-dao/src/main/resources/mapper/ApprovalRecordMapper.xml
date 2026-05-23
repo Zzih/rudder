@@ -1,15 +1,26 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="io.github.zzih.rudder.dao.mapper.ApprovalRecordMapper">
 
+    <resultMap id="ApprovalRecordResultMap" type="io.github.zzih.rudder.dao.entity.ApprovalRecord" autoMapping="true">
+        <result column="stage_chain" property="stageChain"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
+    <resultMap id="ApprovalRecordDetailMap" type="io.github.zzih.rudder.dao.entity.view.ApprovalRecordDetailView"
+               extends="ApprovalRecordResultMap" autoMapping="true">
+        <result column="created_by_username" property="createdByUsername"/>
+        <result column="workspace_name" property="workspaceName"/>
+    </resultMap>
+
     <sql id="baseSql">
         id, channel, external_approval_id, resource_type, resource_code,
-        workspace_id, project_code, title, description, submit_remark,
+        workspace_id, project_code, title, description, submit_remark, ext_data,
         status, stage_chain, current_stage, decision_rule, required_count,
         resolved_at, expires_at, withdrawn_at, withdrawn_reason,
         created_by, created_at, updated_by, updated_at
     </sql>
 
-    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.ApprovalRecord">
+    <select id="queryPage" resultMap="ApprovalRecordResultMap">
         select <include refid="baseSql"/>
         from t_r_approval_record
         <where>
@@ -33,7 +44,7 @@
         order by created_at desc
     </select>
 
-    <select id="queryByResourceTypeAndResourceCode" resultType="io.github.zzih.rudder.dao.entity.ApprovalRecord">
+    <select id="queryByResourceTypeAndResourceCode" resultMap="ApprovalRecordResultMap">
         select <include refid="baseSql"/>
         from t_r_approval_record
         where resource_type = #{resourceType}
@@ -41,11 +52,25 @@
         order by created_at desc
     </select>
 
-    <select id="queryByExternalApprovalId" resultType="io.github.zzih.rudder.dao.entity.ApprovalRecord">
+    <select id="queryByExternalApprovalId" resultMap="ApprovalRecordResultMap">
         select <include refid="baseSql"/>
         from t_r_approval_record
         where external_approval_id = #{externalApprovalId}
         limit 1
+    </select>
+
+    <select id="queryDetailById" resultMap="ApprovalRecordDetailMap">
+        select r.id, r.channel, r.external_approval_id, r.resource_type, r.resource_code,
+               r.workspace_id, r.project_code, r.title, r.description, r.submit_remark, r.ext_data,
+               r.status, r.stage_chain, r.current_stage, r.decision_rule, r.required_count,
+               r.resolved_at, r.expires_at, r.withdrawn_at, r.withdrawn_reason,
+               r.created_by, r.created_at, r.updated_by, r.updated_at,
+               u.username as created_by_username,
+               w.name     as workspace_name
+        from t_r_approval_record r
+        left join t_r_user u on u.id = r.created_by
+        left join t_r_workspace w on w.id = r.workspace_id
+        where r.id = #{id}
     </select>
 
     <update id="advanceStageIfPending">

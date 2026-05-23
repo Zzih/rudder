@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Search, Plus, Connection, MoreFilled, Select, Close } from '@element-plus/icons-vue'
 import {
   listDatasources,
+  listDatasourceTypes,
   createDatasource,
   updateDatasource,
   deleteDatasource,
@@ -12,6 +13,8 @@ import {
   listDatasourceWorkspaces,
   setDatasourceWorkspaces,
   type DatasourceWorkspaceGrant,
+  type DatasourceTypeMeta,
+  type PluginParamDefinition,
 } from '@/api/datasource'
 import { listWorkspaces } from '@/api/workspace'
 import { cardColor } from '@/utils/colorMeta'
@@ -23,6 +26,7 @@ interface DatasourceRow {
   host: string
   port: number
   defaultPath?: string
+  params?: string
 }
 
 const { t } = useI18n()
@@ -37,12 +41,13 @@ const searchText = ref('')
 const form = reactive({
   id: null as number | null,
   name: '',
-  datasourceType: 'MySQL',
+  datasourceType: 'MYSQL',
   host: '',
   port: 3306,
   defaultPath: '',
   username: '',
   password: '',
+  params: '',
 })
 
 const rules: FormRules = {
@@ -52,28 +57,38 @@ const rules: FormRules = {
   port: [{ required: true, message: t('common.required'), trigger: 'blur' }],
 }
 
-const dbTypes = ['MySQL', 'Hive', 'StarRocks', 'Trino', 'Spark', 'Flink']
+const typesMeta = ref<DatasourceTypeMeta[]>([])
+const currentTypeMeta = computed(() => typesMeta.value.find(m => m.type === form.datasourceType))
+/** 当前 type 的 rawJson PluginParamDefinition(label/defaultValue 作为示例 placeholder)。 */
+const rawJsonParam = computed<PluginParamDefinition | null>(
+  () => currentTypeMeta.value?.params?.find(p => p.type === 'rawJson') ?? null)
 
 const defaultPorts: Record<string, number> = {
-  MySQL: 3306,
-  Hive: 10000,
-  StarRocks: 9030,
-  Trino: 8443,
-  Spark: 10000,
-  Flink: 8081,
+  MYSQL: 3306,
+  HIVE: 10000,
+  STARROCKS: 9030,
+  TRINO: 8443,
+  SPARK: 10000,
+  FLINK: 8081,
+  POSTGRES: 5432,
+  CLICKHOUSE: 8123,
+  DORIS: 9030,
 }
 
 const typeColors: Record<string, string> = {
-  MySQL: '#4479A1',
-  Hive: '#FDEE21',
-  StarRocks: '#5B8FF9',
-  Trino: '#DD00A1',
-  Spark: '#E25A1C',
-  Flink: '#E6526F',
+  MYSQL: '#4479A1',
+  HIVE: '#FDEE21',
+  STARROCKS: '#5B8FF9',
+  TRINO: '#DD00A1',
+  SPARK: '#E25A1C',
+  FLINK: '#E6526F',
+  POSTGRES: '#336791',
+  CLICKHOUSE: '#FFCC01',
+  DORIS: '#0075FF',
 }
 
 function getTypeColor(type: string): string {
-  return typeColors[type] || '#94a3b8'
+  return typeColors[type?.toUpperCase()] || '#94a3b8'
 }
 
 function getTypeIconBg(type: string): string {
@@ -81,7 +96,7 @@ function getTypeIconBg(type: string): string {
 }
 
 function getTypeTextColor(type: string): string {
-  return type === 'Hive' ? '#333' : '#fff'
+  return type?.toUpperCase() === 'HIVE' ? '#333' : '#fff'
 }
 
 const filteredDatasources = computed(() => {
@@ -104,10 +119,38 @@ async function fetchDatasources() {
   }
 }
 
+async function fetchTypes() {
+  // 拉不到走空 — UI 退化为只渲染基础字段,不阻塞页面。
+  try {
+    const { data } = await listDatasourceTypes()
+    typesMeta.value = data ?? []
+  } catch { /* swallow */ }
+}
+
+let typesLoadPromise: Promise<void> | null = null
+function ensureTypesLoaded(): Promise<void> {
+  if (typesMeta.value.length) return Promise.resolve()
+  if (typesLoadPromise) return typesLoadPromise
+  typesLoadPromise = fetchTypes().finally(() => { typesLoadPromise = null })
+  return typesLoadPromise
+}
+
+/** 当前 type 的示例 JSON(来自 plugin rawJson entry 的 defaultValue),作为创建时的初值。 */
+function defaultParamsForCurrentType(): string {
+  return rawJsonParam.value?.defaultValue ?? ''
+}
+
+/** 把后端存的 JSON 字符串 pretty-print 成 textarea 友好的多行格式;解析失败直接返回原文。 */
+function prettyPrintJson(raw: string | undefined): string {
+  if (typeof raw !== 'string' || !raw.trim()) return ''
+  try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
+}
+
 function resetForm() {
   Object.assign(form, {
-    id: null, name: '', datasourceType: 'MySQL',
+    id: null, name: '', datasourceType: 'MYSQL',
     host: '', port: 3306, defaultPath: '', username: '', password: '',
+    params: '',
   })
 }
 
@@ -115,17 +158,22 @@ function onTypeChange(type: string) {
   if (!isEdit.value && defaultPorts[type]) {
     form.port = defaultPorts[type]
   }
+  form.params = defaultParamsForCurrentType()
 }
 
-function openCreateDialog() {
+async function openCreateDialog() {
+  await ensureTypesLoaded()
   resetForm()
   isEdit.value = false
+  form.params = defaultParamsForCurrentType()
   dialogVisible.value = true
 }
 
-function openEditDialog(row: DatasourceRow) {
+async function openEditDialog(row: DatasourceRow) {
+  await ensureTypesLoaded()
   resetForm()
   Object.assign(form, row)
+  form.params = prettyPrintJson(row.params)
   isEdit.value = true
   dialogVisible.value = true
 }
@@ -134,12 +182,29 @@ async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  // params 是 freeform JSON 字符串,提交前预校验 syntax;空串/全空白发送 null
+  let paramsPayload: string | null = null
+  const raw = form.params?.trim() ?? ''
+  if (raw) {
+    try {
+      JSON.parse(raw)
+    } catch (e: any) {
+      ElMessage.error(`${t('datasource.invalidJsonHint')}: ${e?.message ?? ''}`)
+      return
+    }
+    paramsPayload = raw
+  }
+
   submitting.value = true
   try {
+    const payload = {
+      ...form,
+      params: paramsPayload,
+    }
     if (form.id) {
-      await updateDatasource(undefined, form.id, { ...form })
+      await updateDatasource(undefined, form.id, payload)
     } else {
-      await createDatasource({ ...form })
+      await createDatasource(payload)
     }
     ElMessage.success(t('common.success'))
     dialogVisible.value = false
@@ -245,7 +310,9 @@ async function handleDelete(row: DatasourceRow) {
   } catch { /* cancelled */ }
 }
 
-onMounted(fetchDatasources)
+onMounted(() => {
+  Promise.all([ensureTypesLoaded(), fetchDatasources()])
+})
 </script>
 
 <template>
@@ -352,7 +419,7 @@ onMounted(fetchDatasources)
         </el-form-item>
         <el-form-item :label="t('common.type')" prop="datasourceType">
           <el-select v-model="form.datasourceType" style="width: 100%" @change="onTypeChange">
-            <el-option v-for="tp in dbTypes" :key="tp" :label="tp" :value="tp" />
+            <el-option v-for="m in typesMeta" :key="m.type" :label="m.type" :value="m.type" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('datasource.host')" prop="host">
@@ -369,6 +436,19 @@ onMounted(fetchDatasources)
         </el-form-item>
         <el-form-item :label="t('datasource.password')">
           <el-input v-model="form.password" type="password" show-password />
+        </el-form-item>
+
+        <el-form-item :label="t('datasource.jdbcConnectParameters')">
+          <el-input
+            v-model="form.params"
+            type="textarea"
+            :rows="6"
+            autocomplete="off"
+            spellcheck="false"
+            class="dp-params-textarea"
+            :placeholder="rawJsonParam?.defaultValue || '{}'"
+          />
+          <div class="dp-params-hint">{{ t('datasource.jdbcConnectParametersHint') }}</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -566,6 +646,15 @@ onMounted(fetchDatasources)
   margin-top: var(--r-space-1);
 }
 
+.plugin-params-divider {
+  margin: var(--r-space-4) 0 var(--r-space-2);
+  font-size: var(--r-font-sm);
+  font-weight: 600;
+  color: var(--r-text-muted);
+  border-top: 1px dashed var(--r-border);
+  padding-top: var(--r-space-3);
+}
+
 .grant-hint {
   font-size: var(--r-font-sm);
   color: var(--r-text-muted);
@@ -684,5 +773,18 @@ onMounted(fetchDatasources)
 
 .grant-empty {
   margin: var(--r-space-4) 0;
+}
+
+.dp-params-hint {
+  margin-top: var(--r-space-1);
+  color: var(--r-text-tertiary);
+  font-size: var(--r-font-sm);
+  line-height: var(--r-leading-snug);
+}
+
+.dp-params-textarea :deep(.el-textarea__inner) {
+  font-family: var(--r-font-mono);
+  font-size: var(--r-font-sm);
+  line-height: 1.55;
 }
 </style>

@@ -1,0 +1,30 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermScopeMapper">
+
+    <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.DataPermScope">
+        select *
+        from t_r_data_perm_scope
+        order by id asc
+    </select>
+
+    <select id="queryByCode" resultType="io.github.zzih.rudder.dao.entity.DataPermScope">
+        select *
+        from t_r_data_perm_scope
+        where code = #{code}
+        limit 1
+    </select>
+
+    <!-- managed_task_types 是 JSON 数组列;TaskType 跨 scope 全局唯一,最多匹配一行。 -->
+    <select id="queryByTaskType" resultType="io.github.zzih.rudder.dao.entity.DataPermScope">
+        select *
+        from t_r_data_perm_scope
+        where enabled = 1
+          and JSON_CONTAINS(managed_task_types, JSON_QUOTE(#{taskType}))
+        limit 1
+    </select>
+
+    <delete id="deleteByCode">
+        delete from t_r_data_perm_scope where code = #{code}
+    </delete>
+
+</mapper>

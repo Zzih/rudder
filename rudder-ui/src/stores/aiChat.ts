@@ -77,8 +77,8 @@ export const useAiChatStore = defineStore('aiChat', () => {
   async function loadSessions() {
     sessionsLoading.value = true
     try {
-      const { data } = await listSessions({ pageNum: 1, pageSize: 50 })
-      sessions.value = data?.records ?? []
+      const res: any = await listSessions({ pageNum: 1, pageSize: 50 })
+      sessions.value = res.data ?? []
       if (sessions.value.length > 0 && !activeSessionId.value) {
         await switchSession(sessions.value[0].id)
       }

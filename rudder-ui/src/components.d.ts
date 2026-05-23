@@ -65,6 +65,7 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     FileSelectDialog: typeof import('./components/FileSelectDialog.vue')['default']
     LogViewer: typeof import('./components/LogViewer.vue')['default']
+    MarkdownGuideAside: typeof import('./components/MarkdownGuideAside.vue')['default']
     MonacoInput: typeof import('./components/MonacoInput.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

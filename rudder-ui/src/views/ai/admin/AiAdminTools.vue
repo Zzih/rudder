@@ -16,7 +16,8 @@
       <span class="bar-hint">{{ t('aiAdmin.tools.hint') }}</span>
     </div>
 
-    <el-table :data="filteredRows" v-loading="loading" size="small" stripe
+    <div class="admin-card">
+    <el-table :data="filteredRows" v-loading="loading"
       @row-click="(row: ToolViewVO) => openDetail(row)" style="cursor: pointer">
       <el-table-column :label="t('aiAdmin.tools.name')" min-width="260">
         <template #default="{ row }">
@@ -56,6 +57,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
 
     <!-- 详情抽屉 -->
     <el-drawer v-model="detailVisible" :size="520" :title="detailRow?.name || ''">
@@ -290,6 +292,8 @@ onMounted(() => Promise.all([load(), loadWorkspaces()]))
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .tool-name {
   font-family: var(--r-font-mono);
   font-size: var(--r-font-sm);

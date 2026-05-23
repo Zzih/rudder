@@ -19,12 +19,16 @@ package io.github.zzih.rudder.dao.dao.impl;
 
 import io.github.zzih.rudder.dao.dao.McpTokenDao;
 import io.github.zzih.rudder.dao.entity.McpToken;
+import io.github.zzih.rudder.dao.entity.view.McpTokenDetailView;
 import io.github.zzih.rudder.dao.mapper.McpTokenMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Repository;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,8 +49,8 @@ public class McpTokenDaoImpl implements McpTokenDao {
     }
 
     @Override
-    public McpToken selectByIdWithWorkspaceName(Long id) {
-        return mapper.queryByIdWithWorkspaceName(id);
+    public McpTokenDetailView selectDetailById(Long id) {
+        return mapper.queryDetailById(id);
     }
 
     @Override
@@ -55,13 +59,18 @@ public class McpTokenDaoImpl implements McpTokenDao {
     }
 
     @Override
-    public List<McpToken> selectByUserId(Long userId) {
-        return mapper.queryByUserId(userId);
+    public List<McpTokenDetailView> selectByUserId(Long userId) {
+        return mapper.queryDetailByUserId(userId);
     }
 
     @Override
-    public List<McpToken> selectByWorkspaceId(Long workspaceId) {
-        return mapper.queryByWorkspaceId(workspaceId);
+    public IPage<McpTokenDetailView> selectPageByUserId(Long userId, String search, int pageNum, int pageSize) {
+        return mapper.queryDetailPageByUserId(new Page<>(pageNum, pageSize), userId, search);
+    }
+
+    @Override
+    public List<McpTokenDetailView> selectByWorkspaceId(Long workspaceId) {
+        return mapper.queryDetailByWorkspaceId(workspaceId);
     }
 
     @Override

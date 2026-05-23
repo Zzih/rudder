@@ -63,8 +63,24 @@ public class RudderException extends RuntimeException {
         this.args = null;
     }
 
+    public RudderException(ErrorCode errorCode, Throwable cause, Object... args) {
+        super(errorCode.getMessage(), cause);
+        this.errorCode = errorCode;
+        this.args = args;
+    }
+
     /** 把 ErrorCode 模板 + args 解析成当前 locale 的最终文案,供日志 / DB error_message / Response 出口统一使用。 */
     public String resolvedMessage() {
         return I18n.t(errorCode.getMessage(), args);
+    }
+
+    /**
+     * 覆盖 JDK 标准入口 —— catch 端只需调 {@code e.getLocalizedMessage()} 即可拿到当前 locale 解析后的文案,
+     * 不必再判断 {@code instanceof RudderException}。{@code getMessage()} 仍返 i18n key 模板原文,
+     * 保持给日志/堆栈一份 locale-invariant 的"原始 key"。
+     */
+    @Override
+    public String getLocalizedMessage() {
+        return resolvedMessage();
     }
 }

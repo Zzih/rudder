@@ -118,7 +118,7 @@ public class TaskInstanceService {
                                 Map<String, String> params) {
         Script script = scriptDao.selectByCode(scriptCode);
         if (script == null) {
-            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND);
+            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND, scriptCode);
         }
 
         // content 直接使用 Script 的 TaskParams JSON

@@ -17,5 +17,15 @@
 
 package io.github.zzih.rudder.api.response;
 
-public record RuntimeTypeResponse(String value, String label) {
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class RuntimeTypeResponse {
+
+    private String value;
+    private String label;
 }

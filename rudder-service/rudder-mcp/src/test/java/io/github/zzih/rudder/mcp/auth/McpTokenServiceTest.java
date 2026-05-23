@@ -41,6 +41,7 @@ import io.github.zzih.rudder.dao.entity.McpTokenScopeGrant;
 import io.github.zzih.rudder.mcp.auth.dto.CreateTokenCommand;
 import io.github.zzih.rudder.mcp.capability.CapabilityIds;
 import io.github.zzih.rudder.service.workflow.ApprovalService;
+import io.github.zzih.rudder.service.workspace.WorkspaceService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -65,6 +66,8 @@ class McpTokenServiceTest {
     private TokenViewCache tokenViewCache;
     @Mock
     private ApprovalService approvalService;
+    @Mock
+    private WorkspaceService workspaceService;
 
     @InjectMocks
     private McpTokenService service;

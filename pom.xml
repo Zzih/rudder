@@ -31,7 +31,6 @@
         <module>rudder-dao</module>
         <module>rudder-rpc</module>
         <module>rudder-spi</module>
-        <module>rudder-datasource</module>
         <module>rudder-service</module>
         <module>rudder-ai</module>
         <module>rudder-bundles</module>
@@ -66,6 +65,7 @@
         <flink-jdbc.version>1.20.0</flink-jdbc.version>
         <postgresql.version>42.7.10</postgresql.version>
         <clickhouse-jdbc.version>0.4.6</clickhouse-jdbc.version>
+        <starrocks-jdbc.version>1.1.1</starrocks-jdbc.version>
         <spring-dotenv.version>5.1.0</spring-dotenv.version>
         <spring-ai.version>2.0.0-M6</spring-ai.version>
         <aliyun-oss.version>3.17.4</aliyun-oss.version>
@@ -117,11 +117,6 @@
             <dependency>
                 <groupId>io.github.zzih</groupId>
                 <artifactId>rudder-ai</artifactId>
-                <version>${rudder.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.github.zzih</groupId>
-                <artifactId>rudder-datasource</artifactId>
                 <version>${rudder.version}</version>
             </dependency>
             <dependency>
@@ -259,6 +254,56 @@
             <dependency>
                 <groupId>io.github.zzih</groupId>
                 <artifactId>rudder-spi-api</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-api</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-mysql</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-postgres</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-hive</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-trino</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-clickhouse</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-doris</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-starrocks</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-spark</artifactId>
+                <version>${rudder.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.zzih</groupId>
+                <artifactId>rudder-datasource-flink</artifactId>
                 <version>${rudder.version}</version>
             </dependency>
             <dependency>
@@ -568,6 +613,11 @@
                 </exclusions>
             </dependency>
             <dependency>
+                <groupId>com.starrocks</groupId>
+                <artifactId>starrocks-connector-j</artifactId>
+                <version>${starrocks-jdbc.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>me.paulschwarz</groupId>
                 <artifactId>springboot4-dotenv</artifactId>
                 <version>${spring-dotenv.version}</version>
@@ -652,6 +702,16 @@
                     <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></exclusion>
                     <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-core</artifactId></exclusion>
                     <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-annotations</artifactId></exclusion>
+                    <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
+                </exclusions>
+            </dependency>
+            <!-- Calcite Babel parser: 兼容方言 DDL / 扩展语法,失败 fallback 到 base parser -->
+            <dependency>
+                <groupId>org.apache.calcite</groupId>
+                <artifactId>calcite-babel</artifactId>
+                <version>${calcite.version}</version>
+                <exclusions>
+                    <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></exclusion>
                     <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
                 </exclusions>
             </dependency>

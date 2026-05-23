@@ -29,8 +29,8 @@ import io.github.zzih.rudder.common.enums.auth.RoleType;
 import io.github.zzih.rudder.common.enums.mcp.McpTokenStatus;
 import io.github.zzih.rudder.dao.dao.McpTokenDao;
 import io.github.zzih.rudder.dao.dao.McpTokenScopeGrantDao;
-import io.github.zzih.rudder.dao.entity.McpToken;
 import io.github.zzih.rudder.dao.entity.McpTokenScopeGrant;
+import io.github.zzih.rudder.dao.entity.view.McpTokenDetailView;
 import io.github.zzih.rudder.mcp.auth.McpTokenService;
 import io.github.zzih.rudder.mcp.auth.TokenViewCache;
 import io.github.zzih.rudder.mcp.capability.CapabilityIds;
@@ -60,8 +60,8 @@ class McpRoleChangeListenerTest {
     @InjectMocks
     private McpRoleChangeListener listener;
 
-    private static McpToken activeToken(Long id, Long workspaceId) {
-        McpToken t = new McpToken();
+    private static McpTokenDetailView activeToken(Long id, Long workspaceId) {
+        McpTokenDetailView t = new McpTokenDetailView();
         t.setId(id);
         t.setWorkspaceId(workspaceId);
         t.setStatus(McpTokenStatus.ACTIVE);

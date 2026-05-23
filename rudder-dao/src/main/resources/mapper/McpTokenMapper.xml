@@ -8,6 +8,19 @@
         created_by, created_at, updated_by, updated_at
     </sql>
 
+    <!-- list / detail 路径用,排除 token_hash 等敏感列,只暴露 view 类需要的字段。 -->
+    <sql id="detailColumns">
+        t.id, t.user_id, t.workspace_id, t.name, t.description,
+        t.token_prefix, t.status, t.expires_at,
+        t.last_used_at, t.last_used_ip, t.revoked_at, t.revoked_reason,
+        t.created_by, t.created_at, t.updated_by, t.updated_at
+    </sql>
+
+    <resultMap id="McpTokenDetailMap" type="io.github.zzih.rudder.dao.entity.view.McpTokenDetailView"
+               autoMapping="true">
+        <result column="workspace_name" property="workspaceName"/>
+    </resultMap>
+
     <select id="queryByTokenPrefix" resultType="io.github.zzih.rudder.dao.entity.McpToken">
         select <include refid="baseSql"/>
         from t_r_mcp_token
@@ -15,23 +28,37 @@
         limit 1
     </select>
 
-    <select id="queryByIdWithWorkspaceName" resultType="io.github.zzih.rudder.dao.entity.McpToken">
-        select t.*, w.name as workspace_name
+    <select id="queryDetailById" resultMap="McpTokenDetailMap">
+        select <include refid="detailColumns"/>, w.name as workspace_name
         from t_r_mcp_token t
         left join t_r_workspace w on w.id = t.workspace_id
         where t.id = #{id}
     </select>
 
-    <select id="queryByUserId" resultType="io.github.zzih.rudder.dao.entity.McpToken">
-        select t.*, w.name as workspace_name
+    <select id="queryDetailByUserId" resultMap="McpTokenDetailMap">
+        select <include refid="detailColumns"/>, w.name as workspace_name
         from t_r_mcp_token t
         left join t_r_workspace w on w.id = t.workspace_id
         where t.user_id = #{userId}
         order by t.created_at desc
     </select>
 
-    <select id="queryByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.McpToken">
-        select t.*, w.name as workspace_name
+    <select id="queryDetailPageByUserId" resultMap="McpTokenDetailMap">
+        select <include refid="detailColumns"/>, w.name as workspace_name
+        from t_r_mcp_token t
+        left join t_r_workspace w on w.id = t.workspace_id
+        <where>
+            t.user_id = #{userId}
+            <if test="search != null and search != ''">
+                and (t.name like concat('%', #{search}, '%')
+                     or t.token_prefix like concat('%', #{search}, '%'))
+            </if>
+        </where>
+        order by t.created_at desc
+    </select>
+
+    <select id="queryDetailByWorkspaceId" resultMap="McpTokenDetailMap">
+        select <include refid="detailColumns"/>, w.name as workspace_name
         from t_r_mcp_token t
         left join t_r_workspace w on w.id = t.workspace_id
         where t.workspace_id = #{workspaceId}

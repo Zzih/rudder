@@ -18,7 +18,7 @@
 package io.github.zzih.rudder.ai.rag;
 
 import io.github.zzih.rudder.ai.orchestrator.RagPipelineConfigService;
-import io.github.zzih.rudder.ai.orchestrator.RagPipelineSettings;
+import io.github.zzih.rudder.ai.orchestrator.dto.RagPipelineConfigDTO;
 import io.github.zzih.rudder.common.utils.crypto.CryptoUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.dao.AiDocumentDao;
@@ -441,8 +441,8 @@ public class DocumentIngestionService {
      * </ul>
      */
     private List<Document> enrichIfApplicable(AiDocument doc, List<Document> chunks) {
-        RagPipelineSettings rag = ragPipelineConfigService.active();
-        if (!rag.keywordEnricherEnabled() && !rag.summaryEnricherEnabled()) {
+        RagPipelineConfigDTO rag = ragPipelineConfigService.active();
+        if (!rag.getKeywordEnricherEnabled() && !rag.getSummaryEnricherEnabled()) {
             return chunks;
         }
         if (doc.getDocType() == null || !ENRICHABLE_DOC_TYPES.contains(doc.getDocType().toUpperCase())) {
@@ -455,7 +455,7 @@ public class DocumentIngestionService {
         }
 
         List<Document> out = chunks;
-        if (rag.keywordEnricherEnabled()) {
+        if (rag.getKeywordEnricherEnabled()) {
             try {
                 out = KeywordMetadataEnricher.builder(chatModel).keywordCount(KEYWORD_COUNT).build().apply(out);
             } catch (Exception e) {
@@ -464,7 +464,7 @@ public class DocumentIngestionService {
                 out = chunks;
             }
         }
-        if (rag.summaryEnricherEnabled()) {
+        if (rag.getSummaryEnricherEnabled()) {
             try {
                 out = new SummaryMetadataEnricher(chatModel,
                         List.of(SummaryType.CURRENT, SummaryType.NEXT)).apply(out);

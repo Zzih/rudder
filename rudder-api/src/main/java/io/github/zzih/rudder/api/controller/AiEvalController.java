@@ -24,6 +24,7 @@ import io.github.zzih.rudder.api.request.AiEvalCaseRequest;
 import io.github.zzih.rudder.api.response.AiEvalCaseResponse;
 import io.github.zzih.rudder.api.response.AiEvalRunResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
@@ -38,8 +39,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -56,13 +55,13 @@ public class AiEvalController {
     // ======================== Cases ========================
 
     @GetMapping("/cases")
-    public Result<IPage<AiEvalCaseResponse>> listCases(@RequestParam(required = false) String category,
-                                                       @RequestParam(required = false) Boolean activeOnly,
-                                                       @RequestParam(defaultValue = "1") int pageNum,
-                                                       @RequestParam(defaultValue = "20") int pageSize) {
-        return Result.ok(BeanConvertUtils.convertPage(
+    public PageResult<AiEvalCaseResponse> listCases(@RequestParam(required = false) String category,
+                                                    @RequestParam(required = false) Boolean activeOnly,
+                                                    @RequestParam(defaultValue = "1") int pageNum,
+                                                    @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(
                 evalService.pageCasesDetail(category, activeOnly, pageNum, pageSize),
-                AiEvalCaseResponse.class));
+                AiEvalCaseResponse.class);
     }
 
     @GetMapping("/cases/{id}")
@@ -101,11 +100,11 @@ public class AiEvalController {
     }
 
     @GetMapping("/cases/{caseId}/runs")
-    public Result<IPage<AiEvalRunResponse>> getCaseHistory(@PathVariable Long caseId,
-                                                           @RequestParam(defaultValue = "1") int pageNum,
-                                                           @RequestParam(defaultValue = "20") int pageSize) {
-        return Result.ok(BeanConvertUtils.convertPage(
+    public PageResult<AiEvalRunResponse> getCaseHistory(@PathVariable Long caseId,
+                                                        @RequestParam(defaultValue = "1") int pageNum,
+                                                        @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(
                 evalService.pageCaseHistoryDetail(caseId, pageNum, pageSize),
-                AiEvalRunResponse.class));
+                AiEvalRunResponse.class);
     }
 }

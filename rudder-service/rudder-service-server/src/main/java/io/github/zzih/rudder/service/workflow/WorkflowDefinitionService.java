@@ -81,7 +81,7 @@ public class WorkflowDefinitionService {
     public WorkflowDefinition getByCode(Long code) {
         WorkflowDefinition wf = workflowDefinitionDao.selectByCode(code);
         if (wf == null) {
-            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, code);
         }
         return wf;
     }
@@ -90,7 +90,7 @@ public class WorkflowDefinitionService {
         WorkflowDefinition wf =
                 workflowDefinitionDao.selectByWorkspaceIdAndProjectCodeAndCode(workspaceId, projectCode, code);
         if (wf == null) {
-            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, code);
         }
         return wf;
     }
@@ -130,7 +130,7 @@ public class WorkflowDefinitionService {
         if (existing == null
                 || !existing.getWorkspaceId().equals(workspaceId)
                 || !existing.getProjectCode().equals(projectCode)) {
-            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, code);
         }
         if (expectedHash != null) {
             String currentHash = WorkflowHashUtils.compute(

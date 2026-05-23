@@ -19,6 +19,7 @@ package io.github.zzih.rudder.dao.dao.impl;
 
 import io.github.zzih.rudder.dao.dao.ApprovalRecordDao;
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
+import io.github.zzih.rudder.dao.entity.view.ApprovalRecordDetailView;
 import io.github.zzih.rudder.dao.mapper.ApprovalRecordMapper;
 
 import java.time.LocalDateTime;
@@ -52,6 +53,11 @@ public class ApprovalRecordDaoImpl implements ApprovalRecordDao {
     @Override
     public ApprovalRecord selectById(Long id) {
         return approvalRecordMapper.selectById(id);
+    }
+
+    @Override
+    public ApprovalRecordDetailView selectDetailById(Long id) {
+        return approvalRecordMapper.queryDetailById(id);
     }
 
     @Override

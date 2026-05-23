@@ -8,6 +8,12 @@
         order by id asc
     </select>
 
+    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.RedactionStrategyEntity">
+        select *
+        from t_r_redaction_strategy
+        order by id asc
+    </select>
+
     <select id="queryByCode" resultType="io.github.zzih.rudder.dao.entity.RedactionStrategyEntity">
         select *
         from t_r_redaction_strategy

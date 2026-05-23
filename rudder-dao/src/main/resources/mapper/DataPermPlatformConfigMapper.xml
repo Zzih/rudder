@@ -1,0 +1,12 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermPlatformConfigMapper">
+
+    <!-- enabled 列是子系统总开关,关闭时也要拿到 row(供 admin UI 显示当前配置),所以不按 enabled 过滤。 -->
+    <select id="queryActive" resultType="io.github.zzih.rudder.dao.entity.DataPermPlatformConfig">
+        select *
+        from t_r_data_perm_config
+        order by id desc
+        limit 1
+    </select>
+
+</mapper>

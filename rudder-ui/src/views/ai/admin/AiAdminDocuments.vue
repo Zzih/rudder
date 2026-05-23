@@ -13,9 +13,9 @@
             <el-icon><Upload /></el-icon>{{ t('aiAdmin.doc.upload') }}
           </el-button>
         </el-upload>
-        <el-button size="small" :loading="loading" @click="load"><el-icon><Refresh /></el-icon>{{ t('common.refresh') }}</el-button>
+        <el-button size="small" :loading="loading" @click="() => load()"><el-icon><Refresh /></el-icon>{{ t('common.refresh') }}</el-button>
         <el-select v-model="docTypeFilter" size="small" clearable :placeholder="t('aiAdmin.doc.filterType')" style="width: 160px"
-          @change="() => { docPageNum = 1; load() }">
+          @change="resetDocsAndFetch">
           <el-option v-for="d in DOC_TYPES" :key="d" :label="d" :value="d" />
         </el-select>
         <el-button size="small" :loading="reindexing" @click="handleReindex">
@@ -36,7 +36,8 @@
         </template>
       </el-alert>
 
-      <el-table :data="rows" v-loading="loading" size="small" stripe>
+      <div class="admin-card">
+      <el-table :data="rows" v-loading="loading">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="docType" :label="t('aiAdmin.doc.docType')" width="110" />
         <el-table-column prop="engineType" :label="t('aiAdmin.doc.engine')" width="100">
@@ -65,7 +66,8 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-pagination class="pager" small background layout="total, prev, pager, next, sizes"
+      </div>
+      <el-pagination class="admin-pagination" background layout="total, prev, pager, next, sizes"
         :total="docTotal" :page-size="docPageSize" :current-page="docPageNum" :page-sizes="[10, 20, 50, 100]"
         @current-change="onDocPageChange" @size-change="onDocSizeChange" />
     </section>
@@ -311,6 +313,7 @@ import { adminDocuments, adminMetadataSync, type AiDocumentVO, type RetrievedChu
   type AiMetadataSyncConfigVO } from '@/api/ai'
 import { listDatasources, listMetaCatalogs, listMetaDatabases, listMetaTables } from '@/api/datasource'
 import { listWorkspaces } from '@/api/workspace'
+import { usePagination } from '@/composables/usePagination'
 import CronEditor from '@/components/CronEditor.vue'
 import ScopeSelector from './ScopeSelector.vue'
 
@@ -319,13 +322,25 @@ const DOC_TYPES = ['WIKI', 'SCRIPT', 'SCHEMA', 'METRIC_DEF', 'RUNBOOK']
 const ENGINE_TYPES = ['HIVE', 'STARROCKS', 'TRINO', 'SPARK', 'FLINK', 'MYSQL', 'CLICKHOUSE', 'POSTGRES']
 const UPLOAD_ACCEPT = '.pdf,.doc,.docx,.md,.txt,.html,.htm,.xml,.json,.csv,.rtf'
 
-const rows = ref<AiDocumentVO[]>([])
-const docTotal = ref(0)
-const docPageNum = ref(1)
-const docPageSize = ref(20)
-const loading = ref(false)
 const reindexing = ref(false)
 const docTypeFilter = ref<string>()
+
+const {
+  data: rows,
+  loading,
+  pageNum: docPageNum,
+  pageSize: docPageSize,
+  total: docTotal,
+  fetch: load,
+  handlePageChange: onDocPageChange,
+  handleSizeChange: onDocSizeChange,
+  resetAndFetch: resetDocsAndFetch,
+} = usePagination<AiDocumentVO>({
+  fetchApi: (params) => adminDocuments.list({
+    ...params,
+    docType: docTypeFilter.value || undefined,
+  }),
+})
 const editing = ref(false)
 const saving = ref(false)
 const form = reactive<AiDocumentVO>(emptyDoc())
@@ -517,27 +532,12 @@ function statusTag(s: string | null | undefined): 'success' | 'warning' | 'dange
   return 'info'
 }
 
-async function load() {
-  loading.value = true
-  try {
-    const { data } = await adminDocuments.list({
-      docType: docTypeFilter.value || undefined,
-      pageNum: docPageNum.value,
-      pageSize: docPageSize.value,
-    })
-    rows.value = data?.records ?? []
-    docTotal.value = data?.total ?? 0
-  } finally { loading.value = false }
-}
-
-function onDocPageChange(n: number) { docPageNum.value = n; load() }
-function onDocSizeChange(s: number) { docPageSize.value = s; docPageNum.value = 1; load() }
 
 async function loadSync() {
   loadingSync.value = true
   try {
-    const { data } = await adminMetadataSync.list({ pageSize: 100 })
-    syncRows.value = data?.records ?? []
+    const res: any = await adminMetadataSync.list({ pageSize: 100 })
+    syncRows.value = res.data ?? []
   } finally { loadingSync.value = false }
 }
 
@@ -725,6 +725,8 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .ks-section { margin-bottom: var(--r-space-2); }
 
 .form-row {

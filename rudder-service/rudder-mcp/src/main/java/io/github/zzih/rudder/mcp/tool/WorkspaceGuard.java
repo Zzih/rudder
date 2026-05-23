@@ -26,7 +26,7 @@ import io.github.zzih.rudder.dao.dao.WorkflowDefinitionDao;
 import io.github.zzih.rudder.dao.entity.Project;
 import io.github.zzih.rudder.dao.entity.Script;
 import io.github.zzih.rudder.dao.entity.WorkflowDefinition;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 
 import java.util.Objects;
 

@@ -30,6 +30,8 @@ public enum AuditResourceType {
     AI_SESSION,
     APPROVAL_RECORD,
     AUTH_SOURCE,
+    DATA_PERM_ROLE,
+    DATA_PERM_GRANT,
     DATASOURCE,
     FILE,
     NOTIFICATION_CONFIG,

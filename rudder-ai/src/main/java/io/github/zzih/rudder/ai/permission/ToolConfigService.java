@@ -25,6 +25,9 @@ import io.github.zzih.rudder.dao.entity.AiToolConfig;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -61,6 +64,17 @@ public class ToolConfigService {
     /** 查全部 config(不按 workspace 过滤)。admin 列表 / Tools 总览用。 */
     public List<AiToolConfig> listAll() {
         return dao.selectAll();
+    }
+
+    /**
+     * 对指定 workspace 生效的全部 enabled config,toolName 索引。批量入口避免 per-tool
+     * {@link #find} 的 N+1 DB 查询(典型 caller: {@code AgentExecutor.buildCallbacks})。
+     */
+    public Map<String, AiToolConfig> mapEnabledForWorkspace(Long workspaceId) {
+        return dao.selectAll().stream()
+                .filter(c -> Boolean.TRUE.equals(c.getEnabled()))
+                .filter(c -> matchesWorkspace(c, workspaceId))
+                .collect(Collectors.toMap(AiToolConfig::getToolName, Function.identity(), (a, b) -> a));
     }
 
     public com.baomidou.mybatisplus.core.metadata.IPage<AiToolConfig> pageAll(int pageNum, int pageSize) {

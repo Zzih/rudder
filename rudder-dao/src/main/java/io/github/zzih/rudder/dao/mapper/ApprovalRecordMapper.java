@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
+import io.github.zzih.rudder.dao.entity.view.ApprovalRecordDetailView;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +42,9 @@ public interface ApprovalRecordMapper extends BaseMapper<ApprovalRecord> {
                                                             @Param("resourceCode") Long resourceCode);
 
     ApprovalRecord queryByExternalApprovalId(@Param("externalApprovalId") String externalApprovalId);
+
+    /** 详情视图：LEFT JOIN 申请人 / 工作空间名，仅供单条详情展示。 */
+    ApprovalRecordDetailView queryDetailById(@Param("id") Long id);
 
     /**
      * 推进到下一阶段：仅当 status=PENDING 且 current_stage=oldStage 时更新成功。

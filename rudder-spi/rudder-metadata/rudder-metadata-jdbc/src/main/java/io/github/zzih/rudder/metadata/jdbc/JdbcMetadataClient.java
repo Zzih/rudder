@@ -44,6 +44,21 @@ public class JdbcMetadataClient implements MetadataClient {
     public JdbcMetadataClient() {
     }
 
+    private static final String STARROCKS_TYPE = "STARROCKS";
+
+    private static void prepareStarRocksCatalog(DataSourceInfo target, Connection conn,
+                                                String catalog) throws SQLException {
+        if (catalog == null || catalog.isBlank()) {
+            return;
+        }
+        if (!STARROCKS_TYPE.equalsIgnoreCase(target.getType())) {
+            return;
+        }
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("SET CATALOG `" + catalog.replace("`", "``") + "`");
+        }
+    }
+
     // ==================== 3-tier API ====================
 
     @Override
@@ -85,6 +100,7 @@ public class JdbcMetadataClient implements MetadataClient {
         try (
                 Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
                         target.getDriverClass())) {
+            prepareStarRocksCatalog(target, conn, catalog);
             if (hasCatalog && catalog != null) {
                 // 三层引擎:getSchemas(catalog, null)
                 try (ResultSet rs = conn.getMetaData().getSchemas(catalog, null)) {
@@ -134,6 +150,7 @@ public class JdbcMetadataClient implements MetadataClient {
         try (
                 Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
                         target.getDriverClass())) {
+            prepareStarRocksCatalog(target, conn, catalog);
             try {
                 // getTables(catalog, schemaPattern, tableNamePattern, types) —— catalog 为 null 时驱动自行处理
                 ResultSet rs = conn.getMetaData().getTables(catalog, database, "%",
@@ -179,6 +196,7 @@ public class JdbcMetadataClient implements MetadataClient {
         try (
                 Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
                         target.getDriverClass())) {
+            prepareStarRocksCatalog(target, conn, catalog);
             try {
                 ResultSet rs = conn.getMetaData().getColumns(catalog, database, table, "%");
                 while (rs.next()) {
@@ -228,6 +246,7 @@ public class JdbcMetadataClient implements MetadataClient {
         try (
                 Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
                         target.getDriverClass())) {
+            prepareStarRocksCatalog(target, conn, catalog);
             boolean useFallback = false;
             try {
                 try (ResultSet pkRs = conn.getMetaData().getPrimaryKeys(catalog, database, table)) {
@@ -303,6 +322,7 @@ public class JdbcMetadataClient implements MetadataClient {
                 for (String first : firstLevel) {
                     String cat = threeTier ? first : null;
                     String dbPattern = threeTier ? null : first;
+                    prepareStarRocksCatalog(target, conn, cat);
                     try (
                             ResultSet rs = metaData.getTables(cat, dbPattern,
                                     "%" + keyword + "%", new String[]{"TABLE", "VIEW"})) {

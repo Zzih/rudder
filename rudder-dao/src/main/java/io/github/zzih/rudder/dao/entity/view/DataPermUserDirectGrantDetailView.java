@@ -1,0 +1,39 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.github.zzih.rudder.dao.entity.view;
+
+import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+/** 用户 direct grant 详情视图,join {@code t_r_data_perm_scope} 取展示名。 */
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class DataPermUserDirectGrantDetailView extends DataPermUserDirectGrant {
+
+    private String scopeName;
+
+    /** scope.plugin_type 列;service 端用 PluginType.valueOf 转 enum。 */
+    private String pluginType;
+
+    private String rangerServiceName;
+
+    /** scope.enabled 列;reconciler 跳过 disabled scope 的 desired。 */
+    private Boolean scopeEnabled;
+}

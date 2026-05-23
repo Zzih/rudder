@@ -20,19 +20,20 @@ package io.github.zzih.rudder.dao.entity;
 import io.github.zzih.rudder.common.entity.BaseEntity;
 import io.github.zzih.rudder.common.enums.approval.ApprovalStatus;
 import io.github.zzih.rudder.common.enums.approval.DecisionRule;
-import io.github.zzih.rudder.common.utils.json.JsonUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("t_r_approval_record")
+@TableName(value = "t_r_approval_record", autoResultMap = true)
 public class ApprovalRecord extends BaseEntity {
 
     private String channel;
@@ -53,13 +54,16 @@ public class ApprovalRecord extends BaseEntity {
 
     private String submitRemark;
 
-    /** PENDING / APPROVED / REJECTED / WITHDRAWN / EXPIRED */
+    /** 业务侧结构化数据(JSON),供集成层在终态时重建业务对象。 */
+    private String extData;
+
     private ApprovalStatus status;
 
-    /** 阶段链 JSON 数组（提交时锁定），如 ["PROJECT_OWNER","WORKSPACE_OWNER"] */
-    private String stageChain;
+    /** 阶段链(提交时锁定),如 ["PROJECT_OWNER","WORKSPACE_OWNER"]。 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> stageChain;
 
-    /** 当前所在阶段，必为 stageChain 中的一项 */
+    /** 当前所在阶段,必为 stageChain 中的一项。 */
     private String currentStage;
 
     private DecisionRule decisionRule;
@@ -73,13 +77,4 @@ public class ApprovalRecord extends BaseEntity {
     private LocalDateTime withdrawnAt;
 
     private String withdrawnReason;
-
-    /**
-     * 解析 {@link #stageChain} JSON 数组为 {@code List<String>}。
-     * 命名故意不以 "get" 开头，避免被 Jackson / Lombok 当作 bean 属性序列化进 ORM。
-     * 空 / 解析失败返回空列表。
-     */
-    public List<String> parseStageChainList() {
-        return JsonUtils.toList(stageChain, String.class);
-    }
 }

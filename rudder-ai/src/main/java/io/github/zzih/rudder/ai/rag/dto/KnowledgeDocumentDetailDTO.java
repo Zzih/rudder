@@ -17,32 +17,28 @@
 
 package io.github.zzih.rudder.ai.rag.dto;
 
+import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.dao.entity.AiDocument;
 
 import java.time.LocalDateTime;
 
+import lombok.Data;
+
 /** 知识库文档完整内容(含 content),用于 {@code knowledge.get_document}。 */
-public record KnowledgeDocumentDetailDTO(
-        Long id,
-        String docType,
-        String engineType,
-        String title,
-        String description,
-        String sourceRef,
-        String content,
-        LocalDateTime indexedAt,
-        LocalDateTime updatedAt) {
+@Data
+public class KnowledgeDocumentDetailDTO {
+
+    private Long id;
+    private String docType;
+    private String engineType;
+    private String title;
+    private String description;
+    private String sourceRef;
+    private String content;
+    private LocalDateTime indexedAt;
+    private LocalDateTime updatedAt;
 
     public static KnowledgeDocumentDetailDTO from(AiDocument doc) {
-        return new KnowledgeDocumentDetailDTO(
-                doc.getId(),
-                doc.getDocType(),
-                doc.getEngineType(),
-                doc.getTitle(),
-                doc.getDescription(),
-                doc.getSourceRef(),
-                doc.getContent(),
-                doc.getIndexedAt(),
-                doc.getUpdatedAt());
+        return BeanConvertUtils.convert(doc, KnowledgeDocumentDetailDTO.class);
     }
 }

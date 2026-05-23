@@ -33,6 +33,7 @@ import io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode;
 import io.github.zzih.rudder.common.exception.AuthException;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.mcp.auth.McpTokenService;
@@ -96,10 +97,13 @@ public class McpController {
     }
 
     @GetMapping("/tokens")
-    public Result<List<McpTokenSummaryResponse>> listMyTokens() {
+    public PageResult<McpTokenSummaryResponse> listMyTokens(
+                                                            @RequestParam(required = false) String search,
+                                                            @RequestParam(defaultValue = "1") int pageNum,
+                                                            @RequestParam(defaultValue = "20") int pageSize) {
         Long userId = UserContext.requireUserId();
-        return Result.ok(BeanConvertUtils.convertList(
-                tokenService.listByUserId(userId), McpTokenSummaryResponse.class));
+        return PageResult.of(tokenService.pageByUserId(userId, search, pageNum, pageSize),
+                McpTokenSummaryResponse.class);
     }
 
     @PostMapping("/tokens")

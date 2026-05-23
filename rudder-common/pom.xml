@@ -58,6 +58,10 @@
             <artifactId>calcite-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-babel</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>

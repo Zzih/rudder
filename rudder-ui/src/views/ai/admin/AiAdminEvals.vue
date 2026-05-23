@@ -4,7 +4,7 @@
       <el-button type="primary" size="small" @click="openEdit()">
         <el-icon><Plus /></el-icon>{{ t('common.create') }}
       </el-button>
-      <el-button size="small" :loading="loading" @click="load">
+      <el-button size="small" :loading="loading" @click="() => load()">
         <el-icon><Refresh /></el-icon>{{ t('common.refresh') }}
       </el-button>
       <el-select v-model="categoryFilter" size="small" clearable :placeholder="t('aiAdmin.eval.categoryFilter')"
@@ -28,7 +28,8 @@
       </template>
     </el-alert>
 
-    <el-table :data="rows" v-loading="loading" size="small" stripe>
+    <div class="admin-card">
+    <el-table :data="rows" v-loading="loading">
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="category" :label="t('aiAdmin.eval.category')" width="110" />
       <el-table-column :label="t('aiAdmin.eval.mode')" width="80">
@@ -57,9 +58,10 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-pagination class="pager" small background layout="total, prev, pager, next, sizes" :total="total"
+    </div>
+    <el-pagination class="admin-pagination" background layout="total, prev, pager, next, sizes" :total="total"
       :page-size="pageSize" :current-page="pageNum" :page-sizes="[10, 20, 50, 100]" @current-change="onPageChange"
-      @size-change="onSizeChange" />
+      @size-change="handleSizeChange" />
 
     <!-- ==================== 编辑弹窗 ==================== -->
     <el-dialog v-model="editing" :title="form.id ? t('common.edit') : t('common.create')" width="760" top="5vh"
@@ -319,19 +321,31 @@ import {
   type EvalToolInvocation, type ToolViewVO,
 } from '@/api/ai'
 import { listDatasources } from '@/api/datasource'
+import { usePagination } from '@/composables/usePagination'
 
 const { t } = useI18n()
 const CATEGORIES = ['SQL_GEN', 'OPTIMIZE', 'DEBUG', 'EXPLAIN', 'DIALECT']
 
-const rows = ref<AiEvalCaseVO[]>([])
-const total = ref(0)
-const pageNum = ref(1)
-const pageSize = ref(20)
-const loading = ref(false)
 const categoryFilter = ref<string>()
 const editing = ref(false)
 const saving = ref(false)
 const form = reactive<AiEvalCaseVO>(emptyForm())
+
+const {
+  data: rows,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: load,
+  handlePageChange: onPageChange,
+  handleSizeChange,
+} = usePagination<AiEvalCaseVO>({
+  fetchApi: (params) => adminEvals.listCases({
+    ...params,
+    category: categoryFilter.value || undefined,
+  }),
+})
 
 // 结构化 context / expected,保存时序列化回 JSON 字段
 const ctxForm = reactive<{ selection: string; pinnedTables: string[] }>({
@@ -367,11 +381,27 @@ const running = ref(false)
 const lastBatch = ref<EvalBatchResultVO | null>(null)
 
 const historyOpen = ref(false)
-const historyRows = ref<AiEvalRunVO[]>([])
-const historyTotal = ref(0)
-const historyPageNum = ref(1)
-const historyPageSize = ref(20)
 const currentHistoryCaseId = ref<number | null>(null)
+
+const {
+  data: historyRows,
+  pageNum: historyPageNum,
+  pageSize: historyPageSize,
+  total: historyTotal,
+  fetch: loadHistory,
+  handlePageChange: onHistoryPageChange,
+} = usePagination<AiEvalRunVO>({
+  fetchApi: (params) => adminEvals.caseHistory(currentHistoryCaseId.value!,
+    (params.pageNum as number) ?? 1, (params.pageSize as number) ?? 20),
+})
+
+// 关弹窗时清掉绑定 caseId,避免 history rows 被 ref 锁住占用内存
+watch(historyOpen, (open) => {
+  if (!open) {
+    currentHistoryCaseId.value = null
+    historyRows.value = []
+  }
+})
 
 const runDetailOpen = ref(false)
 const activeRun = ref<AiEvalRunVO | null>(null)
@@ -457,21 +487,6 @@ function serializeSubForms() {
   form.expectedJson = Object.keys(exp).length ? JSON.stringify(exp) : null
 }
 
-async function load() {
-  loading.value = true
-  try {
-    const { data } = await adminEvals.listCases({
-      category: categoryFilter.value || undefined,
-      pageNum: pageNum.value,
-      pageSize: pageSize.value,
-    })
-    rows.value = data?.records ?? []
-    total.value = data?.total ?? 0
-  } finally { loading.value = false }
-}
-
-function onPageChange(n: number) { pageNum.value = n; load() }
-function onSizeChange(s: number) { pageSize.value = s; pageNum.value = 1; load() }
 
 async function loadReferenceData() {
   try {
@@ -551,14 +566,6 @@ async function viewHistory(row: AiEvalCaseVO) {
   historyOpen.value = true
 }
 
-async function loadHistory() {
-  if (!currentHistoryCaseId.value) return
-  const { data } = await adminEvals.caseHistory(currentHistoryCaseId.value, historyPageNum.value, historyPageSize.value)
-  historyRows.value = data?.records ?? []
-  historyTotal.value = data?.total ?? 0
-}
-
-function onHistoryPageChange(n: number) { historyPageNum.value = n; loadHistory() }
 
 function runToolCount(run: AiEvalRunVO): number {
   return parseJsonArray<EvalToolInvocation>(run.toolCallsJson).length
@@ -607,6 +614,8 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .stats {
   margin-left: var(--r-space-2);
   font-family: var(--r-font-mono);

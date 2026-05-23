@@ -39,7 +39,8 @@ const allMenuItems = computed<{ key: string; icon: string; label: string; requir
   { key: 'approval-config', icon: 'Stamp', label: t('admin.approvalConfig'), requireRole: 'SUPER_ADMIN' },
   { key: 'publish-config', icon: 'Promotion', label: t('admin.publishConfig'), requireRole: 'SUPER_ADMIN' },
   { key: 'notification-config', icon: 'Bell', label: t('admin.notificationConfig'), requireRole: 'SUPER_ADMIN' },
-  { key: 'redaction-config', icon: 'Lock', label: t('admin.redactionConfig'), requireRole: 'SUPER_ADMIN' },
+  { key: 'redaction-config', icon: 'View', label: t('admin.redactionConfig'), requireRole: 'SUPER_ADMIN' },
+  { key: 'data-perm-config', icon: 'Lock', label: t('admin.dataPermConfig'), requireRole: 'SUPER_ADMIN' },
 
   // 运行时 SPI
   { key: 'runtime-config', icon: 'Cpu', label: t('admin.runtimeConfig'), requireRole: 'SUPER_ADMIN' },

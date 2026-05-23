@@ -18,10 +18,10 @@
 package io.github.zzih.rudder.ai.tool.builtin;
 
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.datasource.dto.DatasourcePreviewDTO;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
 import io.github.zzih.rudder.llm.api.tool.ToolExecutionContext;
 import io.github.zzih.rudder.service.datasource.DatasourcePreviewService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
+import io.github.zzih.rudder.service.datasource.dto.DatasourcePreviewDTO;
 
 import java.util.ArrayList;
 import java.util.List;

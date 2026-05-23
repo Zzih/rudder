@@ -22,7 +22,6 @@ import io.github.zzih.rudder.common.enums.mcp.McpTokenStatus;
 
 import java.time.LocalDateTime;
 
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import lombok.Data;
@@ -65,8 +64,4 @@ public class McpToken extends BaseEntity {
 
     /** USER_REVOKE / ROLE_DOWNGRADE / EXPIRED / ADMIN_REVOKE */
     private String revokedReason;
-
-    /** JOIN t_r_workspace 取出的关联名称,非持久列,仅 list/getById 路径回填。 */
-    @TableField(exist = false)
-    private String workspaceName;
 }

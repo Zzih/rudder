@@ -35,4 +35,8 @@ public class BizException extends RudderException {
     public BizException(ErrorCode errorCode, Throwable cause) {
         super(errorCode, cause);
     }
+
+    public BizException(ErrorCode errorCode, Throwable cause, Object... args) {
+        super(errorCode, cause, args);
+    }
 }

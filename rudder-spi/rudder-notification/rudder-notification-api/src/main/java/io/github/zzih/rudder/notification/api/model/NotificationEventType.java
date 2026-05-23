@@ -26,5 +26,8 @@ public enum NotificationEventType {
     NODE_ONLINE,
 
     /** Execution 节点离线告警 */
-    NODE_OFFLINE
+    NODE_OFFLINE,
+
+    /** 数据权限 Reconciler 连续多轮整体失败(通常为 Ranger Admin 不可达)。 */
+    DATA_PERM_RECONCILE_RANGER_DOWN
 }

@@ -18,7 +18,7 @@
 package io.github.zzih.rudder.ai.rag;
 
 import io.github.zzih.rudder.ai.orchestrator.RagPipelineConfigService;
-import io.github.zzih.rudder.ai.orchestrator.RagPipelineSettings;
+import io.github.zzih.rudder.ai.orchestrator.dto.RagPipelineConfigDTO;
 import io.github.zzih.rudder.ai.rag.RagDebugTrace.StageTrace;
 import io.github.zzih.rudder.ai.rerank.RerankConfigService;
 import io.github.zzih.rudder.ai.rerank.RerankDocumentPostProcessor;
@@ -78,7 +78,7 @@ public class RagDebugService {
     public RagDebugTrace debug(String userQuery, Long workspaceId, TaskType taskType) {
         long start = System.currentTimeMillis();
 
-        RagPipelineSettings pipeline = ragPipelineConfigService.active();
+        RagPipelineConfigDTO pipeline = ragPipelineConfigService.active();
         ChatModel chatModel = llmConfigService.activeChatModel();
         // 一次构造,各 transformer 共用 —— 避免每个 stage 重新 ChatClient.builder(chatModel)
         ChatClient.Builder cb = chatModel == null ? null : ChatClient.builder(chatModel);
@@ -98,18 +98,18 @@ public class RagDebugService {
                 .build();
 
         // ============== Pre-Retrieval ==============
-        currentQuery = runTransformer(trace, "compression", pipeline.compressionEnabled(),
+        currentQuery = runTransformer(trace, "compression", pipeline.getCompressionEnabled(),
                 "disabled in pipeline", currentQuery,
                 () -> cb == null ? null
                         : CompressionQueryTransformer.builder().chatClientBuilder(cb).build());
-        currentQuery = runTransformer(trace, "translation", pipeline.translationEnabled(),
+        currentQuery = runTransformer(trace, "translation", pipeline.getTranslationEnabled(),
                 "disabled in pipeline", currentQuery,
                 () -> cb == null ? null
                         : TranslationQueryTransformer.builder()
                                 .chatClientBuilder(cb)
-                                .targetLanguage(pipeline.translationTargetLanguage())
+                                .targetLanguage(pipeline.getTranslationTargetLanguage())
                                 .build());
-        currentQuery = runTransformer(trace, "rewrite", pipeline.rewriteEnabled(),
+        currentQuery = runTransformer(trace, "rewrite", pipeline.getRewriteEnabled(),
                 "disabled in pipeline", currentQuery,
                 () -> cb == null ? null
                         : RewriteQueryTransformer.builder().chatClientBuilder(cb).build());
@@ -170,9 +170,9 @@ public class RagDebugService {
         }
     }
 
-    private List<Query> runMultiQuery(RagDebugTrace trace, RagPipelineSettings pipeline,
+    private List<Query> runMultiQuery(RagDebugTrace trace, RagPipelineConfigDTO pipeline,
                                       ChatClient.Builder cb, Query input) {
-        if (!pipeline.multiQueryEnabled()) {
+        if (!pipeline.getMultiQueryEnabled()) {
             trace.getStages().add(StageTrace.skipped("multi-query", "disabled in pipeline"));
             return List.of(input);
         }
@@ -184,8 +184,8 @@ public class RagDebugService {
         try {
             MultiQueryExpander expander = MultiQueryExpander.builder()
                     .chatClientBuilder(cb)
-                    .numberOfQueries(pipeline.multiQueryCount())
-                    .includeOriginal(pipeline.multiQueryIncludeOriginal())
+                    .numberOfQueries(pipeline.getMultiQueryCount())
+                    .includeOriginal(pipeline.getMultiQueryIncludeOriginal())
                     .build();
             List<Query> out = expander.expand(input);
             trace.getStages().add(StageTrace.builder()
@@ -259,9 +259,9 @@ public class RagDebugService {
         }
     }
 
-    private List<Document> runRerank(RagDebugTrace trace, RagPipelineSettings pipeline,
+    private List<Document> runRerank(RagDebugTrace trace, RagPipelineConfigDTO pipeline,
                                      Query query, List<Document> docs) {
-        if (!pipeline.rerankStageEnabled()) {
+        if (!pipeline.getRerankStageEnabled()) {
             trace.getStages().add(StageTrace.skipped("rerank", "disabled in pipeline"));
             return docs;
         }
@@ -272,11 +272,11 @@ public class RagDebugService {
         }
         long t0 = System.currentTimeMillis();
         try {
-            List<Document> reranked = new RerankDocumentPostProcessor(client, pipeline.rerankTopN())
+            List<Document> reranked = new RerankDocumentPostProcessor(client, pipeline.getRerankTopN())
                     .process(query, docs);
             trace.getStages().add(StageTrace.builder()
                     .name("rerank")
-                    .input(Map.of("input", docs.size(), "model", client.modelId(), "topN", pipeline.rerankTopN()))
+                    .input(Map.of("input", docs.size(), "model", client.modelId(), "topN", pipeline.getRerankTopN()))
                     .output(Map.of("output", reranked.size(), "preview", previewDocs(reranked)))
                     .durationMs((int) (System.currentTimeMillis() - t0))
                     .build());
@@ -291,12 +291,12 @@ public class RagDebugService {
         }
     }
 
-    private void runAugment(RagDebugTrace trace, RagPipelineSettings pipeline,
+    private void runAugment(RagDebugTrace trace, RagPipelineConfigDTO pipeline,
                             Query query, List<Document> docs) {
         long t0 = System.currentTimeMillis();
         try {
             ContextualQueryAugmenter augmenter = ContextualQueryAugmenter.builder()
-                    .allowEmptyContext(pipeline.augmenterAllowEmptyContext())
+                    .allowEmptyContext(pipeline.getAugmenterAllowEmptyContext())
                     .build();
             Query augmented = augmenter.augment(query, docs);
             trace.setFinalPrompt(augmented.text());
@@ -354,18 +354,18 @@ public class RagDebugService {
         return out;
     }
 
-    private static Map<String, Object> snapshot(RagPipelineSettings p) {
+    private static Map<String, Object> snapshot(RagPipelineConfigDTO p) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("rewriteEnabled", p.rewriteEnabled());
-        m.put("compressionEnabled", p.compressionEnabled());
-        m.put("translationEnabled", p.translationEnabled());
-        m.put("translationTargetLanguage", p.translationTargetLanguage());
-        m.put("multiQueryEnabled", p.multiQueryEnabled());
-        m.put("multiQueryCount", p.multiQueryCount());
-        m.put("multiQueryIncludeOriginal", p.multiQueryIncludeOriginal());
-        m.put("rerankStageEnabled", p.rerankStageEnabled());
-        m.put("rerankTopN", p.rerankTopN());
-        m.put("augmenterAllowEmptyContext", p.augmenterAllowEmptyContext());
+        m.put("rewriteEnabled", p.getRewriteEnabled());
+        m.put("compressionEnabled", p.getCompressionEnabled());
+        m.put("translationEnabled", p.getTranslationEnabled());
+        m.put("translationTargetLanguage", p.getTranslationTargetLanguage());
+        m.put("multiQueryEnabled", p.getMultiQueryEnabled());
+        m.put("multiQueryCount", p.getMultiQueryCount());
+        m.put("multiQueryIncludeOriginal", p.getMultiQueryIncludeOriginal());
+        m.put("rerankStageEnabled", p.getRerankStageEnabled());
+        m.put("rerankTopN", p.getRerankTopN());
+        m.put("augmenterAllowEmptyContext", p.getAugmenterAllowEmptyContext());
         return m;
     }
 
