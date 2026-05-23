@@ -45,7 +45,7 @@ public class MetadataMcpTools {
     private final MetadataService metadataService;
     private final WorkspaceGuard workspaceGuard;
 
-    @McpTool(name = "metadata.search", description = "Full-text search tables/columns by keyword across the given datasource.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "metadata_search", description = "Full-text search tables/columns by keyword across the given datasource.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("metadata.browse")
     public List<TableMeta> search(
                                   @McpToolParam(description = "datasource name", required = true) String datasourceName,
@@ -62,7 +62,7 @@ public class MetadataMcpTools {
                 .toJson(metadataService.listTables(datasource, WorkspaceGuard.unwrapCatalog(catalog), database));
     }
 
-    @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/table/{table}", name = "rudder-table", description = "Full table detail (columns + comment). For single-catalog engines pass catalog='-'. Discover table names via the rudder-tables resource or metadata.search tool.", mimeType = "application/json")
+    @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/table/{table}", name = "rudder-table", description = "Full table detail (columns + comment). For single-catalog engines pass catalog='-'. Discover table names via the rudder-tables resource or metadata_search tool.", mimeType = "application/json")
     @McpCapability("metadata.browse")
     public String getTable(String datasource, String catalog, String database, String table) {
         workspaceGuard.requireDatasourceVisible(datasource);

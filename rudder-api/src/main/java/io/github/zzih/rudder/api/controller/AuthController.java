@@ -60,8 +60,8 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>OIDC 走 Spring Security {@code oauth2Login}:浏览器直访
  * {@code /oauth2/authorization/{sourceId}}(由
- * {@link io.github.zzih.rudder.api.security.DbClientRegistrationRepository} 反查 IdP),
- * 回调由 Spring 处理后 {@link io.github.zzih.rudder.api.security.JwtIssuanceSuccessHandler}
+ * {@link io.github.zzih.rudder.api.security.oidc.DbClientRegistrationRepository} 反查 IdP),
+ * 回调由 Spring 处理后 {@link io.github.zzih.rudder.api.security.oidc.JwtIssuanceSuccessHandler}
  * 签 Rudder JWT 并 302 前端。本 controller 不再有 sso/start 与 sso/callback。
  */
 @Slf4j

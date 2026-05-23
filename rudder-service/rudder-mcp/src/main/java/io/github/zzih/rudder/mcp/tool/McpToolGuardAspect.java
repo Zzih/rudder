@@ -23,10 +23,10 @@ import io.github.zzih.rudder.common.exception.AuthException;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.mcp.audit.McpAuditWriter;
+import io.github.zzih.rudder.mcp.auth.McpRequestAttributes;
 import io.github.zzih.rudder.mcp.auth.McpTokenService;
 import io.github.zzih.rudder.mcp.auth.ScopeChecker;
 import io.github.zzih.rudder.mcp.auth.TokenView;
-import io.github.zzih.rudder.mcp.http.McpRequestAttributes;
 import io.github.zzih.rudder.service.coordination.ratelimit.RateLimitService;
 
 import java.lang.reflect.Method;

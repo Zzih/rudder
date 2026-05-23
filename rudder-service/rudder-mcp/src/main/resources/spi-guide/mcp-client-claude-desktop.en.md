@@ -2,7 +2,9 @@
 description: Claude Desktop (Anthropic's official desktop client)
 ---
 
-Anthropic's official desktop application with native MCP support.
+### Prerequisites
+
+Node.js 18+ on the machine.
 
 ### Configuration file location
 
@@ -17,9 +19,16 @@ Windows:  %APPDATA%\Claude\claude_desktop_config.json
 {
   "mcpServers": {
     "rudder": {
-      "url": "{{baseUrl}}",
-      "headers": {
-        "Authorization": "Bearer rdr_pat_<your-token>"
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "{{baseUrl}}",
+        "--header",
+        "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "AUTH_HEADER": "Bearer rdr_pat_<your-token>"
       }
     }
   }
@@ -28,9 +37,16 @@ Windows:  %APPDATA%\Claude\claude_desktop_config.json
 
 ### Steps
 
-1. Copy the JSON above, replace `<your-token>` with your PAT plaintext.
-2. Save it as `claude_desktop_config.json` at the path for your OS.
-3. Quit and restart Claude Desktop completely.
-4. Click the 🔌 icon at the bottom-right of the chat box; you should see `rudder` listed.
+1. Copy the JSON, replace `rdr_pat_<your-token>` with your PAT.
+2. Write to `claude_desktop_config.json` at the OS-specific path (create if missing).
+3. Quit Claude Desktop completely and relaunch.
+4. Click the 🔌 icon at the bottom-right of the chat box — `rudder` should appear.
 
-> **Security**: a PAT is as sensitive as a password and is only shown once at creation time. Store it in a password manager — do not commit it to Git.
+### Troubleshooting
+
+| Symptom | Action |
+|:---|:---|
+| `rudder` not listed | Check `~/Library/Logs/Claude/mcp-server-rudder.log` |
+| 401 | PAT revoked / expired — rebuild from "My Tokens" |
+
+> A PAT is as sensitive as a password, shown only once at creation time. Store it in a password manager — never commit it to Git.

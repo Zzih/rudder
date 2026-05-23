@@ -42,13 +42,13 @@ public class ProjectMcpTools {
     private final ProjectService projectService;
     private final WorkspaceGuard workspaceGuard;
 
-    @McpTool(name = "project.list", description = "List projects in the current workspace.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "project_list", description = "List projects in the current workspace.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("project.browse")
     public List<ProjectDTO> list() {
         return projectService.listByWorkspaceId(UserContext.requireWorkspaceId());
     }
 
-    @McpResource(uri = "rudder://project/{code}", name = "rudder-project", description = "A project in the current workspace (groups workflows under the same business unit). Use project.list to discover codes.", mimeType = "application/json")
+    @McpResource(uri = "rudder://project/{code}", name = "rudder-project", description = "A project in the current workspace (groups workflows under the same business unit). Use project_list to discover codes.", mimeType = "application/json")
     @McpCapability("project.browse")
     public String get(String code) {
         if (code == null || code.isBlank()) {
@@ -67,7 +67,7 @@ public class ProjectMcpTools {
                 .toList();
     }
 
-    @McpTool(name = "project.create", description = "Create a new project under current workspace.")
+    @McpTool(name = "project_create", description = "Create a new project under current workspace.")
     @McpCapability("project.author")
     public ProjectDTO create(@McpToolParam(description = "Project body — name required", required = true) ProjectDTO body) {
         if (body == null || body.getName() == null || body.getName().isBlank()) {
@@ -76,7 +76,7 @@ public class ProjectMcpTools {
         return projectService.create(UserContext.requireWorkspaceId(), body);
     }
 
-    @McpTool(name = "project.update", description = "Update project name/description/params by code.", annotations = @McpTool.McpAnnotations(idempotentHint = true))
+    @McpTool(name = "project_update", description = "Update project name/description/params by code.", annotations = @McpTool.McpAnnotations(idempotentHint = true))
     @McpCapability("project.author")
     public ProjectDTO update(
                              @McpToolParam(description = "project code", required = true) Long code,
@@ -87,7 +87,7 @@ public class ProjectMcpTools {
         return projectService.update(UserContext.requireWorkspaceId(), code, body);
     }
 
-    @McpTool(name = "project.delete", description = "Delete a project by code (rejects if it still contains workflows).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpTool(name = "project_delete", description = "Delete a project by code (rejects if it still contains workflows).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
     @McpCapability("project.author")
     public void delete(
                        @McpToolParam(description = "project code", required = true) Long code) {

@@ -57,7 +57,7 @@ public class ApprovalMcpTools {
     public record DecideResult(boolean ok, Long id, String action) {
     }
 
-    @McpTool(name = "approval.list", description = "List approval records visible to the current user (filter by status optional).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "approval_list", description = "List approval records visible to the current user (filter by status optional).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("approval.view")
     public Page<ApprovalSummary> list(
                                       @McpToolParam(description = "page number (1-based)") Integer pageNum,
@@ -72,7 +72,7 @@ public class ApprovalMcpTools {
         return Page.of(page.getTotal(), p, s, rows);
     }
 
-    @McpTool(name = "approval.decide", description = "Decide an approval (APPROVE or REJECT) — caller must be a current-stage candidate.", annotations = @McpTool.McpAnnotations(destructiveHint = true))
+    @McpTool(name = "approval_decide", description = "Decide an approval (APPROVE or REJECT) — caller must be a current-stage candidate.", annotations = @McpTool.McpAnnotations(destructiveHint = true))
     @McpCapability("approval.act")
     public DecideResult decide(
                                @McpToolParam(description = "approval id", required = true) Long id,

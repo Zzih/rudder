@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { CopyDocument } from '@element-plus/icons-vue'
@@ -12,18 +12,22 @@ const baseUrl = `${window.location.origin}/mcp`
 const clients = ref<McpClientGuide[]>([])
 const activeId = ref<string>('')
 const loading = ref(false)
+// locale 快速切换时,旧请求晚于新请求返回会覆盖正确数据,fetchSeq 丢弃过期响应。
+let fetchSeq = 0
 
 async function load() {
+  const my = ++fetchSeq
   loading.value = true
   try {
     const lang = locale.value?.startsWith('zh') ? 'zh' : 'en'
     const { data } = await listMcpClients(lang)
+    if (my !== fetchSeq) return
     clients.value = data ?? []
     if (clients.value.length && !clients.value.find((c) => c.id === activeId.value)) {
       activeId.value = clients.value[0].id
     }
   } finally {
-    loading.value = false
+    if (my === fetchSeq) loading.value = false
   }
 }
 
@@ -43,6 +47,8 @@ async function copyBaseUrl() {
 }
 
 onMounted(load)
+// 语言切换后重拉 backend markdown(i18n 标签自动响应,但 guide 内容是接口快照)
+watch(locale, load)
 </script>
 
 <template>

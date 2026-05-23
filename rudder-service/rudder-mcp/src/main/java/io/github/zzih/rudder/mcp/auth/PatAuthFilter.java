@@ -15,26 +15,21 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.mcp.http;
+package io.github.zzih.rudder.mcp.auth;
 
 import io.github.zzih.rudder.common.context.UserContext;
-import io.github.zzih.rudder.dao.dao.UserDao;
-import io.github.zzih.rudder.dao.dao.WorkspaceMemberDao;
+import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.dao.entity.User;
 import io.github.zzih.rudder.dao.entity.WorkspaceMember;
-import io.github.zzih.rudder.mcp.auth.McpTokenService;
-import io.github.zzih.rudder.mcp.auth.PatCodec;
-import io.github.zzih.rudder.mcp.auth.TokenView;
 import io.github.zzih.rudder.service.auth.security.RudderAuthorities;
+import io.github.zzih.rudder.service.workspace.MemberService;
+import io.github.zzih.rudder.service.workspace.UserService;
 
 import java.io.IOException;
 import java.util.Optional;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -45,47 +40,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * MCP PAT 认证过滤器 — 仅作用于 {@code /mcp} 路径(Spring AI MCP server 接管协议层)。
- *
- * <p>从 {@code Authorization: Bearer rdr_pat_xxx} header 解析 PAT，
- * 经 {@link McpTokenService#verify} 验证后注入 {@link UserContext}：
- * <ul>
- *   <li>userId = token.user_id</li>
- *   <li>workspaceId = token.workspace_id（强绑死，客户端无法覆盖）</li>
- *   <li>role = WorkspaceMember.role（运行时查 DB，反映最新角色）</li>
- * </ul>
- *
- * <p>验证失败 → 返回 401，链路终止。
- * 灰度：仅当 {@code spring.ai.mcp.server.enabled=true} 时启用此 filter。
- *
- * <p>@Order(0):早于 Servlet 容器内其他 Filter 执行。注意 Spring Security 主链对所有路径
- * permitAll,且 oauth2ResourceServer 仅在请求带 Bearer 头时才尝试解析;MCP 协议入口的鉴权完全
- * 在本 filter 内完成,与 Spring Security 不冲突。
+ * 解析 {@code Authorization: Bearer rdr_pat_xxx},经 {@link McpTokenService#verify} 验证后注入
+ * {@link UserContext}:userId / workspaceId 取自 token(强绑死);role 运行时查 member 表(反映最新角色)。
+ * 验证失败返 401。
  */
 @Slf4j
-@Component
-@Order(0)
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
 public class PatAuthFilter extends OncePerRequestFilter {
 
-    /** Spring AI MCP server 协议端点前缀（默认 {@code /mcp}）。 */
-    private static final String MCP_PATH_PREFIX = "/mcp";
-
     private final McpTokenService tokenService;
-    private final UserDao userDao;
-    private final WorkspaceMemberDao workspaceMemberDao;
+    private final UserService userService;
+    private final MemberService memberService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        String path = request.getRequestURI();
-        if (!path.startsWith(MCP_PATH_PREFIX)) {
-            chain.doFilter(request, response);
-            return;
-        }
-
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             sendUnauthorized(response, "Missing Bearer token");
@@ -111,12 +81,17 @@ public class PatAuthFilter extends OncePerRequestFilter {
             userInfo.setUserId(view.userId());
             userInfo.setWorkspaceId(view.workspaceId());
 
-            User user = userDao.selectById(view.userId());
-            if (user != null) {
+            // user / member 仅用于审计 username + role 注入;PAT 已 verify,这两步缺失不阻断鉴权。
+            // UserService.getById 在用户被删时抛 NotFoundException — PAT 长生命周期里 user 可能被
+            // DBA 误删 / 软删,降级到 username=null + 默认角色,而不是整条 MCP 通道 500。
+            try {
+                User user = userService.getById(view.userId());
                 userInfo.setUsername(user.getUsername());
+            } catch (NotFoundException e) {
+                log.warn("MCP token verified but user_id={} not found, proceeding with anonymous username",
+                        view.userId());
             }
-            WorkspaceMember member = workspaceMemberDao.selectByWorkspaceIdAndUserId(
-                    view.workspaceId(), view.userId());
+            WorkspaceMember member = memberService.getMember(view.workspaceId(), view.userId());
             if (member != null) {
                 userInfo.setRole(member.getRole());
             }
@@ -130,7 +105,7 @@ public class PatAuthFilter extends OncePerRequestFilter {
         }
     }
 
-    /** MCP 路径不走 Spring Security 主链,显式塞 SecurityContext 让 service 层的 @PreAuthorize 仍生效。 */
+    /** 显式注入 SecurityContext,让 service 层 @PreAuthorize 在 mcpFilterChain 路径下仍生效。 */
     private static void applySecurityContext(UserContext.UserInfo userInfo) {
         Object principal = userInfo.getUsername() == null
                 ? String.valueOf(userInfo.getUserId())
