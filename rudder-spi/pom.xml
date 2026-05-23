@@ -16,6 +16,7 @@
 
     <modules>
         <module>rudder-spi-api</module>
+        <module>rudder-datasource</module>
         <module>rudder-task</module>
         <module>rudder-file</module>
         <module>rudder-runtime</module>

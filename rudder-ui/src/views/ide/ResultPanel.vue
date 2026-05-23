@@ -657,8 +657,8 @@ async function loadVersions(resetPage = false) {
   if (!tab) return
   try {
     const res: any = await listScriptVersions(workspaceId.value!, tab.scriptCode, { pageNum: versionPage.value, pageSize: 10 })
-    versionList.value = res.data?.records ?? []
-    versionTotal.value = res.data?.total ?? 0
+    versionList.value = res.data ?? []
+    versionTotal.value = res.total ?? 0
   } catch { versionList.value = [] }
 }
 

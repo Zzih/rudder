@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { renderSafeMarkdown } from '@/utils/safeMarkdown'
+import MarkdownGuideAside from '@/components/MarkdownGuideAside.vue'
 import { colorMeta, providerColor } from '@/utils/colorMeta'
 import type { PluginProviderDefinition } from '@/api/spi-config'
 
@@ -30,10 +30,7 @@ const saving = ref(false)
 const providerDefs = ref<Record<string, PluginProviderDefinition>>({})
 const availableProviders = computed(() => Object.keys(providerDefs.value))
 const currentProviderParams = computed(() => providerDefs.value[form.value.provider]?.params ?? [])
-const currentGuide = computed(() => {
-  const md = providerDefs.value[form.value.provider]?.guide
-  return md ? renderSafeMarkdown(md) : ''
-})
+const currentGuide = computed(() => providerDefs.value[form.value.provider]?.guide ?? '')
 
 const form = ref({
   provider: '',
@@ -289,21 +286,12 @@ watch(locale, async () => {
       </div>
 
       <!-- ============== RIGHT: Guide ============== -->
-      <aside class="spi-guide" :class="{ 'is-empty': !currentGuide }">
-        <div v-if="currentGuide" class="spi-guide__scroll">
-          <div class="spi-guide__head">
-            <span class="spi-guide__kicker">{{ tt(i18nPrefix + '.setupGuide', 'common.setupGuide') }}</span>
-            <span v-if="form.provider" class="spi-guide__issue">{{ form.provider }}</span>
-          </div>
-          <div class="spi-guide__prose" v-html="currentGuide" />
-        </div>
-        <div v-else class="spi-guide__empty">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z"/>
-          </svg>
-          <span>{{ tt(i18nPrefix + '.emptyTip', 'common.emptyTip') }}</span>
-        </div>
-      </aside>
+      <MarkdownGuideAside
+        :markdown="currentGuide"
+        :kicker="tt(i18nPrefix + '.setupGuide', 'common.setupGuide')"
+        :label="form.provider"
+        :empty-text="tt(i18nPrefix + '.emptyTip', 'common.emptyTip')"
+      />
     </div>
   </div>
 </template>
@@ -521,149 +509,6 @@ watch(locale, async () => {
   &.on {
     background: var(--r-success);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--r-success) 18%, transparent);
-  }
-}
-
-/* ========== RIGHT — guide ========== */
-.spi-guide {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--r-bg-panel);
-
-  &.is-empty {
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-.spi-guide__scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 28px;
-
-  &::-webkit-scrollbar { width: 5px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb {
-    background: var(--r-border-dark);
-    border-radius: 3px;
-    &:hover { background: var(--r-text-muted); }
-  }
-}
-
-.spi-guide__head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  padding-bottom: 10px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--r-border);
-}
-
-.spi-guide__kicker {
-  font-size: var(--r-font-xs);
-  font-weight: var(--r-weight-semibold);
-  color: var(--r-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.spi-guide__issue {
-  font-size: var(--r-font-xs);
-  color: var(--r-text-secondary);
-}
-
-/* empty */
-.spi-guide__empty {
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  color: var(--r-text-muted);
-  font-size: var(--r-font-sm);
-  opacity: 0.7;
-}
-
-/* --- Prose --- */
-.spi-guide__prose {
-  font-size: var(--r-font-base);
-  line-height: var(--r-leading-loose);
-  color: var(--r-text-secondary);
-
-  :deep(h2) {
-    font-size: var(--r-font-md);
-    font-weight: var(--r-weight-bold);
-    color: var(--r-text-primary);
-    margin: 0 0 var(--r-space-3);
-    letter-spacing: -0.01em;
-  }
-
-  :deep(h3) {
-    font-size: var(--r-font-md);
-    font-weight: var(--r-weight-semibold);
-    color: var(--r-text-primary);
-    margin: var(--r-space-5) 0 var(--r-space-2);
-    padding-bottom: var(--r-space-2);
-    border-bottom: 1px solid var(--r-border);
-  }
-
-  :deep(ol),
-  :deep(ul) {
-    padding-left: var(--r-space-5);
-    margin: var(--r-space-2) 0;
-  }
-
-  :deep(li) {
-    margin: var(--r-space-1) 0;
-    padding-left: 2px;
-  }
-
-  :deep(code) {
-    background: var(--r-border);
-    color: var(--r-text-primary);
-    padding: 1px var(--r-space-1);
-    border-radius: 3px;
-    font-size: var(--r-font-sm);
-    font-family: var(--r-font-mono);
-  }
-
-  :deep(a) {
-    color: var(--r-accent);
-    text-decoration: none;
-    &:hover { text-decoration: underline; }
-  }
-
-  :deep(blockquote) {
-    margin: var(--r-space-3) 0;
-    padding: var(--r-space-2) var(--r-space-4);
-    border-left: 3px solid var(--r-accent);
-    background: var(--r-accent-bg);
-    border-radius: 0 var(--r-radius-md) var(--r-radius-md) 0;
-    color: var(--r-accent-hover);
-    font-size: var(--r-font-sm);
-
-    p { margin: 0; }
-  }
-
-  :deep(strong) {
-    color: var(--r-text-primary);
-    font-weight: var(--r-weight-semibold);
-  }
-
-  :deep(table) {
-    width: 100%;
-    border-collapse: collapse;
-    margin: var(--r-space-3) 0;
-    font-size: var(--r-font-sm);
-  }
-
-  :deep(th),
-  :deep(td) {
-    padding: var(--r-space-2) var(--r-space-3);
-    border: 1px solid var(--r-border);
-    text-align: left;
-  }
-
-  :deep(th) {
-    background: var(--r-bg-hover);
-    font-weight: var(--r-weight-semibold);
-    color: var(--r-text-primary);
   }
 }
 

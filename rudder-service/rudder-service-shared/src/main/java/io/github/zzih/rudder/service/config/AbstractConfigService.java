@@ -24,6 +24,7 @@ import io.github.zzih.rudder.dao.dao.SpiConfigDao;
 import io.github.zzih.rudder.dao.entity.SpiConfig;
 import io.github.zzih.rudder.dao.enums.SpiType;
 import io.github.zzih.rudder.service.config.dto.ProviderConfigDTO;
+import io.github.zzih.rudder.service.coordination.TransactionAfterCommit;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 import io.github.zzih.rudder.spi.api.AbstractConfigurablePluginRegistry;
@@ -32,8 +33,6 @@ import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import java.util.List;
 
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -127,24 +126,10 @@ public abstract class AbstractConfigService<T> {
             spiConfigDao.disableOthers(spiType, body.getProvider());
         }
         // afterCommit:否则远端节点收到广播立即 build 会读到 commit 前的 DB,把旧实例缓存到 TTL 过期。
-        runAfterCommit(() -> {
+        TransactionAfterCommit.run(() -> {
             cache.invalidate(cacheKey);
             onProviderChanged(previousProvider, body.getProvider());
         });
-    }
-
-    private static void runAfterCommit(Runnable action) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-
-                @Override
-                public void afterCommit() {
-                    action.run();
-                }
-            });
-        } else {
-            action.run();
-        }
     }
 
     private T build() {

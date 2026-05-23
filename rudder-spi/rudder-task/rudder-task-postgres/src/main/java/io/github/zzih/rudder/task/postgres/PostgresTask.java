@@ -17,7 +17,7 @@
 
 package io.github.zzih.rudder.task.postgres;
 
-import io.github.zzih.rudder.common.sql.SqlDialect;
+import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.params.SqlTaskParams;
 import io.github.zzih.rudder.task.api.task.AbstractJdbcSqlTask;
@@ -29,7 +29,7 @@ public class PostgresTask extends AbstractJdbcSqlTask {
     }
 
     @Override
-    protected SqlDialect dialect() {
-        return SqlDialect.POSTGRES;
+    protected DatasourceType type() {
+        return DatasourceType.POSTGRES;
     }
 }

@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus'
 import { listWorkflowInstances, getWorkflowInstance, cancelWorkflowInstance, listNodeInstances } from '@/api/workflow'
 import { formatDate } from '@/utils/dateFormat'
 import WorkflowInstance from '@/components/WorkflowInstance.vue'
+import { usePagination } from '@/composables/usePagination'
 import { usePermission } from '@/composables/usePermission'
 
 const { canEdit } = usePermission()
@@ -60,12 +61,6 @@ const route = useRoute()
 const workspaceId = Number(route.params.workspaceId)
 const projectCode = route.params.projectCode as string
 
-const loading = ref(false)
-const instances = ref<Instance[]>([])
-const pageNum = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-
 const searchName = ref('')
 const searchStatus = ref('')
 
@@ -75,36 +70,35 @@ const viewingNodes = ref<NodeInstance[]>([])
 const viewingLoading = ref(false)
 let viewDetailGen = 0
 
-async function fetchInstances() {
-  loading.value = true
-  try {
-    const params: Record<string, any> = {
-      pageNum: pageNum.value,
-      pageSize: pageSize.value,
-    }
-    if (props.workflowDefinitionCode) {
-      params.workflowDefinitionCode = props.workflowDefinitionCode
-    } else {
-      params.projectCode = projectCode
-    }
-    if (searchName.value.trim()) params.searchVal = searchName.value.trim()
-    if (searchStatus.value) params.status = searchStatus.value
+const {
+  data: instances,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: fetchInstances,
+  handlePageChange,
+  handleSizeChange,
+  resetAndFetch,
+} = usePagination<Instance>({
+  fetchApi: (params) => {
+    const merged: Record<string, unknown> = { ...params }
+    if (props.workflowDefinitionCode) merged.workflowDefinitionCode = props.workflowDefinitionCode
+    else merged.projectCode = projectCode
+    if (searchName.value.trim()) merged.searchVal = searchName.value.trim()
+    if (searchStatus.value) merged.status = searchStatus.value
+    return listWorkflowInstances(workspaceId, merged as never).catch((e) => {
+      ElMessage.error(t('common.failed')); throw e
+    })
+  },
+  defaultPageSize: 10,
+})
 
-    const res: any = await listWorkflowInstances(workspaceId, params)
-    instances.value = res.data ?? []
-    total.value = res.total ?? 0
-  } catch { ElMessage.error(t('common.failed')) }
-  finally { loading.value = false }
-}
-
-function handleSearch() { pageNum.value = 1; fetchInstances() }
-function handlePageChange(page: number) { pageNum.value = page; fetchInstances() }
-function handleSizeChange(size: number) { pageSize.value = size; pageNum.value = 1; fetchInstances() }
+function handleSearch() { resetAndFetch() }
 
 function toggleStatus(status: string) {
   searchStatus.value = searchStatus.value === status ? '' : status
-  pageNum.value = 1
-  fetchInstances()
+  resetAndFetch()
 }
 
 async function viewDetail(row: Instance) {

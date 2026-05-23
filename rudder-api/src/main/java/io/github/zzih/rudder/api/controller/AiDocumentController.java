@@ -26,6 +26,7 @@ import io.github.zzih.rudder.api.request.AiDocumentRequest;
 import io.github.zzih.rudder.api.response.AiDocumentResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.context.UserContext;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
@@ -48,8 +49,6 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -65,14 +64,14 @@ public class AiDocumentController {
     private final DocumentRetrievalService retrievalService;
 
     @GetMapping
-    public Result<IPage<AiDocumentResponse>> list(
-                                                  @RequestParam(required = false) String docType,
-                                                  @RequestParam(defaultValue = "1") int pageNum,
-                                                  @RequestParam(defaultValue = "20") int pageSize) {
+    public PageResult<AiDocumentResponse> list(
+                                               @RequestParam(required = false) String docType,
+                                               @RequestParam(defaultValue = "1") int pageNum,
+                                               @RequestParam(defaultValue = "20") int pageSize) {
         Long workspaceId = UserContext.getWorkspaceId();
-        return Result.ok(BeanConvertUtils.convertPage(
+        return PageResult.of(
                 aiDocumentService.pageDetail(workspaceId, docType, pageNum, pageSize),
-                AiDocumentResponse.class));
+                AiDocumentResponse.class);
     }
 
     @GetMapping("/{id}")

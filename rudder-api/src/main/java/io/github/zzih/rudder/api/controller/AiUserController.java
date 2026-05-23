@@ -27,9 +27,9 @@ import io.github.zzih.rudder.api.request.AiPinTableRequest;
 import io.github.zzih.rudder.api.response.AiContextProfileResponse;
 import io.github.zzih.rudder.api.response.AiFeedbackResponse;
 import io.github.zzih.rudder.api.response.AiPinnedTableResponse;
-import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.context.UserContext;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
@@ -44,8 +44,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -88,19 +86,19 @@ public class AiUserController {
     // ==================== Pinned tables ====================
 
     @GetMapping("/pinned-tables")
-    @RequireDeveloper
-    public Result<IPage<AiPinnedTableResponse>> listPinned(
-                                                           @RequestParam(defaultValue = "USER") String scope,
-                                                           @RequestParam(defaultValue = "1") int pageNum,
-                                                           @RequestParam(defaultValue = "20") int pageSize) {
+    @RequireViewer
+    public PageResult<AiPinnedTableResponse> listPinned(
+                                                        @RequestParam(defaultValue = "USER") String scope,
+                                                        @RequestParam(defaultValue = "1") int pageNum,
+                                                        @RequestParam(defaultValue = "20") int pageSize) {
         Long scopeId = resolveScopeId(scope);
-        return Result.ok(BeanConvertUtils.convertPage(
+        return PageResult.of(
                 pinnedTableService.pageDetail(scope, scopeId, pageNum, pageSize),
-                AiPinnedTableResponse.class));
+                AiPinnedTableResponse.class);
     }
 
     @PostMapping("/pinned-tables")
-    @RequireDeveloper
+    @RequireViewer
     public Result<AiPinnedTableResponse> pin(@Valid @RequestBody AiPinTableRequest request) {
         String scope = request.getScope() == null ? "USER" : request.getScope();
         Long scopeId = resolveScopeId(scope);
@@ -111,14 +109,14 @@ public class AiUserController {
     }
 
     @DeleteMapping("/pinned-tables/{id}")
-    @RequireDeveloper
+    @RequireViewer
     public Result<Void> unpinById(@PathVariable Long id) {
         pinnedTableService.unpinById(id);
         return Result.ok();
     }
 
     @DeleteMapping("/pinned-tables")
-    @RequireDeveloper
+    @RequireViewer
     public Result<Void> unpin(@Valid @RequestBody AiPinTableRequest request) {
         String scope = request.getScope() == null ? "USER" : request.getScope();
         Long scopeId = resolveScopeId(scope);
@@ -130,14 +128,14 @@ public class AiUserController {
     // ==================== Context profiles ====================
 
     @GetMapping("/context-profiles/{scope}/{scopeId}")
-    @RequireDeveloper
+    @RequireViewer
     public Result<AiContextProfileResponse> getContextProfile(@PathVariable String scope, @PathVariable Long scopeId) {
         return Result.ok(BeanConvertUtils.convert(
                 contextProfileService.getDetail(scope, scopeId), AiContextProfileResponse.class));
     }
 
     @PutMapping("/context-profiles")
-    @RequireDeveloper
+    @RequireViewer
     public Result<AiContextProfileResponse> upsertContextProfile(@Valid @RequestBody AiContextProfileRequest request) {
         return Result.ok(BeanConvertUtils.convert(
                 contextProfileService.upsertDetail(BeanConvertUtils.convert(request, AiContextProfileDTO.class)),
@@ -145,7 +143,7 @@ public class AiUserController {
     }
 
     @DeleteMapping("/context-profiles/{scope}/{scopeId}")
-    @RequireDeveloper
+    @RequireViewer
     public Result<Void> clearContextProfile(@PathVariable String scope, @PathVariable Long scopeId) {
         contextProfileService.clear(scope, scopeId);
         return Result.ok();

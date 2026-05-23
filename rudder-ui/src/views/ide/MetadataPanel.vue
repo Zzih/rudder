@@ -313,10 +313,10 @@ const pinnedKey = (dsId: number, db: string, table: string) => `${dsId}|${db}|${
 
 async function loadPinned() {
   try {
-    const { data } = await pinnedApi.list('USER', 1, 200)
+    const res: any = await pinnedApi.list('USER', 1, 200)
     pinnedIdMap.value = new Map()
     const refs: string[] = []
-    for (const r of (data?.records ?? []) as AiPinnedTableVO[]) {
+    for (const r of ((res.data ?? []) as AiPinnedTableVO[])) {
       if (!r.id || !r.datasourceId || !r.tableName) continue
       pinnedIdMap.value.set(pinnedKey(r.datasourceId, r.databaseName ?? '', r.tableName), r.id)
       const db = r.databaseName ?? ''

@@ -1,0 +1,111 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermUserEffectiveSnapshotMapper">
+
+    <sql id="baseSql">
+        id, user_id, version, snapshot_time, scope_code,
+        catalog_name, database_name, table_name, column_name,
+        accesses, source_kinds
+    </sql>
+
+    <select id="findMaxVersion" resultType="java.lang.Long">
+        select max(version)
+        from t_r_data_perm_user_effective_snapshot
+        where user_id = #{userId}
+    </select>
+
+    <select id="findMaxVersionAt" resultType="java.lang.Long">
+        select max(version)
+        from t_r_data_perm_user_effective_snapshot
+        where user_id = #{userId}
+          and snapshot_time &lt;= #{asOf}
+    </select>
+
+    <select id="queryByUserAndVersion" resultType="io.github.zzih.rudder.dao.entity.DataPermUserEffectiveSnapshot">
+        select <include refid="baseSql"/>
+        from t_r_data_perm_user_effective_snapshot
+        where user_id = #{userId}
+          and version = #{version}
+    </select>
+
+    <!-- 最新 version 含非 sentinel 行的 user 集合;Reconciler 用此与本轮 active grant user 做并集,
+         撤光的 user 仍纳入本轮迭代以便写新空版本 sentinel,Local 鉴权立即生效。 -->
+    <select id="selectUserIdsWithActiveSnapshot" resultType="java.lang.Long">
+        select distinct s.user_id
+        from t_r_data_perm_user_effective_snapshot s
+        inner join (
+            select user_id, max(version) as lv
+            from t_r_data_perm_user_effective_snapshot
+            group by user_id
+        ) lv on lv.user_id = s.user_id and lv.lv = s.version
+        where s.scope_code is not null
+    </select>
+
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        insert into t_r_data_perm_user_effective_snapshot
+        (user_id, version, snapshot_time, scope_code,
+         catalog_name, database_name, table_name, column_name,
+         accesses, source_kinds)
+        values
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.userId}, #{r.version}, #{r.snapshotTime}, #{r.scopeCode},
+             #{r.catalogName}, #{r.databaseName}, #{r.tableName}, #{r.columnName},
+             #{r.accesses}, #{r.sourceKinds})
+        </foreach>
+    </insert>
+
+    <!--
+        每 user 最新 version 的 snapshot 行:子查询 GROUP BY user_id 取 max(version),走 idx_user_version / idx_user_time。
+        asOf 非空走该时间点之前最新版本,否则走全局最新版本。
+        keyword 同时模糊匹配 username / catalog / database / table / column。
+    -->
+    <select id="queryEffectiveSnapshot"
+            resultType="io.github.zzih.rudder.dao.projection.EffectiveSnapshotRow">
+        select s.user_id              as userId,
+               u.username             as username,
+               s.version              as version,
+               s.snapshot_time        as snapshotTime,
+               s.scope_code  as scopeCode,
+               sc.name                as scopeName,
+               s.catalog_name         as catalogName,
+               s.database_name        as databaseName,
+               s.table_name           as tableName,
+               s.column_name          as columnName,
+               s.accesses             as accesses,
+               s.source_kinds         as sourceKinds
+        from t_r_data_perm_user_effective_snapshot s
+        inner join (
+            select s2.user_id, max(s2.version) as lv
+            from t_r_data_perm_user_effective_snapshot s2
+            <if test="workspaceId != null">
+                inner join t_r_workspace_member wm2 on wm2.user_id = s2.user_id and wm2.workspace_id = #{workspaceId}
+            </if>
+            <if test="asOf != null">
+                where s2.snapshot_time &lt;= #{asOf}
+            </if>
+            group by s2.user_id
+        ) lv on lv.user_id = s.user_id and lv.lv = s.version
+        left join t_r_user u on u.id = s.user_id
+        left join t_r_data_perm_scope sc on sc.code = s.scope_code
+        <where>
+            <!-- scope_code IS NULL 的 sentinel 行表示该 version 是"0 权限"占位,审计页不显示 -->
+            s.scope_code is not null
+            <if test="userIds != null and userIds.size() > 0">
+                and s.user_id in
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+            </if>
+            <if test="scopeCodes != null and scopeCodes.size() > 0">
+                and s.scope_code in
+                <foreach collection="scopeCodes" item="sc" open="(" separator="," close=")">#{sc}</foreach>
+            </if>
+            <if test="keyword != null and keyword != ''">
+                and (u.username like concat('%', #{keyword}, '%')
+                  or s.catalog_name like concat('%', #{keyword}, '%')
+                  or s.database_name like concat('%', #{keyword}, '%')
+                  or s.table_name like concat('%', #{keyword}, '%')
+                  or s.column_name like concat('%', #{keyword}, '%'))
+            </if>
+        </where>
+        order by u.username, s.scope_code, s.database_name, s.table_name, s.column_name
+    </select>
+
+</mapper>

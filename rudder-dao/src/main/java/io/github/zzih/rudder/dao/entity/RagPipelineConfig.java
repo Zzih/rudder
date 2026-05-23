@@ -24,13 +24,22 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/** RAG 链路参数配置（不是 SPI 选型，承载 chunk size / topK / reranker enable 等参数）。 */
+/** RAG 链路参数配置(单 row,标量字段打平)。 */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("t_r_rag_pipeline_config")
 public class RagPipelineConfig extends BaseEntity {
 
-    private String settingsJson;
-
-    private Boolean enabled;
+    private Boolean rewriteEnabled;
+    private Boolean multiQueryEnabled;
+    private Integer multiQueryCount;
+    private Boolean multiQueryIncludeOriginal;
+    private Boolean compressionEnabled;
+    private Boolean translationEnabled;
+    private String translationTargetLanguage;
+    private Boolean rerankStageEnabled;
+    private Integer rerankTopN;
+    private Boolean keywordEnricherEnabled;
+    private Boolean summaryEnricherEnabled;
+    private Boolean augmenterAllowEmptyContext;
 }

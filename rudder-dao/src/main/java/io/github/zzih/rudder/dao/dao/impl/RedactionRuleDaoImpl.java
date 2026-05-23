@@ -17,6 +17,7 @@
 
 package io.github.zzih.rudder.dao.dao.impl;
 
+import io.github.zzih.rudder.common.enums.redaction.RedactionRuleType;
 import io.github.zzih.rudder.dao.dao.RedactionRuleDao;
 import io.github.zzih.rudder.dao.entity.RedactionRuleEntity;
 import io.github.zzih.rudder.dao.mapper.RedactionRuleMapper;
@@ -24,6 +25,9 @@ import io.github.zzih.rudder.dao.mapper.RedactionRuleMapper;
 import java.util.List;
 
 import org.springframework.stereotype.Repository;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,6 +45,11 @@ public class RedactionRuleDaoImpl implements RedactionRuleDao {
     @Override
     public List<RedactionRuleEntity> selectAll() {
         return mapper.selectList(null);
+    }
+
+    @Override
+    public IPage<RedactionRuleEntity> selectPage(RedactionRuleType type, int pageNum, int pageSize) {
+        return mapper.queryPage(new Page<>(pageNum, pageSize), type);
     }
 
     @Override

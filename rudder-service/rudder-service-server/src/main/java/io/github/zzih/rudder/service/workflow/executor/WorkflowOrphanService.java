@@ -22,33 +22,36 @@ import io.github.zzih.rudder.dao.dao.WorkflowInstanceDao;
 import io.github.zzih.rudder.dao.entity.TaskInstance;
 import io.github.zzih.rudder.dao.entity.WorkflowInstance;
 import io.github.zzih.rudder.dao.enums.InstanceStatus;
+import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduledTask;
+import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduler;
 import io.github.zzih.rudder.service.registry.ServiceRegistryService;
 import io.github.zzih.rudder.service.script.TaskDispatchService;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 工作流孤儿回收器（仅 Server 节点启用）。
+ * 工作流孤儿回收器(仅 Server 节点启用)。
  *
- * <p>多 Server 部署下，若某 Server 崩溃，其内存中的 {@link WorkflowInstanceRunner} 消失，
- * 但 {@code t_r_workflow_instance.status=RUNNING} 的行仍留在 DB，无人推进 DAG。
- * 本组件两条路径兜底：
+ * <p>多 Server 部署下,若某 Server 崩溃,其内存中的 {@link WorkflowInstanceRunner} 消失,
+ * 但 {@code t_r_workflow_instance.status=RUNNING} 的行仍留在 DB,无人推进 DAG。
+ * 本组件两条路径兜底:
  * <ol>
- *   <li><b>启动自清</b>：Server 刚启动时，把所有 {@code owner_host=self} 的 RUNNING 行
- *       标 FAILED——这些一定是上一个进程残留（本进程还没执行任何 wf）。</li>
- *   <li><b>定时扫孤儿</b>：每 30s 扫一次 {@code owner_host NOT IN 在线 SERVER 列表} 的 RUNNING 行。
- *       优先 <b>真接管</b>（CAS owner_host 后 {@link WorkflowExecutor#resume} 继续推进 DAG），
- *       接管失败（另一 Server 已抢走 / 状态已变）再回落到标 FAILED。</li>
+ *   <li><b>启动自清</b>:Server 刚启动时,把所有 {@code owner_host=self} 的 RUNNING 行
+ *       标 FAILED——这些一定是上一个进程残留(本进程还没执行任何 wf)。每节点自跑。</li>
+ *   <li><b>定时扫孤儿</b>:走 ClusterScheduler 全集群单 leader 30s 一次扫 owner_host 不在线的 RUNNING 行。
+ *       leader 优先 <b>真接管</b>(CAS owner_host 后 {@link WorkflowExecutor#resume} 继续推进 DAG),
+ *       接管失败(状态已变)再回落到标 FAILED。后续 tick 由 leader 重抢决定,跨节点自然轮转。</li>
  * </ol>
  */
 @Slf4j
@@ -57,17 +60,26 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class WorkflowOrphanService {
 
+    public static final String SCHEDULER_KEY = "rudder:workflow:orphan-reap";
+
+    private final ClusterScheduler clusterScheduler;
     private final WorkflowInstanceDao workflowInstanceDao;
     private final TaskInstanceDao taskInstanceDao;
     private final TaskDispatchService taskDispatchService;
     private final ServiceRegistryService registryService;
     private final WorkflowExecutor workflowExecutor;
 
+    @PostConstruct
+    public void registerScheduler() {
+        clusterScheduler.schedule(new ClusterScheduledTask(
+                SCHEDULER_KEY, Duration.ofSeconds(30), Duration.ofSeconds(120), this::reapOrphans));
+    }
+
     /**
-     * Server 启动完成后运行一次，清理上一个进程残留的 RUNNING wf。
+     * Server 启动完成后运行一次,清理上一个进程残留的 RUNNING wf。
      * <p>
-     * 启动自清**不做接管**——刚启动的进程还没恢复运行时状态，直接继续推进上一次进程的 wf 不安全；
-     * 这些 wf 由定时扫描路径处理（此时 owner_host 已不在线，会走 {@link #reapOrphans}）。
+     * 启动自清**不做接管**——刚启动的进程还没恢复运行时状态,直接继续推进上一次进程的 wf 不安全;
+     * 这些 wf 由定时扫描路径处理(此时 owner_host 已不在线,会走 {@link #reapOrphans})。
      */
     @EventListener(ApplicationReadyEvent.class)
     public void startupSelfClean() {
@@ -91,11 +103,7 @@ public class WorkflowOrphanService {
         }
     }
 
-    /**
-     * 每 30s 扫一次孤儿：owner_host 已不在线的 RUNNING wf。
-     * 首次延迟 60s，避免 Server 冷启动时误杀尚未完成注册的兄弟节点拥有的 wf。
-     */
-    @Scheduled(fixedDelay = 30_000, initialDelay = 60_000)
+    /** 扫 owner_host 不在线的 RUNNING wf 接管或标 FAILED。由 ClusterScheduler 派发,集群单 leader 跑。 */
     public void reapOrphans() {
         String self = registryService.getLocalRpcAddress();
         try {
@@ -116,10 +124,10 @@ public class WorkflowOrphanService {
     }
 
     /**
-     * 尝试接管：CAS 抢占 owner_host，成功则重新从 DB 取最新实例（避免 status/varPool 脏读）再 resume。
-     * 失败情形：另一 Server 已抢走 / wf 状态已变（成功/取消）；此时放弃接管。
+     * 尝试接管:CAS 抢占 owner_host,成功则重新从 DB 取最新实例(避免 status/varPool 脏读)再 resume。
+     * 失败情形:另一 Server 已抢走 / wf 状态已变(成功/取消);此时放弃接管。
      *
-     * @return true 已成功接管并移交给 executor；false 未接管（调用方 fallback 到标 FAILED）
+     * @return true 已成功接管并移交给 executor;false 未接管(调用方 fallback 到标 FAILED)
      */
     private boolean tryTakeover(WorkflowInstance wf, String self) {
         String oldOwner = wf.getOwnerHost();
@@ -146,9 +154,7 @@ public class WorkflowOrphanService {
         }
     }
 
-    /**
-     * 标记 wf 为 FAILED，并尽力取消其未完成的下游任务。
-     */
+    /** 标记 wf 为 FAILED,并尽力取消其未完成的下游任务。 */
     private void finalizeOrphan(WorkflowInstance wf, String reason) {
         try {
             wf.setStatus(InstanceStatus.FAILED);

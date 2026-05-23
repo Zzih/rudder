@@ -4,7 +4,7 @@
       <el-button type="primary" size="small" @click="openEdit()">
         <el-icon><Plus /></el-icon>{{ t('common.create') }}
       </el-button>
-      <el-button size="small" :loading="loading" @click="load">
+      <el-button size="small" :loading="loading" @click="() => load()">
         <el-icon><Refresh /></el-icon>{{ t('common.refresh') }}
       </el-button>
       <el-radio-group v-model="filterType" size="small" class="type-filter">
@@ -15,7 +15,8 @@
       </el-radio-group>
     </div>
 
-    <el-table :data="filteredRows" v-loading="loading" size="small" stripe>
+    <div class="admin-card">
+    <el-table :data="rows" v-loading="loading">
       <el-table-column :label="t('redaction.col.type')" width="100">
         <template #default="{ row }">
           <el-tag size="small" :type="typeTagColor(row.type)">{{ row.type }}</el-tag>
@@ -37,6 +38,12 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+
+    <el-pagination v-if="total > pageSize" class="admin-pagination" background
+                   layout="total, prev, pager, next"
+                   :total="total" :page-size="pageSize" :current-page="pageNum"
+                   @current-change="handlePageChange" />
 
     <el-dialog v-model="editing" :title="form.id ? t('common.edit') : t('common.create')" width="640">
       <el-form label-position="top">
@@ -94,17 +101,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminRedaction, type RedactionRuleVO, type RedactionStrategyVO, type RedactionRuleType } from '@/api/ai'
+import { usePagination } from '@/composables/usePagination'
 
 const { t } = useI18n()
 
-const rows = ref<RedactionRuleVO[]>([])
 const strategyOptions = ref<RedactionStrategyVO[]>([])
-const loading = ref(false)
 const editing = ref(false)
 const saving = ref(false)
 const testing = ref(false)
@@ -125,9 +131,23 @@ function empty(): RedactionRuleVO {
   }
 }
 
-const filteredRows = computed(() =>
-  filterType.value === 'ALL' ? rows.value : rows.value.filter(r => r.type === filterType.value),
-)
+const {
+  data: rows,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: load,
+  handlePageChange,
+  resetAndFetch,
+} = usePagination<RedactionRuleVO>({
+  fetchApi: (params) => adminRedaction.pageRules({
+    ...params,
+    type: filterType.value === 'ALL' ? undefined : filterType.value,
+  } as never),
+})
+
+watch(filterType, () => resetAndFetch())
 
 function typeTagColor(type: RedactionRuleType): 'danger' | 'warning' | 'success' | 'info' {
   return type === 'TAG' ? 'success' : type === 'COLUMN' ? 'warning' : 'info'
@@ -157,18 +177,11 @@ function testPlaceholder(type: RedactionRuleType): string {
   return '联系 13800138000 或者 test@x.com'
 }
 
-async function load() {
-  loading.value = true
+async function loadStrategyOptions() {
   try {
-    const [{ data: r }, { data: s }] = await Promise.all([
-      adminRedaction.listRules(),
-      adminRedaction.listStrategies(),
-    ])
-    rows.value = r ?? []
-    strategyOptions.value = (s ?? []).filter(x => x.enabled !== false)
-  } finally {
-    loading.value = false
-  }
+    const { data } = await adminRedaction.listEnabledStrategies()
+    strategyOptions.value = data ?? []
+  } catch { /* ignore */ }
 }
 
 function openEdit(row?: RedactionRuleVO) {
@@ -242,10 +255,12 @@ async function runTest() {
   }
 }
 
-onMounted(load)
+onMounted(() => Promise.all([load(), loadStrategyOptions()]))
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .tab-pane { padding: 8px 0; }
 .tab-bar {
   display: flex;

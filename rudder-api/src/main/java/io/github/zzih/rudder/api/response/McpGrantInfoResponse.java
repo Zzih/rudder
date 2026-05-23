@@ -17,6 +17,8 @@
 
 package io.github.zzih.rudder.api.response;
 
+import io.github.zzih.rudder.common.enums.mcp.McpScopeGrantStatus;
+
 import lombok.Data;
 
 /** 单条 grant 状态(capability + 读写类 + 审批状态),前端 detail 用。 */
@@ -25,5 +27,5 @@ public class McpGrantInfoResponse {
 
     private String capability;
     private String rwClass;
-    private String status;
+    private McpScopeGrantStatus status;
 }

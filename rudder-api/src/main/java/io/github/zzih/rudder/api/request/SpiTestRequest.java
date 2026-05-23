@@ -17,6 +17,12 @@
 
 package io.github.zzih.rudder.api.request;
 
+import lombok.Data;
+
 /** 通用 SPI 校验 / 测试连接请求体。{@code providerParams} 是 Properties POJO 序列化后的 JSON 字符串。 */
-public record SpiTestRequest(String provider, String providerParams) {
+@Data
+public class SpiTestRequest {
+
+    private String provider;
+    private String providerParams;
 }

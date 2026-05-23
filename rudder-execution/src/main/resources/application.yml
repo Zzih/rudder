@@ -25,6 +25,11 @@ spring:
         bundle: ${RUDDER_REDIS_SSL_BUNDLE:}
         # 跳过对端证书校验,失去 MITM 防护
         insecure: ${RUDDER_REDIS_SSL_INSECURE:false}
+  task:
+    scheduling:
+      # 默认池大小 1,所有 @Scheduled 任务串行排队;业务调度走 ClusterScheduler,基础设施任务调大池兜底
+      pool:
+        size: ${RUDDER_SCHEDULING_POOL_SIZE:5}
 
 mybatis-plus:
   global-config:

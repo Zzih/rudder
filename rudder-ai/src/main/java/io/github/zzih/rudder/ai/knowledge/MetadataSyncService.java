@@ -25,12 +25,12 @@ import io.github.zzih.rudder.dao.dao.AiMetadataSyncConfigDao;
 import io.github.zzih.rudder.dao.entity.AiDocument;
 import io.github.zzih.rudder.dao.entity.AiMetadataSyncConfig;
 import io.github.zzih.rudder.dao.entity.Datasource;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
 import io.github.zzih.rudder.metadata.api.MetadataClient;
 import io.github.zzih.rudder.metadata.api.model.ColumnDetail;
 import io.github.zzih.rudder.metadata.api.model.TableDetail;
 import io.github.zzih.rudder.metadata.api.model.TableMeta;
 import io.github.zzih.rudder.service.config.MetadataConfigService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 import io.github.zzih.rudder.service.metadata.MetadataService;
 import io.github.zzih.rudder.spi.api.context.DataSourceInfo;
 

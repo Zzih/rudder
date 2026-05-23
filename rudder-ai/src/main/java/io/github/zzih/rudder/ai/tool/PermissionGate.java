@@ -42,7 +42,14 @@ public class PermissionGate {
 
     /** 最小角色要求:DB 覆盖 > 内置规则。 */
     public RoleType requiredRoleFor(String toolName, Long workspaceId) {
-        AiToolConfig override = lookup(toolName, workspaceId);
+        return requiredRoleWith(toolName, lookup(toolName, workspaceId));
+    }
+
+    public RoleType requiredRoleFor(String toolName) {
+        return requiredRoleFor(toolName, null);
+    }
+
+    private RoleType requiredRoleWith(String toolName, AiToolConfig override) {
         if (override != null && override.getMinRole() != null) {
             try {
                 return RoleType.valueOf(override.getMinRole());
@@ -51,10 +58,6 @@ public class PermissionGate {
             }
         }
         return defaultRole(toolName);
-    }
-
-    public RoleType requiredRoleFor(String toolName) {
-        return requiredRoleFor(toolName, null);
     }
 
     private RoleType defaultRole(String toolName) {
@@ -108,7 +111,10 @@ public class PermissionGate {
     }
 
     public boolean allowedInReadOnly(String toolName, Long workspaceId) {
-        AiToolConfig override = lookup(toolName, workspaceId);
+        return allowedInReadOnlyWith(toolName, lookup(toolName, workspaceId));
+    }
+
+    private boolean allowedInReadOnlyWith(String toolName, AiToolConfig override) {
         if (override != null && override.getReadOnly() != null) {
             return override.getReadOnly();
         }
@@ -144,6 +150,21 @@ public class PermissionGate {
                     "tool " + toolName + " requires role " + required.name()
                             + " or above, current: " + actual.name());
         }
+    }
+
+    /**
+     * {@link #check} 的非异常版,语义对称(同样校验 read-only + role)。
+     *
+     * <p>{@code override} 由 caller 一次性预取(见 {@link ToolConfigService#mapEnabledForWorkspace})后
+     * 复用,避免 per-tool {@code lookup} 触发 N+1 DB 查询。{@code null} 表示该 tool 无配置覆盖。
+     */
+    public boolean canInvoke(String toolName, AiToolConfig override, ToolExecutionContext ctx) {
+        if (ctx.isReadOnly() && !allowedInReadOnlyWith(toolName, override)) {
+            return false;
+        }
+        RoleType required = requiredRoleWith(toolName, override);
+        RoleType actual = resolveUserRole(ctx.getUserRole());
+        return actual.getLevel() >= required.getLevel();
     }
 
     /** role 字符串 → 枚举。null / 非法 → VIEWER(最严)。 */

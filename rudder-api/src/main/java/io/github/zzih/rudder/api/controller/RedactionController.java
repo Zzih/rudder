@@ -23,6 +23,8 @@ import io.github.zzih.rudder.api.request.RedactionTestRequest;
 import io.github.zzih.rudder.api.response.RedactionRuleResponse;
 import io.github.zzih.rudder.api.response.RedactionStrategyResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
+import io.github.zzih.rudder.common.enums.redaction.RedactionRuleType;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.redaction.RedactionAdminService;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -56,8 +59,11 @@ public class RedactionController {
     // ======================== Rules ========================
 
     @GetMapping("/rules")
-    public Result<List<RedactionRuleResponse>> listRules() {
-        return Result.ok(BeanConvertUtils.convertList(adminService.listRulesDetail(), RedactionRuleResponse.class));
+    public PageResult<RedactionRuleResponse> pageRules(
+                                                       @RequestParam(required = false) RedactionRuleType type,
+                                                       @RequestParam(defaultValue = "1") int pageNum,
+                                                       @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(adminService.pageRulesDetail(type, pageNum, pageSize), RedactionRuleResponse.class);
     }
 
     @PostMapping("/rules")
@@ -81,9 +87,18 @@ public class RedactionController {
     // ======================== Strategies ========================
 
     @GetMapping("/strategies")
-    public Result<List<RedactionStrategyResponse>> listStrategies() {
+    public PageResult<RedactionStrategyResponse> pageStrategies(
+                                                                @RequestParam(defaultValue = "1") int pageNum,
+                                                                @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(adminService.pageStrategiesDetail(pageNum, pageSize),
+                RedactionStrategyResponse.class);
+    }
+
+    /** Rules 编辑表单的 strategy 下拉用,只返回 enabled 的,不分页。 */
+    @GetMapping("/strategies/enabled")
+    public Result<List<RedactionStrategyResponse>> listEnabledStrategies() {
         return Result.ok(BeanConvertUtils.convertList(
-                adminService.listStrategiesDetail(), RedactionStrategyResponse.class));
+                adminService.listEnabledStrategiesDetail(), RedactionStrategyResponse.class));
     }
 
     @PostMapping("/strategies")

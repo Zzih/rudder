@@ -30,6 +30,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,10 +50,6 @@ public class GlobalExceptionHandler {
 
     private static <T> ResponseEntity<Result<T>> json(HttpStatus status, Result<T> body) {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
-    }
-
-    private static String resolveMessage(RudderException e) {
-        return e.resolvedMessage();
     }
 
     /**
@@ -75,7 +72,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Void>> handleRudder(RudderException e) {
         ErrorCode code = e.getErrorCode();
         HttpStatus status = toHttpStatus(code);
-        String msg = resolveMessage(e);
+        String msg = e.getLocalizedMessage();
         // 仅 5xx 打 ERROR + 堆栈;4xx 与业务码段(1000+ 映射到 200) 走 WARN 不带堆栈,避免高频校验/限流刷屏
         if (status.is5xxServerError()) {
             log.error("Rudder exception: code={}, status={}, message={}", code.getCode(), status.value(), msg, e);
@@ -83,6 +80,25 @@ public class GlobalExceptionHandler {
             log.warn("Rudder exception: code={}, status={}, message={}", code.getCode(), status.value(), msg);
         }
         return json(status, Result.fail(code.getCode(), msg));
+    }
+
+    /**
+     * Spring 内部 fluent throw 的 HTTP 异常(如 {@code requireXxx} 抛 503/401)。透传 status,
+     * 不要落到 {@link #handleException} 被当成 INTERNAL_SERVER_ERROR + 堆栈日志。
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Result<Void>> handleResponseStatusException(ResponseStatusException e) {
+        HttpStatus status = HttpStatus.resolve(e.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        String msg = e.getReason() != null ? e.getReason() : status.getReasonPhrase();
+        if (status.is5xxServerError()) {
+            log.warn("HTTP {}: {}", status.value(), msg);
+        } else {
+            log.info("HTTP {}: {}", status.value(), msg);
+        }
+        return json(status, Result.fail(status.value(), msg));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

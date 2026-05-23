@@ -58,3 +58,13 @@ request.interceptors.response.use(
 )
 
 export default request
+
+/** 后端 PageResult.of(...) 序列化形态。所有分页接口统一返回此结构。 */
+export interface PageResult<T> {
+  data: T[]
+  total: number
+  pageNum: number
+  pageSize: number
+  code: number
+  message: string
+}

@@ -39,7 +39,6 @@ public class ApprovalRecordResponse {
     private String description;
     private String submitRemark;
     private ApprovalStatus status;
-    /** 阶段链（已 parse 为列表，前端直接用） */
     private List<String> stageChain;
     private String currentStage;
     private DecisionRule decisionRule;
@@ -49,6 +48,8 @@ public class ApprovalRecordResponse {
     private LocalDateTime withdrawnAt;
     private String withdrawnReason;
     private Long createdBy;
+    private String createdByUsername;
+    private String workspaceName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

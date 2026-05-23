@@ -1,10 +1,12 @@
 <template>
-  <div class="redaction-admin">
-    <header class="redaction-admin__head">
-      <h3>{{ t('admin.redactionConfig') }}</h3>
-      <span class="redaction-admin__hint">{{ t('redaction.hint') }}</span>
-    </header>
-    <el-tabs v-model="activeTab" class="redaction-admin__tabs">
+  <div class="page-container redaction-page">
+    <div class="page-header">
+      <div class="redaction-page__title">
+        <h3>{{ t('admin.redactionConfig') }}</h3>
+        <span class="redaction-page__hint">{{ t('redaction.hint') }}</span>
+      </div>
+    </div>
+    <el-tabs v-model="activeTab" class="redaction-page__tabs">
       <el-tab-pane :label="t('redaction.rules')" name="rules">
         <RedactionRules />
       </el-tab-pane>
@@ -26,20 +28,41 @@ const activeTab = ref('rules')
 </script>
 
 <style scoped lang="scss">
-.redaction-admin {
-  padding: 20px 24px;
-  height: 100%;
-  overflow-y: auto;
-  &__head {
-    display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;
-    h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--r-text-primary); letter-spacing: -0.02em; }
+@use '@/styles/admin.scss';
+
+.redaction-page {
+  &__title {
+    display: flex;
+    align-items: baseline;
+    gap: var(--r-space-3);
   }
+
   &__hint {
-    font-size: 12px; color: var(--r-text-muted);
+    font-size: var(--r-font-sm);
+    color: var(--r-text-muted);
   }
+
   &__tabs {
-    margin-top: 8px;
-    :deep(.el-tabs__item) { font-size: 13px; }
+    :deep(.el-tabs__nav-wrap)::after { display: none; }
+    :deep(.el-tabs__header) {
+      margin-bottom: var(--r-space-4);
+      border-bottom: 1px solid var(--r-border-light);
+    }
+    :deep(.el-tabs__item) {
+      font-size: var(--r-font-md);
+      font-weight: var(--r-weight-medium);
+      color: var(--r-text-secondary);
+      height: 44px;
+      line-height: 44px;
+      &.is-active {
+        color: var(--r-accent);
+        font-weight: var(--r-weight-semibold);
+      }
+    }
+    :deep(.el-tabs__active-bar) {
+      background-color: var(--r-accent);
+      height: 2px;
+    }
   }
 }
 </style>

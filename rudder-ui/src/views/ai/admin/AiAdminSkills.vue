@@ -2,10 +2,11 @@
   <div class="tab-pane">
     <div class="tab-bar">
       <el-button type="primary" size="small" @click="openEdit()"><el-icon><Plus /></el-icon>{{ t('common.create') }}</el-button>
-      <el-button size="small" :loading="loading" @click="load"><el-icon><Refresh /></el-icon>{{ t('common.refresh') }}</el-button>
+      <el-button size="small" :loading="loading" @click="() => load()"><el-icon><Refresh /></el-icon>{{ t('common.refresh') }}</el-button>
       <span class="bar-hint">{{ t('aiAdmin.skillHint') }}</span>
     </div>
-    <el-table :data="rows" v-loading="loading" size="small" stripe>
+    <div class="admin-card">
+    <el-table :data="rows" v-loading="loading">
       <el-table-column prop="name" :label="t('aiAdmin.col.name')" width="180" />
       <el-table-column prop="displayName" :label="t('aiAdmin.col.displayName')" width="160" />
       <el-table-column :label="t('aiAdmin.col.category')" width="140">
@@ -26,8 +27,9 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-pagination class="pager" small background layout="total, prev, pager, next"
-      :total="total" :page-size="pageSize" :current-page="pageNum" @current-change="(n: number) => { pageNum = n; load() }" />
+    </div>
+    <el-pagination class="admin-pagination" background layout="total, prev, pager, next"
+      :total="total" :page-size="pageSize" :current-page="pageNum" @current-change="handlePageChange" />
 
     <el-dialog v-model="editing" :title="form.id ? t('common.edit') : t('common.create')" width="640">
       <el-form label-position="top">
@@ -76,6 +78,7 @@ import { useI18n } from 'vue-i18n'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminSkill, listTools, type AiSkillAdminVO, type ToolViewVO } from '@/api/ai'
+import { usePagination } from '@/composables/usePagination'
 
 const { t } = useI18n()
 
@@ -91,14 +94,21 @@ function categoryColor(cat: string | null | undefined): string {
   }
   return `hsl(${hues[h % hues.length]}, 70%, 55%)`
 }
-const rows = ref<AiSkillAdminVO[]>([])
-const total = ref(0)
-const pageNum = ref(1)
-const pageSize = ref(20)
-const loading = ref(false)
 const editing = ref(false)
 const saving = ref(false)
 const form = reactive<AiSkillAdminVO>(empty())
+
+const {
+  data: rows,
+  loading,
+  pageNum,
+  pageSize,
+  total,
+  fetch: load,
+  handlePageChange,
+} = usePagination<AiSkillAdminVO>({
+  fetchApi: (params) => adminSkill.list(params),
+})
 
 // 可供 skill 依赖的 tool 列表(后端已经 excludeSkill=true 防递归)
 const availableTools = ref<ToolViewVO[]>([])
@@ -140,15 +150,6 @@ const defPlaceholder = `You are an expert …
 
 function empty(): AiSkillAdminVO {
   return { name: '', displayName: '', description: '', category: 'CODE_GEN', definition: '', requiredTools: '', enabled: true }
-}
-
-async function load() {
-  loading.value = true
-  try {
-    const { data } = await adminSkill.list({ pageNum: pageNum.value, pageSize: pageSize.value })
-    rows.value = data?.records ?? []
-    total.value = data?.total ?? 0
-  } finally { loading.value = false }
 }
 
 function openEdit(row?: AiSkillAdminVO) {
@@ -202,6 +203,8 @@ onMounted(() => Promise.all([load(), loadCategories(), loadAvailableTools()]))
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .tool-option {
   display: flex;
   align-items: center;

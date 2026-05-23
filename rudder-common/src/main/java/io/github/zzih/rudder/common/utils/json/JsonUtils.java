@@ -134,6 +134,11 @@ public class JsonUtils {
         return OBJECT_MAPPER.convertValue(source, clazz);
     }
 
+    /** {@link #convertValue(Object, Class)} 的 generic 重载,用于 {@code Map<K,V>}/{@code List<T>} 等参数化目标。 */
+    public static <T> T convertValue(Object source, TypeReference<T> typeRef) {
+        return OBJECT_MAPPER.convertValue(source, typeRef);
+    }
+
     // ==================== JsonNode 操作 ====================
 
     public static JsonNode parseTree(String json) {

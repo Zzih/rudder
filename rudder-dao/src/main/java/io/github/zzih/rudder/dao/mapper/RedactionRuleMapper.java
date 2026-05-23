@@ -17,18 +17,24 @@
 
 package io.github.zzih.rudder.dao.mapper;
 
+import io.github.zzih.rudder.common.enums.redaction.RedactionRuleType;
 import io.github.zzih.rudder.dao.entity.RedactionRuleEntity;
 
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 @Mapper
 public interface RedactionRuleMapper extends BaseMapper<RedactionRuleEntity> {
 
     List<RedactionRuleEntity> queryAllEnabled();
+
+    IPage<RedactionRuleEntity> queryPage(IPage<RedactionRuleEntity> page,
+                                         @Param("type") RedactionRuleType type);
 
     long countByStrategyCode(String strategyCode);
 }

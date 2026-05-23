@@ -13,16 +13,16 @@ const baseUrl = `${window.location.origin}/mcp`
 
 const activeTab = computed(() => {
   if (route.path.endsWith('/connect')) return 'connect'
-  if (route.path.endsWith('/capabilities')) return 'capabilities'
-  return 'tokens'
+  if (route.path.endsWith('/tokens')) return 'tokens'
+  return 'capabilities'
 })
 
 function handleTabChange(tab: string | number) {
   const name = tab === 'connect'
     ? 'McpConnect'
-    : tab === 'capabilities'
-      ? 'McpCapabilities'
-      : 'McpTokens'
+    : tab === 'tokens'
+      ? 'McpTokens'
+      : 'McpCapabilities'
   router.push({ name })
 }
 
@@ -41,8 +41,8 @@ async function copyBaseUrl() {
     <!-- Tab bar with right-side actions -->
     <div class="mcp-tab-bar">
       <el-tabs v-model="activeTab" class="mcp-tabs" @tab-change="handleTabChange">
-        <el-tab-pane :label="t('mcpPage.tabTokens')" name="tokens" />
         <el-tab-pane :label="t('mcpPage.tabCapabilities')" name="capabilities" />
+        <el-tab-pane :label="t('mcpPage.tabTokens')" name="tokens" />
         <el-tab-pane :label="t('mcpPage.tabConnect')" name="connect" />
       </el-tabs>
       <button class="endpoint-chip" :title="t('mcpPage.copy')" @click="copyBaseUrl">

@@ -75,10 +75,6 @@
             <groupId>io.github.zzih</groupId>
             <artifactId>rudder-ai</artifactId>
         </dependency>
-        <dependency>
-            <groupId>io.github.zzih</groupId>
-            <artifactId>rudder-datasource</artifactId>
-        </dependency>
 
         <!-- SPI provider bundle: 改 plugin 装配在 rudder-bundle-api/pom.xml -->
         <dependency>

@@ -30,10 +30,15 @@
             <groupId>io.github.zzih</groupId>
             <artifactId>rudder-rpc</artifactId>
         </dependency>
-        <!-- Datasource 基础设施: shared 持有 DatasourcePreviewService(业务装配) 复用 datasource 的 CRUD + 连接信息 -->
+        <!-- Datasource SPI 契约: shared 内的 DatasourceService(CRUD)+ ConnectionPoolManager 走 Provider 注册中心 -->
         <dependency>
             <groupId>io.github.zzih</groupId>
-            <artifactId>rudder-datasource</artifactId>
+            <artifactId>rudder-datasource-api</artifactId>
+        </dependency>
+        <!-- 加密工具 + JDBC 加密凭证 -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
         </dependency>
 
         <!-- SPI contracts: shared 持有 File / Runtime / Result 三个 ConfigSyncSpec(api/execution 共用) -->
@@ -89,6 +94,23 @@
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

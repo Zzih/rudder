@@ -18,12 +18,19 @@
 package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.ai.orchestrator.RagPipelineConfigService;
-import io.github.zzih.rudder.ai.orchestrator.RagPipelineSettings;
+import io.github.zzih.rudder.ai.orchestrator.dto.RagPipelineConfigDTO;
 import io.github.zzih.rudder.ai.rerank.RerankConfigService;
+import io.github.zzih.rudder.api.request.RagPipelineConfigRequest;
 import io.github.zzih.rudder.api.request.SpiConfigRequest;
 import io.github.zzih.rudder.api.request.SpiTestRequest;
+import io.github.zzih.rudder.api.request.dataperm.DataPermConfigRequest;
+import io.github.zzih.rudder.api.request.dataperm.DataPermScopeRequest;
 import io.github.zzih.rudder.api.response.ProviderConfigResponse;
+import io.github.zzih.rudder.api.response.RagPipelineConfigResponse;
 import io.github.zzih.rudder.api.response.RuntimeTypeResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermAdapterResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermConfigResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermScopeResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.approval.api.plugin.ApprovalPluginManager;
@@ -32,9 +39,11 @@ import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.enums.error.ConfigErrorCode;
+import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
+import io.github.zzih.rudder.common.utils.bean.EnumUtils;
 import io.github.zzih.rudder.dao.enums.RuntimeType;
 import io.github.zzih.rudder.embedding.api.plugin.EmbeddingPluginManager;
 import io.github.zzih.rudder.file.api.plugin.FilePluginManager;
@@ -58,6 +67,17 @@ import io.github.zzih.rudder.service.config.RuntimeConfigService;
 import io.github.zzih.rudder.service.config.VectorConfigService;
 import io.github.zzih.rudder.service.config.VersionConfigService;
 import io.github.zzih.rudder.service.config.dto.ProviderConfigDTO;
+import io.github.zzih.rudder.service.dataperm.adapter.RangerAdapterRegistry;
+import io.github.zzih.rudder.service.dataperm.adapter.RangerResourceAdapter;
+import io.github.zzih.rudder.service.dataperm.client.ranger.RangerAdminRestClientImpl;
+import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
+import io.github.zzih.rudder.service.dataperm.config.PluginType;
+import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermConfigDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
+import io.github.zzih.rudder.service.dataperm.reconciler.DataPermReconciler;
+import io.github.zzih.rudder.spi.api.SpiGuideFile;
+import io.github.zzih.rudder.spi.api.SpiGuideLoader;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.spi.api.model.PluginProviderDefinition;
 import io.github.zzih.rudder.spi.api.model.TestResult;
@@ -69,6 +89,7 @@ import io.github.zzih.rudder.task.api.task.enums.TaskTypeVO;
 import io.github.zzih.rudder.vector.api.plugin.VectorPluginManager;
 import io.github.zzih.rudder.version.api.plugin.VersionPluginManager;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +99,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -116,6 +138,9 @@ public class ConfigController {
     private final PublishConfigService publishConfigService;
     private final NotificationConfigService notificationConfigService;
     private final PlatformConfigService platformConfig;
+    private final DataPermConfigService dataPermConfigService;
+    private final DataPermReconciler dataPermReconciler;
+    private final RangerAdapterRegistry rangerAdapterRegistry;
 
     // ==================== 任务/运行时/语法 ====================
 
@@ -323,43 +348,44 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Rerank provider 配置")
     public Result<TestResult> testAiRerank(@RequestBody SpiTestRequest req) {
-        return Result.ok(rerankPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(rerankPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/ai-embedding/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Embedding provider 配置")
     public Result<TestResult> testAiEmbedding(@RequestBody SpiTestRequest req) {
-        return Result.ok(embeddingPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(embeddingPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/ai-vector/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Vector provider 配置")
     public Result<TestResult> testAiVector(@RequestBody SpiTestRequest req) {
-        return Result.ok(vectorPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(vectorPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/ai-llm/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 LLM provider 配置")
     public Result<TestResult> testAiLlm(@RequestBody SpiTestRequest req) {
-        return Result.ok(aiPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(aiPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     // ==================== AI RAG Pipeline 链路配置(单例) ====================
 
     @GetMapping("/ai-rag-pipeline")
     @RequireSuperAdmin
-    public Result<RagPipelineSettings> getAiRagPipelineConfig() {
-        return Result.ok(ragPipelineConfigService.active());
+    public Result<RagPipelineConfigResponse> getAiRagPipelineConfig() {
+        return Result.ok(BeanConvertUtils.convert(ragPipelineConfigService.active(),
+                RagPipelineConfigResponse.class));
     }
 
     @PostMapping("/ai-rag-pipeline")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
-    public Result<Void> saveAiRagPipelineConfig(@Valid @RequestBody RagPipelineSettings request) {
-        ragPipelineConfigService.saveDetail(request);
+    public Result<Void> saveAiRagPipelineConfig(@Valid @RequestBody RagPipelineConfigRequest request) {
+        ragPipelineConfigService.saveDetail(BeanConvertUtils.convert(request, RagPipelineConfigDTO.class));
         return Result.ok();
     }
 
@@ -495,14 +521,14 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.FILE_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验文件 provider 配置")
     public Result<ValidationResult> validateFile(@RequestBody SpiTestRequest req) {
-        return Result.ok(filePluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(filePluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/file/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.FILE_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试文件 provider 配置")
     public Result<TestResult> testFile(@RequestBody SpiTestRequest req) {
-        return Result.ok(filePluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(filePluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @GetMapping("/file/health")
@@ -515,14 +541,14 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验 AI provider 配置")
     public Result<ValidationResult> validateAi(@RequestBody SpiTestRequest req) {
-        return Result.ok(aiPluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(aiPluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/ai/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.AI_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 AI provider 配置")
     public Result<TestResult> testAi(@RequestBody SpiTestRequest req) {
-        return Result.ok(aiPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(aiPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @GetMapping("/ai/health")
@@ -535,14 +561,14 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.VERSION_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验版本存储 provider 配置")
     public Result<ValidationResult> validateVersion(@RequestBody SpiTestRequest req) {
-        return Result.ok(versionPluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(versionPluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/version/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.VERSION_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试版本存储 provider 配置")
     public Result<TestResult> testVersion(@RequestBody SpiTestRequest req) {
-        return Result.ok(versionPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(versionPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @GetMapping("/version/health")
@@ -555,14 +581,14 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.APPROVAL_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验审批渠道配置")
     public Result<ValidationResult> validateApproval(@RequestBody SpiTestRequest req) {
-        return Result.ok(approvalPluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(approvalPluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/approval/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.APPROVAL_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试审批渠道配置")
     public Result<TestResult> testApproval(@RequestBody SpiTestRequest req) {
-        return Result.ok(approvalPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(approvalPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @GetMapping("/approval/health")
@@ -575,14 +601,14 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.METADATA_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验元数据 provider 配置")
     public Result<ValidationResult> validateMetadata(@RequestBody SpiTestRequest req) {
-        return Result.ok(metadataPluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(metadataPluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/metadata/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.METADATA_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试元数据 provider 配置")
     public Result<TestResult> testMetadata(@RequestBody SpiTestRequest req) {
-        return Result.ok(metadataPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(metadataPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @GetMapping("/metadata/health")
@@ -595,28 +621,28 @@ public class ConfigController {
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验通知渠道配置")
     public Result<ValidationResult> validateNotification(@RequestBody SpiTestRequest req) {
-        return Result.ok(notificationPluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(notificationPluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/notification/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.NOTIFICATION_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试通知渠道配置")
     public Result<TestResult> testNotification(@RequestBody SpiTestRequest req) {
-        return Result.ok(notificationPluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(notificationPluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/runtime/validate")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.RUNTIME_CONFIG, action = AuditAction.VALIDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "校验运行时 provider 配置")
     public Result<ValidationResult> validateRuntime(@RequestBody SpiTestRequest req) {
-        return Result.ok(runtimePluginManager.validate(req.provider(), req.providerParams()));
+        return Result.ok(runtimePluginManager.validate(req.getProvider(), req.getProviderParams()));
     }
 
     @PostMapping("/runtime/test")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.RUNTIME_CONFIG, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试运行时 provider 配置")
     public Result<TestResult> testRuntime(@RequestBody SpiTestRequest req) {
-        return Result.ok(runtimePluginManager.testConnection(req.provider(), req.providerParams()));
+        return Result.ok(runtimePluginManager.testConnection(req.getProvider(), req.getProviderParams()));
     }
 
     @GetMapping("/approval/configs")
@@ -719,5 +745,173 @@ public class ConfigController {
         if (key == null || !known.contains(key.toUpperCase())) {
             throw new BizException(ConfigErrorCode.UNKNOWN_PROVIDER_KIND, kind, key);
         }
+    }
+
+    // ==================== 数据权限平台配置 ====================
+
+    /** 任意登录用户可读的功能开关,前端 Tab 可见性判断用。 */
+    @GetMapping("/data-perm/enabled")
+    @RequireLoggedIn
+    public Result<java.util.Map<String, Boolean>> dataPermEnabled() {
+        return Result.ok(Map.of("enabled", dataPermConfigService.isEnabled()));
+    }
+
+    /** 数据权限域 (Scope) 元数据列表,不含 Ranger Admin URL / 凭证等敏感字段,所有登录用户可读。 */
+    @GetMapping("/data-perm/scopes")
+    @RequireLoggedIn
+    public Result<List<DataPermScopeResponse>> listDataPermScopes() {
+        return Result.ok(dataPermConfigService.listScopes().stream()
+                .map(ConfigController::toScopeResponse)
+                .toList());
+    }
+
+    private static DataPermScopeResponse toScopeResponse(DataPermScopeDTO s) {
+        return DataPermScopeResponse.builder()
+                .code(s.getCode())
+                .name(s.getName())
+                .pluginType(s.getPluginType() == null ? null : s.getPluginType().name())
+                .metadataDatasourceId(s.getMetadataDatasourceId())
+                .managedTaskTypes(s.getManagedTaskTypes() == null ? List.of()
+                        : s.getManagedTaskTypes().stream().map(Enum::name).toList())
+                .rangerServiceName(s.getRangerServiceName())
+                .description(s.getDescription())
+                .enabled(Boolean.TRUE.equals(s.getEnabled()))
+                .build();
+    }
+
+    @GetMapping("/data-perm")
+    @RequireSuperAdmin
+    public Result<DataPermConfigResponse> getDataPermConfig() {
+        DataPermConfigDTO config = dataPermConfigService.active();
+        return Result.ok(DataPermConfigResponse.builder()
+                .enabled(Boolean.TRUE.equals(config.getEnabled()))
+                .rangerModeEnabled(Boolean.TRUE.equals(config.getRangerModeEnabled()))
+                .localModeEnabled(Boolean.TRUE.equals(config.getLocalModeEnabled()))
+                .rangerAdminUrl(config.getRangerAdminUrl())
+                .rangerAdminUsername(config.getRangerAdminUsername())
+                .passwordConfigured(config.getRangerAdminPassword() != null
+                        && !config.getRangerAdminPassword().isEmpty())
+                .rangerAdminTimeoutMs(orDefault(config.getRangerAdminTimeoutMs(), 10_000))
+                .rangerAdminPageSize(orDefault(config.getRangerAdminPageSize(), 1_000))
+                .rangerWriteConcurrency(orDefault(config.getRangerWriteConcurrency(), 4))
+                .reconcileIntervalSeconds(orDefault(config.getReconcileIntervalSeconds(), 300))
+                .reconcileLockTtlSeconds(orDefault(config.getReconcileLockTtlSeconds(), 600))
+                .reconcileBatchSize(orDefault(config.getReconcileBatchSize(), 100))
+                .reconcileFailureAlertThreshold(orDefault(config.getReconcileFailureAlertThreshold(), 3))
+                .ensureRangerUser(Boolean.TRUE.equals(config.getEnsureRangerUser()))
+                .scopes(dataPermConfigService.listScopes().stream()
+                        .map(ConfigController::toScopeResponse)
+                        .toList())
+                .build());
+    }
+
+    @PutMapping("/data-perm")
+    @RequireSuperAdmin
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG)
+    public Result<Void> saveDataPermConfig(@Valid @RequestBody DataPermConfigRequest req) {
+        List<DataPermScopeDTO> incomingScopes = req.getScopes() == null
+                ? null
+                : req.getScopes().stream().map(ConfigController::toScopeDto).toList();
+        dataPermConfigService.saveDetail(buildScalarDto(req, req.isEnabled()), incomingScopes);
+        // saveDetail 已 commit + cache invalidate;此处 reconciler 重读最新 config 应用 interval / lockTtl
+        dataPermReconciler.reconfigureScheduler();
+        return Result.ok();
+    }
+
+    /** 用 POST 入参做一次 Ranger Admin 连通性探测,不写入当前生效配置。 */
+    @PostMapping("/data-perm/test")
+    @RequireSuperAdmin
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.TEST, resourceType = AuditResourceType.SPI_CONFIG, description = "测试 Ranger Admin 连通性")
+    public Result<Void> testDataPermConnection(@Valid @RequestBody DataPermConfigRequest req) {
+        RangerAdminRestClientImpl.probeHealthCheck(buildScalarDto(req, true));
+        return Result.ok();
+    }
+
+    /** 把 request + 旧密码兜底组装成 scalar DTO。enabled 由 caller 显式传,test 时强制 true。 */
+    private DataPermConfigDTO buildScalarDto(DataPermConfigRequest req, boolean enabled) {
+        // 空 password = 保留旧值,避免编辑 / 测试时无意清空
+        String password = (req.getRangerAdminPassword() == null || req.getRangerAdminPassword().isEmpty())
+                ? dataPermConfigService.active().getRangerAdminPassword()
+                : req.getRangerAdminPassword();
+        DataPermConfigDTO dto = new DataPermConfigDTO();
+        dto.setEnabled(enabled);
+        dto.setRangerModeEnabled(req.isRangerModeEnabled());
+        dto.setLocalModeEnabled(req.isLocalModeEnabled());
+        dto.setRangerAdminUrl(req.getRangerAdminUrl());
+        dto.setRangerAdminUsername(req.getRangerAdminUsername());
+        dto.setRangerAdminPassword(password);
+        dto.setRangerAdminTimeoutMs(req.getRangerAdminTimeoutMs());
+        dto.setRangerAdminPageSize(req.getRangerAdminPageSize());
+        dto.setRangerWriteConcurrency(req.getRangerWriteConcurrency());
+        dto.setReconcileIntervalSeconds(req.getReconcileIntervalSeconds());
+        dto.setReconcileLockTtlSeconds(req.getReconcileLockTtlSeconds());
+        dto.setReconcileBatchSize(req.getReconcileBatchSize());
+        dto.setReconcileFailureAlertThreshold(req.getReconcileFailureAlertThreshold());
+        dto.setEnsureRangerUser(req.isEnsureRangerUser());
+        return dto;
+    }
+
+    private static DataPermScopeDTO toScopeDto(DataPermScopeRequest r) {
+        DataPermScopeDTO dto = new DataPermScopeDTO();
+        dto.setCode(r.getCode());
+        dto.setName(r.getName());
+        dto.setPluginType(PluginType.parse(r.getPluginType()));
+        dto.setMetadataDatasourceId(r.getMetadataDatasourceId());
+        dto.setManagedTaskTypes(parseTaskTypes(r.getManagedTaskTypes()));
+        dto.setRangerServiceName(r.getRangerServiceName());
+        dto.setDescription(r.getDescription());
+        dto.setEnabled(r.isEnabled());
+        return dto;
+    }
+
+    private static int orDefault(Integer v, int d) {
+        return v == null ? d : v;
+    }
+
+    private static List<TaskType> parseTaskTypes(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return List.of();
+        }
+        return names.stream()
+                .map(n -> EnumUtils.lookupByName(TaskType.class, n)
+                        .orElseThrow(() -> new BizException(DataPermErrorCode.APPLICATION_INVALID,
+                                "invalid taskType " + n)))
+                .toList();
+    }
+
+    /** 手动触发一次 reconcile(诊断用)。 */
+    @PostMapping("/data-perm/reconcile-trigger")
+    @RequireSuperAdmin
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.UPDATE, resourceType = AuditResourceType.SPI_CONFIG, description = "手动触发数据权限对账")
+    public Result<Void> triggerReconcile() {
+        dataPermReconciler.triggerNow("MANUAL_ADMIN_TRIGGER");
+        return Result.ok();
+    }
+
+    private static final String DATA_PERM_GUIDE_TYPE = "dataperm";
+    private static final String DATA_PERM_GUIDE_NAME = "platform";
+
+    @GetMapping("/data-perm/guide")
+    @RequireLoggedIn
+    public Result<SpiGuideFile> getDataPermGuide() {
+        return Result.ok(SpiGuideLoader.load(
+                DATA_PERM_GUIDE_TYPE, DATA_PERM_GUIDE_NAME, LocaleContextHolder.getLocale()));
+    }
+
+    /** 列出注册的 PluginType adapter 的层级 + access 闭集,供资源包 / 申请单 UI 联动渲染。 */
+    @GetMapping("/data-perm/plugin-types")
+    @RequireLoggedIn
+    public Result<List<DataPermAdapterResponse>> listDataPermPluginTypes() {
+        List<DataPermAdapterResponse> out = new ArrayList<>();
+        for (PluginType type : rangerAdapterRegistry.registeredTypes()) {
+            RangerResourceAdapter a = rangerAdapterRegistry.require(type);
+            out.add(DataPermAdapterResponse.builder()
+                    .pluginType(a.supportedPluginType().name())
+                    .rangerServiceType(a.rangerServiceType())
+                    .resourceLevels(a.resourceHierarchy().stream().map(ResourceLevel::rangerKey).toList())
+                    .accessTypes(a.supportedAccessTypes())
+                    .build());
+        }
+        return Result.ok(out);
     }
 }

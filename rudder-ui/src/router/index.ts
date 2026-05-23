@@ -94,10 +94,24 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/approval/ApprovalList.vue'),
       },
       {
+        path: 'data-perm',
+        component: () => import('@/views/data-perm/DataPermLayout.vue'),
+        children: [
+          { path: '', redirect: { name: 'MyDataPerm' } },
+          { path: 'my', name: 'MyDataPerm',
+            component: () => import('@/views/data-perm/MyDataPerm.vue') },
+          { path: 'roles', name: 'DataPermRoleManage',
+            component: () => import('@/views/data-perm/RoleManage.vue'),
+            meta: { requireRole: 'SUPER_ADMIN' } },
+          { path: 'grants', name: 'DataPermGrantManage',
+            component: () => import('@/views/data-perm/GrantManage.vue') },
+        ],
+      },
+      {
         path: 'mcp',
         component: () => import('@/views/mcp/McpLayout.vue'),
         children: [
-          { path: '', redirect: { name: 'McpTokens' } },
+          { path: '', redirect: { name: 'McpCapabilities' } },
           { path: 'tokens', name: 'McpTokens', component: () => import('@/views/mcp/TokenList.vue') },
           { path: 'capabilities', name: 'McpCapabilities', component: () => import('@/views/mcp/CapabilityCatalog.vue') },
           { path: 'connect', name: 'McpConnect', component: () => import('@/views/mcp/ConnectGuide.vue') },
@@ -144,6 +158,7 @@ function adminChildren(
     { path: 'approval-config', name: `ApprovalConfig${nameSuffix}`, component: () => import('@/views/approval/ApprovalConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
     { path: 'ai-config', name: `AiConfig${nameSuffix}`, component: () => import('@/views/ai/AiConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
     { path: 'redaction-config', name: `RedactionConfig${nameSuffix}`, component: () => import('@/views/redaction/RedactionConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
+    { path: 'data-perm-config', name: `DataPermConfig${nameSuffix}`, component: () => import('@/views/admin/DataPermConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
     { path: 'metadata-config', name: `MetadataConfig${nameSuffix}`, component: () => import('@/views/metadata/MetadataConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
     { path: 'publish-config', name: `PublishConfig${nameSuffix}`, component: () => import('@/views/publish/PublishConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },
     { path: 'file-config', name: `FileConfig${nameSuffix}`, component: () => import('@/views/file/FileConfig.vue'), meta: { requireRole: 'SUPER_ADMIN' } },

@@ -109,6 +109,16 @@ public class MemberService {
         return memberDao.selectByWorkspaceIdAndUserId(workspaceId, userId);
     }
 
+    public boolean isMember(Long workspaceId, Long userId) {
+        return getMember(workspaceId, userId) != null;
+    }
+
+    public List<Long> listUserIdsByWorkspace(Long workspaceId) {
+        return memberDao.selectByWorkspaceId(workspaceId).stream()
+                .map(WorkspaceMember::getUserId)
+                .toList();
+    }
+
     public boolean hasRole(Long workspaceId, Long userId, RoleType minRole) {
         WorkspaceMember member = memberDao.selectByWorkspaceIdAndUserId(workspaceId, userId);
         if (member == null) {

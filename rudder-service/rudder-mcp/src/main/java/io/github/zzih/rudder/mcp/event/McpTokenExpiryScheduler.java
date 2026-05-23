@@ -18,23 +18,27 @@
 package io.github.zzih.rudder.mcp.event;
 
 import io.github.zzih.rudder.dao.dao.McpTokenDao;
+import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduledTask;
+import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduler;
 
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 定时把已过期但 status 仍为 ACTIVE 的 token 标记为 EXPIRED。
  *
- * <p>认证路径 {@code McpTokenService.verify} 已对 expiresAt 做实时检查，所以即使状态不一致
+ * <p>认证路径 {@code McpTokenService.verify} 已对 expiresAt 做实时检查,所以即使状态不一致
  * 也不影响安全。这个任务的目的是让 UI / 审计 看到的 token 状态与实际生效状态一致。
  *
- * <p>调度间隔 30 分钟，单次最多扫 200 行（防御性上限，正常环境量级远小于此）。
+ * <p>走 ClusterScheduler 全集群单 leader 跑,间隔 30 分钟,单次最多扫 200 行
+ * (防御性上限,正常环境量级远小于此)。
  */
 @Slf4j
 @Component
@@ -42,11 +46,20 @@ import lombok.extern.slf4j.Slf4j;
 @ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
 public class McpTokenExpiryScheduler {
 
+    public static final String SCHEDULER_KEY = "rudder:mcp:token-expiry";
+
     private static final int BATCH_LIMIT = 200;
 
+    private final ClusterScheduler clusterScheduler;
     private final McpTokenDao tokenDao;
 
-    @Scheduled(cron = "0 */30 * * * *")
+    @PostConstruct
+    public void registerScheduler() {
+        // lockTtl 须 > interval,heartbeat 会续约,实际跑几百 ms 就完。
+        clusterScheduler.schedule(new ClusterScheduledTask(
+                SCHEDULER_KEY, Duration.ofMinutes(30), Duration.ofMinutes(35), this::markExpired));
+    }
+
     public void markExpired() {
         List<Long> ids = tokenDao.selectExpiredActiveIds(BATCH_LIMIT);
         if (ids.isEmpty()) {

@@ -1,0 +1,29 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.zzih</groupId>
+        <artifactId>rudder-spi</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>rudder-datasource</artifactId>
+    <packaging>pom</packaging>
+    <name>Rudder Datasource</name>
+    <description>Datasource SPI: 契约层 (-api) + 9 个 DB plugin。参考 DolphinScheduler datasource-plugin 架构。</description>
+
+    <modules>
+        <module>rudder-datasource-api</module>
+        <module>rudder-datasource-mysql</module>
+        <module>rudder-datasource-postgres</module>
+        <module>rudder-datasource-hive</module>
+        <module>rudder-datasource-trino</module>
+        <module>rudder-datasource-clickhouse</module>
+        <module>rudder-datasource-doris</module>
+        <module>rudder-datasource-starrocks</module>
+        <module>rudder-datasource-spark</module>
+        <module>rudder-datasource-flink</module>
+    </modules>
+</project>

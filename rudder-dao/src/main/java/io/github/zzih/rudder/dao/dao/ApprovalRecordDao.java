@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.dao.dao;
 
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
+import io.github.zzih.rudder.dao.entity.view.ApprovalRecordDetailView;
 
 import java.util.List;
 
@@ -31,6 +32,9 @@ public interface ApprovalRecordDao {
     List<ApprovalRecord> selectByResourceTypeAndResourceCode(String resourceType, Long resourceCode);
 
     ApprovalRecord selectById(Long id);
+
+    /** 详情视图：含申请人 / 工作空间名,供详情页展示。 */
+    ApprovalRecordDetailView selectDetailById(Long id);
 
     ApprovalRecord selectByExternalApprovalId(String externalApprovalId);
 

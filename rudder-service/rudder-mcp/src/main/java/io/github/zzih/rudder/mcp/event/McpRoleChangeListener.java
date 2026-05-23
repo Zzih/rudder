@@ -69,7 +69,7 @@ public class McpRoleChangeListener {
         if (event.workspaceId() == null || event.userId() == null) {
             return;
         }
-        List<McpToken> tokens = tokenDao.selectByUserId(event.userId()).stream()
+        var tokens = tokenDao.selectByUserId(event.userId()).stream()
                 .filter(t -> Objects.equals(t.getWorkspaceId(), event.workspaceId()))
                 .filter(t -> t.getStatus() == McpTokenStatus.ACTIVE)
                 .toList();
@@ -87,7 +87,7 @@ public class McpRoleChangeListener {
         }
     }
 
-    private void revokeTokens(List<McpToken> tokens, String reason) {
+    private void revokeTokens(List<? extends McpToken> tokens, String reason) {
         for (McpToken t : tokens) {
             tokenService.revokeToken(t.getId(), reason);
         }
@@ -95,7 +95,7 @@ public class McpRoleChangeListener {
                 tokens.size(), reason);
     }
 
-    private void downgradeGrants(List<McpToken> tokens, String newRoleName) {
+    private void downgradeGrants(List<? extends McpToken> tokens, String newRoleName) {
         RoleType newRole = parseRole(newRoleName);
         if (newRole == null) {
             return;

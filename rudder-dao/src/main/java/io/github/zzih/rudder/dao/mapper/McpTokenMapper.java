@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.McpToken;
+import io.github.zzih.rudder.dao.entity.view.McpTokenDetailView;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,17 +27,22 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 @Mapper
 public interface McpTokenMapper extends BaseMapper<McpToken> {
 
     McpToken queryByTokenPrefix(@Param("tokenPrefix") String tokenPrefix);
 
-    McpToken queryByIdWithWorkspaceName(@Param("id") Long id);
+    McpTokenDetailView queryDetailById(@Param("id") Long id);
 
-    List<McpToken> queryByUserId(@Param("userId") Long userId);
+    List<McpTokenDetailView> queryDetailByUserId(@Param("userId") Long userId);
 
-    List<McpToken> queryByWorkspaceId(@Param("workspaceId") Long workspaceId);
+    IPage<McpTokenDetailView> queryDetailPageByUserId(IPage<McpTokenDetailView> page,
+                                                      @Param("userId") Long userId,
+                                                      @Param("search") String search);
+
+    List<McpTokenDetailView> queryDetailByWorkspaceId(@Param("workspaceId") Long workspaceId);
 
     /** 撤销：仅 status=ACTIVE 时生效。 */
     int revokeIfActive(@Param("id") Long id,

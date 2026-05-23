@@ -21,14 +21,14 @@ import io.github.zzih.rudder.common.enums.error.DatasourceErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.jdbc.JdbcConnections;
 import io.github.zzih.rudder.common.model.ColumnMeta;
-import io.github.zzih.rudder.common.sql.SqlDialect;
 import io.github.zzih.rudder.dao.entity.Datasource;
-import io.github.zzih.rudder.dao.enums.DatasourceType;
-import io.github.zzih.rudder.datasource.dto.DatasourcePreviewDTO;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
+import io.github.zzih.rudder.datasource.api.DatasourceTypeProvider;
+import io.github.zzih.rudder.datasource.api.DatasourceTypeProviderRegistry;
+import io.github.zzih.rudder.service.datasource.dto.DatasourcePreviewDTO;
 import io.github.zzih.rudder.service.redaction.RedactionService;
 import io.github.zzih.rudder.service.sink.CollectingResultSink;
 import io.github.zzih.rudder.spi.api.context.DataSourceInfo;
+import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 import io.github.zzih.rudder.task.api.task.executor.SqlExecutor;
 
 import java.sql.Statement;
@@ -78,8 +78,8 @@ public class DatasourcePreviewService {
 
         Datasource ds = datasourceService.getById(id);
         DataSourceInfo info = datasourceService.getDataSourceInfo(id);
-        DatasourceType dsType = DatasourceType.of(info.getType());
-        String sql = buildPreviewSql(dsType, database, table, limit);
+        DatasourceTypeProvider provider = DatasourceTypeProviderRegistry.get(DatasourceType.of(info.getType()));
+        String sql = provider.buildPreviewSql(database, table, limit);
 
         return runViaSqlExecutor(ds, info, sql, limit, database, "Preview");
     }
@@ -95,8 +95,9 @@ public class DatasourcePreviewService {
                     info.getDriverClass(), conn -> {
                         try (Statement stmt = conn.createStatement()) {
                             CollectingResultSink sink = new CollectingResultSink(redactionService);
-                            SqlExecutor.execute(stmt, sql, rowCap, SqlDialect.of(info.getType()), ds.getName(), true,
-                                    sink);
+                            DatasourceTypeProvider provider = DatasourceTypeProviderRegistry.get(
+                                    DatasourceType.of(info.getType()));
+                            SqlExecutor.execute(stmt, sql, rowCap, provider, ds.getName(), true, sink);
                             sink.close();
                             List<ColumnMeta> metas = sink.getColumnMetas();
                             if (defaultDatabase != null) {
@@ -118,13 +119,6 @@ public class DatasourcePreviewService {
             throw new BizException(DatasourceErrorCode.DS_CONNECTION_FAILED,
                     opLabel + " failed: " + e.getMessage(), e);
         }
-    }
-
-    private static String buildPreviewSql(DatasourceType dsType, String database, String table, int limit) {
-        return switch (dsType) {
-            case HIVE, SPARK, TRINO -> "SELECT * FROM " + database + "." + table + " LIMIT " + limit;
-            default -> "SELECT * FROM `" + database + "`.`" + table + "` LIMIT " + limit;
-        };
     }
 
     private static void validateIdentifier(String identifier) {

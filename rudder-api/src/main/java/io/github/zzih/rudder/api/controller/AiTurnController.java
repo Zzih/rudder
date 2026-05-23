@@ -24,7 +24,7 @@ import io.github.zzih.rudder.ai.orchestrator.turn.TurnEventSink;
 import io.github.zzih.rudder.ai.orchestrator.turn.TurnRequest;
 import io.github.zzih.rudder.api.request.AiToolApproveRequest;
 import io.github.zzih.rudder.api.request.AiTurnRequest;
-import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
+import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
 import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
@@ -62,7 +62,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-@RequireDeveloper
+@RequireViewer
 public class AiTurnController {
 
     private final AiOrchestrator orchestrator;

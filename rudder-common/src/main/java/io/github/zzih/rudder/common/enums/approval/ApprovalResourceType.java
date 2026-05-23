@@ -26,6 +26,7 @@ public final class ApprovalResourceType {
     public static final String PROJECT_PUBLISH = "PROJECT_PUBLISH";
     public static final String WORKFLOW_PUBLISH = "WORKFLOW_PUBLISH";
     public static final String MCP_TOKEN = "MCP_TOKEN";
+    public static final String DATA_PERM_APPLY = "DATA_PERM_APPLY";
 
     private ApprovalResourceType() {
     }

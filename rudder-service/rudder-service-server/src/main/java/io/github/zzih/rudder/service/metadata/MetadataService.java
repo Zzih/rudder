@@ -17,7 +17,6 @@
 
 package io.github.zzih.rudder.service.metadata;
 
-import io.github.zzih.rudder.datasource.service.DatasourceService;
 import io.github.zzih.rudder.metadata.api.model.ColumnMeta;
 import io.github.zzih.rudder.metadata.api.model.TableDetail;
 import io.github.zzih.rudder.metadata.api.model.TableMeta;
@@ -25,6 +24,7 @@ import io.github.zzih.rudder.service.config.MetadataConfigService;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 import io.github.zzih.rudder.service.coordination.cache.MetadataCacheKeys;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 
 import java.util.List;
 

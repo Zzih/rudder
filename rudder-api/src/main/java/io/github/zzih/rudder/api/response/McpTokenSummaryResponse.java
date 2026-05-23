@@ -17,6 +17,8 @@
 
 package io.github.zzih.rudder.api.response;
 
+import io.github.zzih.rudder.common.enums.mcp.McpTokenStatus;
+
 import java.time.LocalDateTime;
 
 import lombok.Data;
@@ -31,7 +33,7 @@ public class McpTokenSummaryResponse {
     private Long workspaceId;
     private String workspaceName;
     private String tokenPrefix;
-    private String status;
+    private McpTokenStatus status;
     private LocalDateTime expiresAt;
     private LocalDateTime lastUsedAt;
     private LocalDateTime createdAt;

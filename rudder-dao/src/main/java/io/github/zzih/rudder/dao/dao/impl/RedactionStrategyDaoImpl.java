@@ -25,6 +25,9 @@ import java.util.List;
 
 import org.springframework.stereotype.Repository;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
 import lombok.RequiredArgsConstructor;
 
 @Repository
@@ -41,6 +44,11 @@ public class RedactionStrategyDaoImpl implements RedactionStrategyDao {
     @Override
     public List<RedactionStrategyEntity> selectAll() {
         return mapper.selectList(null);
+    }
+
+    @Override
+    public IPage<RedactionStrategyEntity> selectPage(int pageNum, int pageSize) {
+        return mapper.queryPage(new Page<>(pageNum, pageSize));
     }
 
     @Override

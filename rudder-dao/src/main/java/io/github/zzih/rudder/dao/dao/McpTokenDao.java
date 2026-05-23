@@ -18,8 +18,11 @@
 package io.github.zzih.rudder.dao.dao;
 
 import io.github.zzih.rudder.dao.entity.McpToken;
+import io.github.zzih.rudder.dao.entity.view.McpTokenDetailView;
 
 import java.util.List;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 public interface McpTokenDao {
 
@@ -27,15 +30,18 @@ public interface McpTokenDao {
 
     McpToken selectById(Long id);
 
-    /** list/详情路径:连带 workspace.name 一起查回。workspace 已删时 workspaceName=null。 */
-    McpToken selectByIdWithWorkspaceName(Long id);
+    /** 详情视图：含 workspace.name,workspace 已删时 workspaceName=null。 */
+    McpTokenDetailView selectDetailById(Long id);
 
     /** 主查询路径：bcrypt 之前先按前缀拿到候选 token 行。 */
     McpToken selectByTokenPrefix(String tokenPrefix);
 
-    List<McpToken> selectByUserId(Long userId);
+    List<McpTokenDetailView> selectByUserId(Long userId);
 
-    List<McpToken> selectByWorkspaceId(Long workspaceId);
+    /** 分页 + name/prefix 模糊搜索,供 controller 列表用。 */
+    IPage<McpTokenDetailView> selectPageByUserId(Long userId, String search, int pageNum, int pageSize);
+
+    List<McpTokenDetailView> selectByWorkspaceId(Long workspaceId);
 
     int updateById(McpToken token);
 

@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS `t_r_approval_record` (
     `title`                VARCHAR(256)                      COMMENT '审批标题',
     `description`          VARCHAR(1024)                     COMMENT '审批描述',
     `submit_remark`        VARCHAR(512)                      COMMENT '申请理由',
+    `ext_data`             TEXT                              COMMENT '业务侧结构化数据(JSON), 由 ApprovalService 自动序列化 request.extra 落库, 用于业务侧 onFinalized 反查重建',
     `status`               VARCHAR(24) NOT NULL DEFAULT 'PENDING'
                                                              COMMENT 'PENDING/APPROVED/REJECTED/WITHDRAWN/EXPIRED',
     `stage_chain`          VARCHAR(256) NOT NULL             COMMENT '阶段链 JSON 数组,提交时锁定',
@@ -387,16 +388,69 @@ CREATE TABLE IF NOT EXISTS `t_r_spi_config` (
     INDEX `idx_type_enabled` (`type`, `enabled`)
 ) ENGINE=InnoDB COMMENT='SPI 配置(per (type,provider) 一行;saveDetail 隐式 disableOthers 保证 per type 单 active)';
 
--- RAG 链路参数配置(单 row, 不是 SPI 选型 —— 字段值是 chunk size/topK/reranker 等参数)
+-- RAG 链路参数配置(平台级单 row)
 CREATE TABLE IF NOT EXISTS `t_r_rag_pipeline_config` (
-    `id`            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `settings_json` JSON                              COMMENT 'RagPipelineSettings 序列化',
-    `enabled`       TINYINT DEFAULT 1                 COMMENT '是否启用 0=否 1=是',
-    `created_by`    BIGINT                            COMMENT '创建人ID',
-    `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_by`    BIGINT                            COMMENT '更新人ID',
-    `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+    `id`                            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `rewrite_enabled`               TINYINT NOT NULL DEFAULT 0           COMMENT 'LLM query 重写(+1 LLM 调用)',
+    `multi_query_enabled`           TINYINT NOT NULL DEFAULT 0           COMMENT '多查询扩展(+1 LLM + N 次检索)',
+    `multi_query_count`             INT NOT NULL DEFAULT 3               COMMENT '多查询变体数 1~5',
+    `multi_query_include_original`  TINYINT NOT NULL DEFAULT 1           COMMENT '多查询是否保留原始 query',
+    `compression_enabled`           TINYINT NOT NULL DEFAULT 0           COMMENT '多轮对话压缩(+1 LLM 调用)',
+    `translation_enabled`           TINYINT NOT NULL DEFAULT 0           COMMENT '跨语言翻译(+1 LLM 调用)',
+    `translation_target_language`   VARCHAR(32) NOT NULL DEFAULT 'english' COMMENT '翻译目标语言',
+    `rerank_stage_enabled`          TINYINT NOT NULL DEFAULT 0           COMMENT 'Post-Retrieval rerank,需配 RERANK provider',
+    `rerank_top_n`                  INT NOT NULL DEFAULT 5               COMMENT 'rerank 后保留候选数',
+    `keyword_enricher_enabled`      TINYINT NOT NULL DEFAULT 0           COMMENT '入库时 LLM 抽关键词(每 chunk +1 LLM)',
+    `summary_enricher_enabled`      TINYINT NOT NULL DEFAULT 0           COMMENT '入库时 LLM 抽摘要(每 chunk +2 LLM)',
+    `augmenter_allow_empty_context` TINYINT NOT NULL DEFAULT 1           COMMENT '空检索结果时 LLM 是否仍回答',
+    `created_by`                    BIGINT                                COMMENT '创建人ID',
+    `created_at`                    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`                    BIGINT                                COMMENT '更新人ID',
+    `updated_at`                    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB COMMENT='RAG 链路参数配置(平台级单 row)';
+
+-- 数据权限平台配置(单 row,scope 在 t_r_data_perm_scope)
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_config` (
+    `id`                                BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `enabled`                           TINYINT NOT NULL DEFAULT 0        COMMENT '子系统总开关',
+    `ranger_mode_enabled`               TINYINT NOT NULL DEFAULT 0        COMMENT 'Ranger 同步 mode',
+    `local_mode_enabled`                TINYINT NOT NULL DEFAULT 0        COMMENT 'Worker 端 SQL 拦截 mode',
+    `ranger_admin_url`                  VARCHAR(512)                       COMMENT 'Ranger Admin URL,ranger mode 开时必填',
+    `ranger_admin_username`             VARCHAR(128)                       COMMENT 'Ranger Admin 用户名',
+    `ranger_admin_password`             VARCHAR(512)                       COMMENT 'Ranger Admin 密码(明文存,加密在 service 层做)',
+    `ranger_admin_timeout_ms`           INT NOT NULL DEFAULT 10000        COMMENT 'Ranger HTTP 超时(ms)',
+    `ranger_admin_page_size`            INT NOT NULL DEFAULT 1000         COMMENT 'Ranger 列表 API 分页',
+    `ranger_write_concurrency`          INT NOT NULL DEFAULT 4            COMMENT 'reconciler apply 并发',
+    `reconcile_interval_seconds`        INT NOT NULL DEFAULT 300          COMMENT 'reconcile 周期秒',
+    `reconcile_lock_ttl_seconds`        INT NOT NULL DEFAULT 600          COMMENT 'reconcile 单 leader 锁 TTL 秒',
+    `reconcile_batch_size`              INT NOT NULL DEFAULT 100          COMMENT 'reconcile 批量大小',
+    `reconcile_failure_alert_threshold` INT NOT NULL DEFAULT 3            COMMENT '连续失败告警阈值',
+    `ensure_ranger_user`                TINYINT NOT NULL DEFAULT 0        COMMENT 'apply 前是否自动 ensure user 存在 Ranger',
+    `created_by`                       BIGINT                              COMMENT '创建人ID',
+    `created_at`                       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`                       BIGINT                              COMMENT '更新人ID',
+    `updated_at`                       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB COMMENT='数据权限平台配置(单 row,scope 在 t_r_data_perm_scope)';
+
+-- 数据权限域(每行一个 scope,管理一组 TaskType + plugin 元数据)
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_scope` (
+    `id`                      BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `code`                    BIGINT NOT NULL                    COMMENT '业务码,role/grant 表引用此 code',
+    `name`                    VARCHAR(128) NOT NULL              COMMENT '名称,UI 展示 + 全局唯一',
+    `plugin_type`             VARCHAR(32) NOT NULL               COMMENT 'HADOOP_SQL/TRINO/STARROCKS/HBASE/HDFS/KAFKA',
+    `metadata_datasource_id`  BIGINT NOT NULL                    COMMENT '元数据来源 datasource(挂哪个库的 schema 给 scope 用)',
+    `managed_task_types`      JSON                                COMMENT '受管 TaskType JSON 数组,跨 scope 全局唯一',
+    `ranger_service_name`     VARCHAR(128)                        COMMENT 'Ranger 端 service 名,ranger mode 开时必填',
+    `description`             VARCHAR(512)                        COMMENT '描述',
+    `enabled`                 TINYINT NOT NULL DEFAULT 1         COMMENT '是否启用',
+    `created_by`              BIGINT                              COMMENT '创建人ID',
+    `created_at`              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`              BIGINT                              COMMENT '更新人ID',
+    `updated_at`              DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY `uk_code` (`code`),
+    UNIQUE KEY `uk_name` (`name`),
+    INDEX `idx_metadata_ds` (`metadata_datasource_id`)
+) ENGINE=InnoDB COMMENT='数据权限域(每行一个 scope,受管任务类型集合 + plugin 元数据)';
 
 -- ==================== Service Registry ====================
 
@@ -823,3 +877,92 @@ CREATE TABLE IF NOT EXISTS `t_r_quick_link` (
     `updated_at`   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY `idx_category_sort` (`category`, `sort_order`)
 ) ENGINE=InnoDB COMMENT='首页快捷入口/文档链接（平台级共享）';
+
+-- ==================== Data Permission ====================
+
+-- 1. 权限包定义
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_role` (
+    `id`           BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `name`         VARCHAR(128) NOT NULL             COMMENT '权限包名,全局唯一',
+    `description`  VARCHAR(512)                      COMMENT '描述',
+    `created_by`   BIGINT NOT NULL                   COMMENT '创建人ID',
+    `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`   BIGINT                            COMMENT '更新人ID',
+    `updated_at`   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY `uk_name` (`name`)
+) ENGINE=InnoDB COMMENT='数据权限包定义';
+
+-- 2. 权限包内权限项明细 (当前态,管理员替换式编辑)
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_role_permission` (
+    `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `role_id`             BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_role.id',
+    `scope_code` BIGINT NOT NULL                   COMMENT '关联 settings_json.scopes[].code',
+    `catalog_name`        VARCHAR(128)                      COMMENT 'NULL=该 plugin 不适用; "*"=全部',
+    `database_name`       VARCHAR(128)                      COMMENT '同上语义',
+    `table_name`          VARCHAR(128)                      COMMENT '同上语义',
+    `column_name`         VARCHAR(128)                      COMMENT '同上语义',
+    `accesses`            JSON NOT NULL                     COMMENT 'plugin 原生 access 列表, 如 ["select","insert"]',
+    `created_at`          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_role` (`role_id`),
+    INDEX `idx_service` (`scope_code`)
+) ENGINE=InnoDB COMMENT='权限包内权限项当前态';
+
+
+-- 4. 用户被授予的权限包
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_role_grant` (
+    `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `user_id`             BIGINT NOT NULL                   COMMENT '被授予用户 t_r_user.id',
+    `source_approval_id`  BIGINT NOT NULL                   COMMENT '关联 t_r_approval_record.id',
+    `role_id`             BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_role.id',
+    `effective_time`      DATETIME NOT NULL                 COMMENT '生效起点(审批通过时间)',
+    `expiration_time`    DATETIME                          COMMENT 'NULL=永久; 否则=失效时间',
+    `end_reason`          VARCHAR(32)                       COMMENT 'EXPIRED/REVOKED/ROLE_DELETED',
+    `end_by`              BIGINT                            COMMENT '撤销操作人 user_id',
+    `end_note`            VARCHAR(512)                      COMMENT '撤销备注',
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_role` (`role_id`),
+    INDEX `idx_approval` (`source_approval_id`),
+    INDEX `idx_user_time` (`user_id`, `effective_time`, `expiration_time`)
+) ENGINE=InnoDB COMMENT='用户被授予的权限包';
+
+-- 5. 用户的 direct 授权 (不经权限包)
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_direct_grant` (
+    `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `user_id`             BIGINT NOT NULL                   COMMENT '被授予用户',
+    `source_approval_id`  BIGINT NOT NULL                   COMMENT '关联 t_r_approval_record.id',
+    `scope_code` BIGINT NOT NULL                   COMMENT '关联 settings_json.scopes[].code',
+    `catalog_name`        VARCHAR(128)                      COMMENT '同 role_permission',
+    `database_name`       VARCHAR(128)                      COMMENT '同上',
+    `table_name`          VARCHAR(128)                      COMMENT '同上',
+    `column_name`         VARCHAR(128)                      COMMENT '同上',
+    `accesses`            JSON NOT NULL                     COMMENT '同上',
+    `effective_time`      DATETIME NOT NULL                 COMMENT '生效起点',
+    `expiration_time`    DATETIME                          COMMENT 'NULL=永久',
+    `end_reason`          VARCHAR(32)                       COMMENT 'EXPIRED/REVOKED',
+    `end_by`              BIGINT                            COMMENT '撤销操作人',
+    `end_note`            VARCHAR(512)                      COMMENT '撤销备注',
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_approval` (`source_approval_id`),
+    INDEX `idx_user_time` (`user_id`, `effective_time`, `expiration_time`)
+) ENGINE=InnoDB COMMENT='用户的 direct 授权(不经权限包)';
+
+-- 6. 用户权限事实快照(Local 鉴权 + Ranger 同步对账双用)
+-- 每轮 Reconciler 算 desired 后跟最近版本 diff,有变化升 version 写本轮全部 perm 行。
+-- 撤光全部 grant 的 user 写 1 行 scope_code IS NULL 的 sentinel 表示"V_n 当前 0 权限",
+-- 鉴权 / 审计 query 用 IS NOT NULL 过滤掉 sentinel,该 user max(version) 落到 sentinel → 拒绝放行。
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_effective_snapshot` (
+    `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `user_id`             BIGINT NOT NULL                   COMMENT '生效用户 t_r_user.id',
+    `version`             BIGINT NOT NULL                   COMMENT '用户维度单调递增版本号',
+    `snapshot_time`       DATETIME NOT NULL                 COMMENT '本次快照对应的时间点',
+    `scope_code`          BIGINT                            COMMENT '关联 settings_json.scopes[].code;NULL=该 version 是 sentinel(0 权限)',
+    `catalog_name`        VARCHAR(128)                      COMMENT 'NULL=该 plugin 不适用; "*"=全部',
+    `database_name`       VARCHAR(128)                      COMMENT '同上语义',
+    `table_name`          VARCHAR(128)                      COMMENT '同上语义',
+    `column_name`         VARCHAR(128)                      COMMENT '同上语义',
+    `accesses`            JSON NOT NULL                     COMMENT 'plugin 原生 access 列表',
+    `source_kinds`        JSON NOT NULL                     COMMENT '[{kind:ROLE/DIRECT, id:..}],该 perm 的来源',
+    INDEX `idx_user_version` (`user_id`, `version`),
+    INDEX `idx_user_time`    (`user_id`, `snapshot_time`)
+) ENGINE=InnoDB COMMENT='用户权限事实快照(Local 鉴权 + Ranger 同步对账双用,desired-fact,跟 Ranger apply 解耦)';
+

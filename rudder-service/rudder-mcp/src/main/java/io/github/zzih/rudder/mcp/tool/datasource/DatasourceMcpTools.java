@@ -19,11 +19,11 @@ package io.github.zzih.rudder.mcp.tool.datasource;
 
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.datasource.dto.DatasourceDTO;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
 import io.github.zzih.rudder.mcp.tool.McpCapability;
 import io.github.zzih.rudder.mcp.tool.WorkspaceGuard;
 import io.github.zzih.rudder.mcp.tool.datasource.dto.TestConnectionResultDTO;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
+import io.github.zzih.rudder.service.datasource.dto.DatasourceDTO;
 import io.github.zzih.rudder.service.metadata.MetadataService;
 
 import java.util.List;
@@ -95,7 +95,7 @@ public class DatasourceMcpTools {
             result.setOk(datasourceService.testConnection(dsId));
         } catch (Exception e) {
             result.setOk(false);
-            result.setError(e.getMessage() == null ? "" : e.getMessage());
+            result.setError(e.getLocalizedMessage() == null ? "" : e.getLocalizedMessage());
         }
         return result;
     }

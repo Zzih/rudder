@@ -49,6 +49,7 @@ public enum GlobalCacheKey {
     REDACTION(Defaults.CONFIG),
     DIALECT(Defaults.CONFIG),
     AUTH_SOURCE(Defaults.CONFIG),
+    DATA_PERM(Defaults.CONFIG),
 
     /** 多 entry:每个 (datasource, table, column) tag 一个 entry。 */
     METADATA_TAG(CacheSpec.local(Duration.ofMinutes(5), 10_000)),
@@ -80,7 +81,18 @@ public enum GlobalCacheKey {
             2000, // L1 maxSize
             Duration.ofMinutes(30), // L2 TTL
             true // single flight
-    ));
+    )),
+
+    /**
+     * Ranger service-def(accessTypes + resources hierarchy)。subKey = service-def name
+     * (hive / trino / starrocks / ...)。跨节点共享 + single flight,Ranger Admin 流量降到
+     * 1 次/30min/service-def。DataPermConfig 变更需主动 invalidate(URL/credential 可能改)。
+     */
+    RANGER_SERVICE_DEFS(CacheSpec.shared(
+            Duration.ofMinutes(5),
+            64,
+            Duration.ofMinutes(30),
+            true));
 
     private final CacheSpec spec;
 

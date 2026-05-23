@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
@@ -9,6 +9,7 @@ import { useAboutDialog } from '@/composables/useAboutDialog'
 import { setLocale } from '@/locales'
 import AboutDialog from '@/components/AboutDialog.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import { useDataPermEnabled } from '@/composables/useDataPermEnabled'
 import type { Role } from '@/stores/user'
 
 const { t, locale } = useI18n()
@@ -29,7 +30,12 @@ const inWorkspace = computed(() => workspaceId.value !== null)
 const workspaceName = computed(() => workspaceStore.currentWorkspace?.name ?? '')
 const username = computed(() => userStore.userInfo?.username ?? 'User')
 
-type NavKey = 'ide' | 'projects' | 'jobs' | 'files' | 'approvals' | 'mcp' | 'admin'
+const { enabled: dataPermEnabled, ensureLoaded } = useDataPermEnabled()
+onMounted(() => {
+  if (userStore.token) ensureLoaded()
+})
+
+type NavKey = 'ide' | 'projects' | 'jobs' | 'files' | 'approvals' | 'mcp' | 'data-perm' | 'admin'
 interface NavItem { key: NavKey; label: string; icon: string; target: string; requireRole: Role }
 
 const navItems = computed<NavItem[]>(() => {
@@ -41,8 +47,14 @@ const navItems = computed<NavItem[]>(() => {
       { key: 'projects', label: t('nav.projects'), icon: 'Folder', target: `${wsBase}/projects`, requireRole: 'VIEWER' },
       { key: 'jobs', label: t('nav.jobs'), icon: 'Cpu', target: `${wsBase}/jobs`, requireRole: 'DEVELOPER' },
       { key: 'files', label: t('nav.files'), icon: 'FolderOpened', target: `${wsBase}/files`, requireRole: 'VIEWER' },
-      { key: 'approvals', label: t('nav.approvals'), icon: 'Stamp', target: `${wsBase}/approvals`, requireRole: 'VIEWER' },
+    )
+    if (dataPermEnabled.value) {
+      items.push({ key: 'data-perm', label: t('nav.dataPerm'), icon: 'Lock',
+        target: `${wsBase}/data-perm/my`, requireRole: 'VIEWER' })
+    }
+    items.push(
       { key: 'mcp', label: t('nav.mcp'), icon: 'Connection', target: `${wsBase}/mcp`, requireRole: 'VIEWER' },
+      { key: 'approvals', label: t('nav.approvals'), icon: 'Stamp', target: `${wsBase}/approvals`, requireRole: 'VIEWER' },
     )
   }
   // admin tab 一直在:在 workspace 里走 ws-scoped 嵌套 URL,否则走顶层 /admin
@@ -61,6 +73,7 @@ const activeKey = computed(() => {
   if (match('files')) return 'files'
   if (match('approvals')) return 'approvals'
   if (match('mcp')) return 'mcp'
+  if (path.includes('/data-perm/')) return 'data-perm'
   return ''
 })
 

@@ -7,7 +7,8 @@
       <span class="bar-hint">{{ t('aiAdmin.dialects.hint') }}</span>
     </div>
 
-    <el-table :data="rows" v-loading="loading" size="small" stripe>
+    <div class="admin-card">
+    <el-table :data="rows" v-loading="loading">
       <el-table-column :label="t('aiAdmin.dialects.taskType')" width="180">
         <template #default="{ row }">
           <code class="task-type">{{ row.taskType }}</code>
@@ -34,6 +35,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
 
     <el-dialog v-model="editing" :title="editTitle" width="780" top="6vh">
       <div v-if="editForm" class="dialect-edit">
@@ -122,6 +124,8 @@ onMounted(load)
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/admin.scss';
+
 .task-type {
   font-family: var(--r-font-mono);
   font-size: var(--r-font-sm);

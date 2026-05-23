@@ -22,8 +22,13 @@ import io.github.zzih.rudder.common.exception.TaskException;
 import io.github.zzih.rudder.common.jdbc.JdbcConnections;
 import io.github.zzih.rudder.common.model.ColumnMeta;
 import io.github.zzih.rudder.common.param.Property;
+import io.github.zzih.rudder.common.sql.SqlAccessResolver;
 import io.github.zzih.rudder.common.sql.SqlDialect;
+import io.github.zzih.rudder.common.sql.TableAccess;
+import io.github.zzih.rudder.datasource.api.DatasourceTypeProvider;
+import io.github.zzih.rudder.datasource.api.DatasourceTypeProviderRegistry;
 import io.github.zzih.rudder.spi.api.context.DataSourceInfo;
+import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 import io.github.zzih.rudder.task.api.context.TaskExecutionContext;
 import io.github.zzih.rudder.task.api.params.SqlTaskParams;
 import io.github.zzih.rudder.task.api.parser.VarPoolFilter;
@@ -37,6 +42,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -55,11 +61,16 @@ import org.slf4j.LoggerFactory;
  *
  * <p>子类只需提供两个东西:
  * <ul>
- *   <li>{@link #dialect()} —— 给 SqlExecutor 的 dialect 提示("MYSQL" / "TRINO" / ...)</li>
+ *   <li>{@link #type()} —— 自身 DatasourceType,基类按此从静态 Registry 取 provider,
+ *       provider 接管 dialect 选择 / 流式 fetch 策略 / 列血缘解析</li>
  *   <li>可选 {@link #beforeMain(Statement)} —— Hive 用来跑 SET engineParams 之类</li>
  * </ul>
  */
-public abstract class AbstractJdbcSqlTask extends AbstractTask implements ResultableTask, DataSourceAwareTask {
+public abstract class AbstractJdbcSqlTask extends AbstractTask
+        implements
+            ResultableTask,
+            DataSourceAwareTask,
+            DataPermAwareTask {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractJdbcSqlTask.class);
 
@@ -81,12 +92,42 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
         this.params = params;
     }
 
-    /** 子类声明自身的 SQL 方言,用于 SqlExecutor 列血缘解析 + JDBC 流式 fetch 策略。 */
-    protected abstract SqlDialect dialect();
+    /** 子类声明自身的数据源类型。基类按此查 {@link DatasourceTypeProviderRegistry} 拿 provider。 */
+    protected abstract DatasourceType type();
+
+    /**
+     * 从静态 Registry 取 provider。第一次调用时 Spring 应已完成 Initializer 灌入;
+     * 未注册抛 {@link IllegalStateException} 暴露配置问题。子类一般不需要 override。
+     */
+    protected DatasourceTypeProvider<?> provider() {
+        return DatasourceTypeProviderRegistry.get(type());
+    }
 
     /** 子类可 override:在主 SQL 之前执行的钩子(Hive 跑 SET engineParams 等)。 */
     protected void beforeMain(Statement stmt) throws SQLException, TaskException {
         // 默认 no-op
+    }
+
+    /**
+     * 解析 pre / main / post 三段 sql 提取表级访问意图。dialect 取自 {@link #type()};
+     * 未识别 dialect 走默认 MYSQL lex,解析失败 fail-open 返当前已收集结果。
+     */
+    @Override
+    public List<TableAccess> resolveAccessIntent(TaskExecutionContext ctx) {
+        SqlDialect dialect = SqlDialect.of(type().name());
+        List<TableAccess> out = new ArrayList<>();
+        if (params.getPreStatements() != null) {
+            for (String s : params.getPreStatements()) {
+                out.addAll(SqlAccessResolver.resolve(s, dialect));
+            }
+        }
+        out.addAll(SqlAccessResolver.resolve(params.getSql(), dialect));
+        if (params.getPostStatements() != null) {
+            for (String s : params.getPostStatements()) {
+                out.addAll(SqlAccessResolver.resolve(s, dialect));
+            }
+        }
+        return out;
     }
 
     @Override
@@ -102,7 +143,7 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
     @Override
     public void init() throws TaskException {
         DataSourceInfo ds = effectiveDataSourceInfo();
-        log.info("Connecting to {} → {}", dialect(), ds.getJdbcUrl());
+        log.info("Connecting to {} → {}", type(), ds.getJdbcUrl());
         Properties props = new Properties();
         if (ds.getUsername() != null) {
             props.setProperty("user", ds.getUsername());
@@ -118,9 +159,9 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
             this.status = TaskStatus.RUNNING;
         } catch (SQLException e) {
             this.status = TaskStatus.FAILED;
-            log.error("{} connection failed: {}", dialect(), e.getMessage());
+            log.error("{} connection failed: {}", type(), e.getMessage());
             throw new TaskException(TaskErrorCode.TASK_INIT_FAILED,
-                    dialect() + " connection failed: " + e.getMessage());
+                    type() + " connection failed: " + e.getMessage());
         }
     }
 
@@ -147,7 +188,7 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
             // activeRegistrar 把当前 PreparedStatement 暴露给 cancel():用户取消时调 stmt.cancel()。
             java.util.Map<String, Property> paramMap = SqlPreprocessor.indexByProp(ctx.getPrepareParams());
             SqlExecutor.executePrepared(connection, params.getSql(), paramMap, params.getQueryLimit(),
-                    ctx.getTimeoutSeconds(), dialect(), null, resultSink,
+                    ctx.getTimeoutSeconds(), provider(), null, resultSink,
                     s -> this.currentStatement = s);
 
             runStatements(params.getPostStatements(), "Post");
@@ -180,14 +221,14 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
 
     @Override
     public void cancel() throws TaskException {
-        log.info("Cancelling {} task", dialect());
+        log.info("Cancelling {} task", type());
         this.status = TaskStatus.CANCELLED;
         try {
             if (currentStatement != null && !currentStatement.isClosed()) {
                 currentStatement.cancel();
             }
         } catch (SQLException e) {
-            log.error("Failed to cancel {} statement: {}", dialect(), e.getMessage());
+            log.error("Failed to cancel {} statement: {}", type(), e.getMessage());
             throw new TaskException(TaskErrorCode.TASK_CANCEL_FAILED, e.getMessage());
         }
     }
@@ -241,7 +282,7 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
         for (String sql : statements) {
             log.info("{}  → {}", tag, sql);
             try (Statement stmt = connection.createStatement()) {
-                SqlExecutor.execute(stmt, sql, params.getQueryLimit(), dialect(), null, false, null);
+                SqlExecutor.execute(stmt, sql, params.getQueryLimit(), provider(), null, false, null);
             }
         }
     }
@@ -250,7 +291,7 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask implements Result
         DataSourceInfo ds = dataSourceInfo != null ? dataSourceInfo : ctx.getDataSourceInfo();
         if (ds == null) {
             throw new TaskException(TaskErrorCode.TASK_INIT_FAILED,
-                    "No DataSourceInfo for " + dialect() + " task");
+                    "No DataSourceInfo for " + type() + " task");
         }
         return ds;
     }

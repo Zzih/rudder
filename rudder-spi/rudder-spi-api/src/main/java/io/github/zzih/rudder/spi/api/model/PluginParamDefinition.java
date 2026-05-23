@@ -20,9 +20,18 @@ package io.github.zzih.rudder.spi.api.model;
 import lombok.Builder;
 import lombok.Data;
 
+/**
+ * 通用 plugin 配置字段元数据,各 SPI 的 {@code params()} 返回此列表,前端据此动态渲染表单。
+ *
+ * <p>{@link #type} 取 {@code input / password / number / boolean / textarea / select} 之一,
+ * 或特殊值 {@link #TYPE_RAW_JSON}:整段 freeform JSON,字段 value 即为最终序列化进 DB 的 plugin params,
+ * 不嵌套到 {name: value} map。仅允许 {@code params()} 返回单 entry 时使用,提交时 value 直送。
+ */
 @Data
 @Builder
 public class PluginParamDefinition {
+
+    public static final String TYPE_RAW_JSON = "rawJson";
 
     private String name;
     private String label;

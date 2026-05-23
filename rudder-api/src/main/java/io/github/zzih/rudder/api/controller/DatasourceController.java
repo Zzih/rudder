@@ -19,6 +19,7 @@ package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.request.DatasourceCreateRequest;
 import io.github.zzih.rudder.api.response.DatasourceResponse;
+import io.github.zzih.rudder.api.response.DatasourceTypeResponse;
 import io.github.zzih.rudder.api.response.DatasourceWorkspaceGrantResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
@@ -31,17 +32,17 @@ import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.WorkspaceDao;
-import io.github.zzih.rudder.dao.entity.DatasourcePermission;
-import io.github.zzih.rudder.dao.entity.Workspace;
-import io.github.zzih.rudder.datasource.dto.DatasourceDTO;
-import io.github.zzih.rudder.datasource.model.DataSourceCredentials;
-import io.github.zzih.rudder.datasource.service.DatasourcePermissionService;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
+import io.github.zzih.rudder.datasource.api.DatasourceTypeProviderRegistry;
 import io.github.zzih.rudder.metadata.api.model.ColumnMeta;
 import io.github.zzih.rudder.metadata.api.model.TableMeta;
 import io.github.zzih.rudder.metadata.api.model.TableSearchResult;
+import io.github.zzih.rudder.service.datasource.DatasourcePermissionService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
+import io.github.zzih.rudder.service.datasource.dto.DatasourceDTO;
+import io.github.zzih.rudder.service.datasource.model.DataSourceCredentials;
 import io.github.zzih.rudder.service.metadata.MetadataService;
+import io.github.zzih.rudder.service.workspace.WorkspaceService;
+import io.github.zzih.rudder.service.workspace.dto.WorkspaceDTO;
 
 import java.util.HashSet;
 import java.util.List;
@@ -68,7 +69,7 @@ public class DatasourceController {
     private final DatasourceService datasourceService;
     private final MetadataService metadataService;
     private final DatasourcePermissionService permissionService;
-    private final WorkspaceDao workspaceDao;
+    private final WorkspaceService workspaceService;
 
     @PostMapping
     @RequireSuperAdmin
@@ -86,6 +87,25 @@ public class DatasourceController {
     public Result<List<DatasourceResponse>> listAll() {
         return Result.ok(BeanConvertUtils.convertList(
                 datasourceService.listAllDetail(), DatasourceResponse.class));
+    }
+
+    /**
+     * 列出所有数据源类型 + 各自的字段元数据。前端 datasource 编辑表单据此动态渲染:
+     * 不同 DB(MySQL useSSL / Hive principal+keytabPath / Trino accessToken / ...)对应不同字段。
+     * 元数据来自 {@code DatasourceTypeProvider.params()},由 plugin 自家声明。
+     */
+    @GetMapping("/types")
+    @RequireViewer
+    public Result<List<DatasourceTypeResponse>> listTypes() {
+        List<DatasourceTypeResponse> types = DatasourceTypeProviderRegistry.snapshot().values().stream()
+                .map(p -> new DatasourceTypeResponse(
+                        p.dbType().name(),
+                        p.isHasCatalog(),
+                        p.getValidationQuery(),
+                        p.params()))
+                .sorted((a, b) -> a.getType().compareTo(b.getType()))
+                .toList();
+        return Result.ok(types);
     }
 
     @GetMapping("/{id}")
@@ -207,13 +227,7 @@ public class DatasourceController {
     public Result<List<DatasourceWorkspaceGrantResponse>> listGrants(@PathVariable Long id) {
         // 触发存在性校验
         datasourceService.getByIdDetail(id);
-        List<Long> wsIds = permissionService.listByDatasource(id).stream()
-                .map(DatasourcePermission::getWorkspaceId)
-                .toList();
-        if (wsIds.isEmpty()) {
-            return Result.ok(List.of());
-        }
-        List<Workspace> wss = workspaceDao.selectByIds(wsIds);
+        List<WorkspaceDTO> wss = workspaceService.listByIds(permissionService.listGrantedWorkspaceIds(id));
         return Result.ok(wss.stream()
                 .map(w -> new DatasourceWorkspaceGrantResponse(w.getId(), w.getName()))
                 .toList());

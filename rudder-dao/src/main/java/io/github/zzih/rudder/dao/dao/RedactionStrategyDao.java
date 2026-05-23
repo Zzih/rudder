@@ -21,11 +21,15 @@ import io.github.zzih.rudder.dao.entity.RedactionStrategyEntity;
 
 import java.util.List;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+
 public interface RedactionStrategyDao {
 
     List<RedactionStrategyEntity> selectAllEnabled();
 
     List<RedactionStrategyEntity> selectAll();
+
+    IPage<RedactionStrategyEntity> selectPage(int pageNum, int pageSize);
 
     RedactionStrategyEntity selectById(Long id);
 

@@ -63,7 +63,7 @@ public class WorkflowInstanceService {
         log.info("创建工作流实例, workflowDefinitionCode={}, triggerType={}", workflowDefinitionCode, triggerType);
         WorkflowDefinition workflow = workflowDefinitionDao.selectByCode(workflowDefinitionCode);
         if (workflow == null) {
-            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND);
+            throw new NotFoundException(WorkflowErrorCode.WF_NOT_FOUND, workflowDefinitionCode);
         }
 
         if (workflow.getDagJson() == null || workflow.getDagJson().isBlank()) {

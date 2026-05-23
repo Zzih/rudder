@@ -28,7 +28,7 @@ import io.github.zzih.rudder.dao.entity.AiContextProfile;
 import io.github.zzih.rudder.dao.entity.AiSession;
 import io.github.zzih.rudder.dao.entity.Datasource;
 import io.github.zzih.rudder.dao.entity.Script;
-import io.github.zzih.rudder.datasource.service.DatasourceService;
+import io.github.zzih.rudder.service.datasource.DatasourceService;
 import io.github.zzih.rudder.service.script.ScriptService;
 import io.github.zzih.rudder.task.api.task.enums.TaskType;
 

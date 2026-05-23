@@ -64,8 +64,8 @@ export function listAllCapabilities() {
   return request.get<CapabilityItem[]>('/mcp/capabilities')
 }
 
-export function listMyTokens() {
-  return request.get<TokenSummary[]>('/mcp/tokens')
+export function listMyTokens(params?: { search?: string; pageNum?: number; pageSize?: number }) {
+  return request.get('/mcp/tokens', { params })
 }
 
 export function getToken(id: number) {

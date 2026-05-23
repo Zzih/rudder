@@ -24,11 +24,14 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 @Mapper
 public interface RedactionStrategyMapper extends BaseMapper<RedactionStrategyEntity> {
 
     List<RedactionStrategyEntity> queryAllEnabled();
+
+    IPage<RedactionStrategyEntity> queryPage(IPage<RedactionStrategyEntity> page);
 
     RedactionStrategyEntity queryByCode(String code);
 }

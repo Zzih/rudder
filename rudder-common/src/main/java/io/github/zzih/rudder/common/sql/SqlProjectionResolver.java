@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.apache.calcite.config.Lex;
 import org.apache.calcite.sql.SqlBasicCall;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlIdentifier;
@@ -78,18 +77,13 @@ public final class SqlProjectionResolver {
             trimmed = trimmed.substring(0, trimmed.length() - 1).strip();
         }
         try {
-            SqlParser parser = SqlParser.create(trimmed, parserConfig(dialect));
+            SqlParser parser = SqlParser.create(trimmed, RudderSqlParser.babelConfig(dialect));
             SqlNode root = parser.parseQuery();
             return resolveQuery(root, Collections.emptyMap());
         } catch (Exception e) {
             log.debug("SQL projection resolve failed ({}): {}", e.getClass().getSimpleName(), e.getMessage());
             return Collections.emptyList();
         }
-    }
-
-    private static SqlParser.Config parserConfig(SqlDialect dialect) {
-        Lex lex = dialect != null ? dialect.lex() : Lex.MYSQL;
-        return SqlParser.config().withLex(lex).withQuoting(lex.quoting).withCaseSensitive(false);
     }
 
     // ==================== 递归解析 ====================

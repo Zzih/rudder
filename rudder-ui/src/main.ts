@@ -13,7 +13,7 @@ import {
   Link, Loading, Lock, MagicStick, Monitor, Moon, MoreFilled, OfficeBuilding,
   Plus, Promotion, Rank, Refresh, Right, Search, SetUp, Setting, Share, Stamp,
   Star, Sunny, SwitchButton, Timer, Tools, Upload, User, VideoPause,
-  VideoPlay, ZoomIn, ZoomOut,
+  VideoPlay, View, ZoomIn, ZoomOut,
 } from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
@@ -33,7 +33,7 @@ const icons = {
   Link, Loading, Lock, MagicStick, Monitor, Moon, MoreFilled, OfficeBuilding,
   Plus, Promotion, Rank, Refresh, Right, Search, SetUp, Setting, Share, Stamp,
   Star, Sunny, SwitchButton, Timer, Tools, Upload, User, VideoPause,
-  VideoPlay, ZoomIn, ZoomOut,
+  VideoPlay, View, ZoomIn, ZoomOut,
 }
 for (const [key, component] of Object.entries(icons)) {
   app.component(key, component)

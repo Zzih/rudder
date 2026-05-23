@@ -17,6 +17,7 @@
 
 package io.github.zzih.rudder.service.redaction;
 
+import io.github.zzih.rudder.common.enums.redaction.RedactionRuleType;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.dao.dao.RedactionRuleDao;
 import io.github.zzih.rudder.dao.dao.RedactionStrategyDao;
@@ -28,6 +29,8 @@ import io.github.zzih.rudder.service.redaction.dto.RedactionStrategyDTO;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import lombok.RequiredArgsConstructor;
 
@@ -130,6 +133,10 @@ public class RedactionAdminService {
         return BeanConvertUtils.convertList(listRules(), RedactionRuleDTO.class);
     }
 
+    public IPage<RedactionRuleDTO> pageRulesDetail(RedactionRuleType type, int pageNum, int pageSize) {
+        return BeanConvertUtils.convertPage(ruleDao.selectPage(type, pageNum, pageSize), RedactionRuleDTO.class);
+    }
+
     public RedactionRuleDTO createRuleDetail(RedactionRuleDTO body) {
         return BeanConvertUtils.convert(
                 createRule(BeanConvertUtils.convert(body, RedactionRuleEntity.class)),
@@ -142,6 +149,14 @@ public class RedactionAdminService {
 
     public List<RedactionStrategyDTO> listStrategiesDetail() {
         return BeanConvertUtils.convertList(listStrategies(), RedactionStrategyDTO.class);
+    }
+
+    public IPage<RedactionStrategyDTO> pageStrategiesDetail(int pageNum, int pageSize) {
+        return BeanConvertUtils.convertPage(strategyDao.selectPage(pageNum, pageSize), RedactionStrategyDTO.class);
+    }
+
+    public List<RedactionStrategyDTO> listEnabledStrategiesDetail() {
+        return BeanConvertUtils.convertList(strategyDao.selectAllEnabled(), RedactionStrategyDTO.class);
     }
 
     public RedactionStrategyDTO createStrategyDetail(RedactionStrategyDTO body) {

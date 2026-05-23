@@ -73,6 +73,16 @@ public final class BeanConvertUtils {
         return JsonUtils.convertValue(source, targetClass);
     }
 
+    /** 列表版本的 {@link #convertViaJson}。空源返 immutable 空 list。 */
+    public static <T> List<T> convertListViaJson(List<?> sourceList, Class<T> targetClass) {
+        if (sourceList == null || sourceList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return sourceList.stream()
+                .map(s -> JsonUtils.convertValue(s, targetClass))
+                .toList();
+    }
+
     /**
      * MyBatis-Plus 分页转换。
      */

@@ -37,6 +37,7 @@ import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.entity.ApprovalDecision;
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
 import io.github.zzih.rudder.dao.entity.User;
+import io.github.zzih.rudder.dao.entity.view.ApprovalRecordDetailView;
 import io.github.zzih.rudder.notification.api.model.ApprovalApprovedMessage;
 import io.github.zzih.rudder.notification.api.model.ApprovalRejectedMessage;
 import io.github.zzih.rudder.notification.api.model.ApprovalSubmittedMessage;
@@ -44,6 +45,7 @@ import io.github.zzih.rudder.notification.api.model.NotificationLevel;
 import io.github.zzih.rudder.notification.api.model.NotificationMessage;
 import io.github.zzih.rudder.notification.api.model.UserRef;
 import io.github.zzih.rudder.service.approval.event.ApprovalFinalizedEvent;
+import io.github.zzih.rudder.service.approval.integration.ApprovalIntegrationDispatcher;
 import io.github.zzih.rudder.service.config.ApprovalConfigService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.workflow.approver.ApproverResolver;
@@ -59,7 +61,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,7 +93,7 @@ public class ApprovalService {
     private final NotificationService notificationService;
     private final ApprovalStageFlowRegistry stageFlowRegistry;
     private final ApproverResolverRegistry approverResolverRegistry;
-    private final ApplicationEventPublisher eventPublisher;
+    private final ApprovalIntegrationDispatcher integrationDispatcher;
 
     /**
      * 提交审批。流程：
@@ -124,7 +125,7 @@ public class ApprovalService {
         if (stageChain == null || stageChain.isEmpty()) {
             throw new IllegalStateException("Empty stage chain for resourceType=" + resourceType);
         }
-        record.setStageChain(JsonUtils.toJson(stageChain));
+        record.setStageChain(stageChain);
         record.setCurrentStage(stageChain.get(0));
 
         // 算各阶段候选人 user_id + 申请人 user_id 合并去重 → 一次 selectByIds 拿全部 User
@@ -162,6 +163,9 @@ public class ApprovalService {
         String externalId = approvalConfigService.required().submitApproval(request);
         record.setChannel(channel);
         record.setExternalApprovalId(externalId);
+        if (request.getExtra() != null && !request.getExtra().isEmpty()) {
+            record.setExtData(JsonUtils.toJson(request.getExtra()));
+        }
 
         approvalRecordDao.insert(record);
         log.info("Approval submitted: id={}, resourceType={}, resourceCode={}, stageChain={}, channel={}, "
@@ -190,7 +194,8 @@ public class ApprovalService {
     }
 
     public ApprovalRecordDTO getById(Long id) {
-        return BeanConvertUtils.convert(approvalRecordDao.selectById(id), ApprovalRecordDTO.class);
+        ApprovalRecordDetailView view = approvalRecordDao.selectDetailById(id);
+        return BeanConvertUtils.convert(view, ApprovalRecordDTO.class);
     }
 
     /**
@@ -224,7 +229,7 @@ public class ApprovalService {
             return; // 等下一个 APPROVE
         }
 
-        List<String> chain = record.parseStageChainList();
+        List<String> chain = record.getStageChain();
         int idx = chain.indexOf(stage);
         if (idx < 0 || idx == chain.size() - 1) {
             finalize(record, ApprovalStatus.APPROVED);
@@ -317,6 +322,9 @@ public class ApprovalService {
     private void assertCandidate(ApprovalRecord record, String stage, Long userId) {
         if (userId == null) {
             throw new AuthException(ApprovalErrorCode.APPROVAL_PERMISSION_DENIED);
+        }
+        if (UserContext.isSuperAdmin()) {
+            return;
         }
         List<Long> candidates = approverResolverRegistry.require(stage).resolveCandidateUserIds(record);
         if (!candidates.contains(userId)) {
@@ -440,13 +448,10 @@ public class ApprovalService {
         }
     }
 
-    /**
-     * 终态时发布事件 — 让 MCP / 项目发布 / 工作流发布等模块订阅审批结果做相应动作。
-     * 吞异常以保证主事务不被消费者拖累。
-     */
+    /** 终态分发到 {@link ApprovalIntegrationDispatcher};吞异常以免主事务受集成层异常影响。 */
     private void publishFinalized(ApprovalRecord record, String finalStatus, Long deciderUserId) {
         try {
-            eventPublisher.publishEvent(new ApprovalFinalizedEvent(
+            integrationDispatcher.dispatch(new ApprovalFinalizedEvent(
                     record.getId(),
                     record.getResourceType(),
                     record.getResourceCode(),
@@ -454,7 +459,7 @@ public class ApprovalService {
                     record.getWorkspaceId(),
                     deciderUserId));
         } catch (Exception e) {
-            log.warn("Failed to publish ApprovalFinalizedEvent (id={}, status={}): {}",
+            log.warn("Failed to dispatch ApprovalFinalized (id={}, status={}): {}",
                     record.getId(), finalStatus, e.getMessage());
         }
     }

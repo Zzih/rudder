@@ -21,6 +21,7 @@ import io.github.zzih.rudder.common.enums.approval.ApprovalStatus;
 import io.github.zzih.rudder.common.enums.approval.DecisionRule;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.Data;
 
@@ -38,8 +39,7 @@ public class ApprovalRecordDTO {
     private String description;
     private String submitRemark;
     private ApprovalStatus status;
-    /** JSON 数组字符串：阶段链 */
-    private String stageChain;
+    private List<String> stageChain;
     private String currentStage;
     private DecisionRule decisionRule;
     private Integer requiredCount;
@@ -48,6 +48,8 @@ public class ApprovalRecordDTO {
     private LocalDateTime withdrawnAt;
     private String withdrawnReason;
     private Long createdBy;
+    private String createdByUsername;
+    private String workspaceName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -63,7 +63,7 @@ public class ScriptService {
     public Script getByCode(Long code) {
         Script script = scriptDao.selectByCode(code);
         if (script == null) {
-            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND);
+            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND, code);
         }
         return script;
     }
@@ -71,7 +71,7 @@ public class ScriptService {
     public Script getByCode(Long workspaceId, Long code) {
         Script script = scriptDao.selectByWorkspaceIdAndCode(workspaceId, code);
         if (script == null) {
-            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND);
+            throw new NotFoundException(ScriptErrorCode.SCRIPT_NOT_FOUND, code);
         }
         return script;
     }

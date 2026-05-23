@@ -41,6 +41,7 @@ import io.github.zzih.rudder.api.response.AiToolConfigResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.common.enums.ai.SkillCategory;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.llm.api.skill.SkillDefinition;
@@ -59,8 +60,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -93,10 +92,9 @@ public class AiAdminController {
 
     @GetMapping("/mcp/servers")
     @RequireSuperAdmin
-    public Result<IPage<AiMcpServerResponse>> listMcp(@RequestParam(defaultValue = "1") int pageNum,
-                                                      @RequestParam(defaultValue = "20") int pageSize) {
-        return Result.ok(BeanConvertUtils.convertPage(
-                mcpManager.pageDetail(pageNum, pageSize), AiMcpServerResponse.class));
+    public PageResult<AiMcpServerResponse> listMcp(@RequestParam(defaultValue = "1") int pageNum,
+                                                   @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(mcpManager.pageDetail(pageNum, pageSize), AiMcpServerResponse.class);
     }
 
     @PostMapping("/mcp/servers")
@@ -153,10 +151,9 @@ public class AiAdminController {
 
     @GetMapping("/admin/tool-configs")
     @RequireSuperAdmin
-    public Result<IPage<AiToolConfigResponse>> listToolConfigs(@RequestParam(defaultValue = "1") int pageNum,
-                                                               @RequestParam(defaultValue = "20") int pageSize) {
-        return Result.ok(BeanConvertUtils.convertPage(
-                toolConfigService.pageAllDetail(pageNum, pageSize), AiToolConfigResponse.class));
+    public PageResult<AiToolConfigResponse> listToolConfigs(@RequestParam(defaultValue = "1") int pageNum,
+                                                            @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(toolConfigService.pageAllDetail(pageNum, pageSize), AiToolConfigResponse.class);
     }
 
     @PostMapping("/admin/tool-configs")
@@ -218,11 +215,10 @@ public class AiAdminController {
 
     @GetMapping("/metadata-sync")
     @RequireSuperAdmin
-    public Result<IPage<AiMetadataSyncConfigResponse>> listMetadataSync(
-                                                                        @RequestParam(defaultValue = "1") int pageNum,
-                                                                        @RequestParam(defaultValue = "20") int pageSize) {
-        return Result.ok(BeanConvertUtils.convertPage(
-                metadataSyncService.pageDetail(pageNum, pageSize), AiMetadataSyncConfigResponse.class));
+    public PageResult<AiMetadataSyncConfigResponse> listMetadataSync(
+                                                                     @RequestParam(defaultValue = "1") int pageNum,
+                                                                     @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(metadataSyncService.pageDetail(pageNum, pageSize), AiMetadataSyncConfigResponse.class);
     }
 
     @GetMapping("/metadata-sync/by-datasource/{datasourceId}")
@@ -276,10 +272,9 @@ public class AiAdminController {
 
     @GetMapping("/skills/admin")
     @RequireSuperAdmin
-    public Result<IPage<AiSkillResponse>> listSkillsAdmin(@RequestParam(defaultValue = "1") int pageNum,
-                                                          @RequestParam(defaultValue = "20") int pageSize) {
-        return Result.ok(BeanConvertUtils.convertPage(
-                skillRegistry.pageAdminDetail(pageNum, pageSize), AiSkillResponse.class));
+    public PageResult<AiSkillResponse> listSkillsAdmin(@RequestParam(defaultValue = "1") int pageNum,
+                                                       @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(skillRegistry.pageAdminDetail(pageNum, pageSize), AiSkillResponse.class);
     }
 
     @PostMapping("/skills")

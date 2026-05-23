@@ -176,7 +176,7 @@ const maskedToken = computed(() => {
 <template>
   <el-dialog
     v-model="visible"
-    width="640px"
+    width="720px"
     :close-on-click-modal="false"
     :show-close="false"
     :before-close="(_done) => close()"
@@ -722,10 +722,10 @@ const maskedToken = computed(() => {
   align-items: flex-start !important;
   width: 100%;
   height: auto !important;
-  padding: 10px 12px;
+  padding: 8px var(--r-space-3);
   margin: 0 !important;
   border: 1px solid var(--r-border-light);
-  border-radius: var(--r-radius-md);
+  border-radius: var(--r-radius-sm);
   background: var(--r-bg-card);
   transition: background 0.15s, border-color 0.15s;
 
@@ -773,7 +773,7 @@ const maskedToken = computed(() => {
   }
 
   &__desc {
-    font-size: var(--r-font-xs);
+    font-size: var(--r-font-sm);
     color: var(--r-text-tertiary);
     line-height: var(--r-leading-snug);
     white-space: normal;
