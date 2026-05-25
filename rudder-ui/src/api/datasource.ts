@@ -91,6 +91,34 @@ export function listMetaColumns(workspaceId: number | undefined, datasourceId: n
   )
 }
 
+// 分页 + keyword 版本(给 dropdown remote search 用,避免 10K+ catalog 一次性拉爆前端)
+// 返回 PageResult: { data: items[], total: 过滤后总数, pageNum: 1, pageSize: limit }
+// 注:与下方旧 searchMetaTables(全文跨表搜索)语义不同 — 这组只在单层级内做 paged search,故加 Options 后缀
+
+export function searchMetaCatalogOptions(workspaceId: number | undefined, datasourceId: number,
+  params?: { keyword?: string; limit?: number }) {
+  return request.get(`/datasources/${datasourceId}/meta/catalogs/search`,
+    { params: { workspaceId, ...params } })
+}
+
+export function searchMetaDatabaseOptions(workspaceId: number | undefined, datasourceId: number,
+  params?: { catalog?: string | null; keyword?: string; limit?: number }) {
+  return request.get(`/datasources/${datasourceId}/meta/databases/search`,
+    { params: { workspaceId, ...params, catalog: params?.catalog || undefined } })
+}
+
+export function searchMetaTableOptions(workspaceId: number | undefined, datasourceId: number, database: string,
+  params?: { catalog?: string | null; keyword?: string; limit?: number }) {
+  return request.get(`/datasources/${datasourceId}/meta/databases/${database}/tables/search`,
+    { params: { workspaceId, ...params, catalog: params?.catalog || undefined } })
+}
+
+export function searchMetaColumnOptions(workspaceId: number | undefined, datasourceId: number, database: string,
+  table: string, params?: { catalog?: string | null; keyword?: string; limit?: number }) {
+  return request.get(`/datasources/${datasourceId}/meta/databases/${database}/tables/${table}/columns/search`,
+    { params: { workspaceId, ...params, catalog: params?.catalog || undefined } })
+}
+
 export function refreshMetaCache(workspaceId: number, datasourceId: number) {
   return request.delete(`/datasources/${datasourceId}/meta/cache`, { params: { workspaceId } })
 }

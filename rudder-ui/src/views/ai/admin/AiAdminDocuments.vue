@@ -236,11 +236,13 @@
               :selected="includeCatalogsList"
               :options="catalogOptions"
               :loading="loadingCatalogs"
+              :remote-method="remoteSearchCatalogs"
+              :total="catalogTotal"
               @update:selected="setIncludeCatalogs"
             />
           </div>
 
-          <!-- Database 层 -->
+          <!-- Database 层:3 层引擎下必须先勾 catalog 才出 db 候选 -->
           <div class="scope-row">
             <ScopeSelector
               :label="t('aiAdmin.metaSync.scopeDatabases')"
@@ -251,12 +253,14 @@
               :selected="includeDatabasesList"
               :options="databaseOptions"
               :loading="loadingDatabases"
-              :disabled="!syncForm.datasourceId"
+              :disabled="!syncForm.datasourceId || (scopeHasCatalog && includeCatalogsList.length === 0)"
+              :remote-method="remoteSearchDatabases"
+              :total="databaseTotal"
               @update:selected="setIncludeDatabases"
             />
           </div>
 
-          <!-- Table 层 -->
+          <!-- Table 层:必须先勾 database -->
           <div class="scope-row">
             <ScopeSelector
               :label="t('aiAdmin.metaSync.scopeTables')"
@@ -265,7 +269,9 @@
               :selected="includeTablesList"
               :options="tableOptions"
               :loading="loadingTables"
-              :disabled="!syncForm.datasourceId"
+              :disabled="!syncForm.datasourceId || includeDatabasesList.length === 0"
+              :remote-method="remoteSearchTables"
+              :total="tableTotal"
               @update:selected="setIncludeTables"
             />
           </div>
@@ -311,7 +317,7 @@ import { Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminDocuments, adminMetadataSync, type AiDocumentVO, type RetrievedChunkVO,
   type AiMetadataSyncConfigVO } from '@/api/ai'
-import { listDatasources, listMetaCatalogs, listMetaDatabases, listMetaTables } from '@/api/datasource'
+import { listDatasources, searchMetaCatalogOptions, searchMetaDatabaseOptions, searchMetaTableOptions } from '@/api/datasource'
 import { listWorkspaces } from '@/api/workspace'
 import { usePagination } from '@/composables/usePagination'
 import CronEditor from '@/components/CronEditor.vue'
@@ -399,15 +405,15 @@ const excludeKeywordsText = computed<string>({
 function setIncludeCatalogs(v: string[]) {
   writeJsonArray('includeCatalogs', v)
   // 清掉下游选择:catalog 变了,原来的 db/table 限定名可能不再有效
+  // refreshDatabaseOptions / refreshTableOptions 不在这里显式调,由
+  // watch(includeCatalogsList / includeDatabasesList) 统一触发 — 否则双重 refresh
   writeJsonArray('includeDatabases', [])
   writeJsonArray('includeTables', [])
-  void refreshDatabaseOptions()
-  void refreshTableOptions()
 }
 function setIncludeDatabases(v: string[]) {
   writeJsonArray('includeDatabases', v)
+  // refresh 由 watch(includeDatabasesList) 单一触发
   writeJsonArray('includeTables', [])
-  void refreshTableOptions()
 }
 function setIncludeTables(v: string[]) {
   writeJsonArray('includeTables', v)
@@ -421,76 +427,118 @@ const scopeHasCatalog = computed(() => {
   return ds ? THREE_TIER_TYPES.has(ds.datasourceType) : false
 })
 
+// dropdown 单次返回上限 — 给后端 search API 用,跟 PermissionItemEditor 对齐
+const DROPDOWN_LIMIT = 100
+
 const catalogOptions = ref<string[]>([])
 const databaseOptions = ref<string[]>([])
 const tableOptions = ref<string[]>([])
 const loadingCatalogs = ref(false)
 const loadingDatabases = ref(false)
 const loadingTables = ref(false)
+// filter 后的总数 — 给 ScopeSelector 显示底部 hint
+const catalogTotal = ref(0)
+const databaseTotal = ref(0)
+const tableTotal = ref(0)
 
-async function refreshCatalogOptions() {
+/** 简易 debounce:300ms 内重复触发只跑最后一次 — 给 el-select :remote-method 用。 */
+function debounced<T extends (...args: any[]) => void>(fn: T, ms = 300): T {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return ((...args: any[]) => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => fn(...args), ms)
+  }) as T
+}
+
+async function refreshCatalogOptions(keyword = '') {
   if (!syncForm.datasourceId || !scopeHasCatalog.value) {
     catalogOptions.value = []
+    catalogTotal.value = 0
     return
   }
   loadingCatalogs.value = true
   try {
-    const { data } = await listMetaCatalogs(undefined, syncForm.datasourceId)
-    catalogOptions.value = data ?? []
-  } catch { catalogOptions.value = [] } finally { loadingCatalogs.value = false }
+    const res: any = await searchMetaCatalogOptions(undefined, syncForm.datasourceId,
+      { keyword, limit: DROPDOWN_LIMIT })
+    catalogOptions.value = (res?.data as string[]) ?? []
+    catalogTotal.value = (res?.total as number) ?? 0
+  } catch { catalogOptions.value = []; catalogTotal.value = 0 } finally { loadingCatalogs.value = false }
 }
 
-async function refreshDatabaseOptions() {
+async function refreshDatabaseOptions(keyword = '') {
   if (!syncForm.datasourceId) {
     databaseOptions.value = []
+    databaseTotal.value = 0
     return
   }
   loadingDatabases.value = true
   try {
     if (!scopeHasCatalog.value) {
-      const { data } = await listMetaDatabases(undefined, syncForm.datasourceId, null)
-      databaseOptions.value = data ?? []
+      // 2 层:直接拉 db search
+      const res: any = await searchMetaDatabaseOptions(undefined, syncForm.datasourceId,
+        { catalog: null, keyword, limit: DROPDOWN_LIMIT })
+      databaseOptions.value = (res?.data as string[]) ?? []
+      databaseTotal.value = (res?.total as number) ?? 0
     } else {
-      // 3 层:要么遍历已选 catalog 拉 db,要么全部 catalog 拉
-      const cats = includeCatalogsList.value.length ? includeCatalogsList.value : catalogOptions.value
-      const all: string[] = []
-      const results = await Promise.all(
-        cats.map(c => listMetaDatabases(undefined, syncForm.datasourceId!, c).then(r => ({ c, list: r.data ?? [] })).catch(() => ({ c, list: [] }))),
-      )
+      // 3 层:遍历用户实际勾选的 catalog 并发 search;不再 fallback 到全部 catalog
+      // (旧行为遍历 catalogOptions.value,10K catalog 时炸)。用户没勾就直接返空,等用户先选 catalog
+      const cats = includeCatalogsList.value
+      if (!cats.length) { databaseOptions.value = []; databaseTotal.value = 0; return }
+      const tasks = cats.map(c => searchMetaDatabaseOptions(undefined, syncForm.datasourceId!,
+        { catalog: c, keyword, limit: DROPDOWN_LIMIT })
+        .then(r => ({ c, list: (r as any)?.data as string[] ?? [] }))
+        .catch(() => ({ c, list: [] as string[] })))
+      const results = await Promise.all(tasks)
+      const all = new Set<string>()
       for (const { c, list } of results) {
-        for (const db of list) all.push(`${c}.${db}`)
+        for (const db of list) all.add(`${c}.${db}`)
       }
-      databaseOptions.value = Array.from(new Set(all)).sort()
+      // 用合并去重后的本地 unique count 作 total — 跨 catalog 后端无法给精确全集 dedup total,
+      // sum-of-per-catalog 会重复计数(同名 db)导致 hint 数字虚高
+      const merged = Array.from(all).sort()
+      databaseOptions.value = merged.slice(0, DROPDOWN_LIMIT)
+      databaseTotal.value = merged.length
     }
-  } catch { databaseOptions.value = [] } finally { loadingDatabases.value = false }
+  } catch { databaseOptions.value = []; databaseTotal.value = 0 } finally { loadingDatabases.value = false }
 }
 
-async function refreshTableOptions() {
+async function refreshTableOptions(keyword = '') {
   if (!syncForm.datasourceId) {
     tableOptions.value = []
+    tableTotal.value = 0
     return
   }
   const dbs = includeDatabasesList.value
   if (!dbs.length) {
     tableOptions.value = []
+    tableTotal.value = 0
     return
   }
   loadingTables.value = true
   try {
-    const all: string[] = []
     const tasks = dbs.map(qualifiedDb => {
       const { catalog, db } = parseQualifiedDb(qualifiedDb)
-      return listMetaTables(undefined, syncForm.datasourceId!, db, catalog)
-        .then(r => ({ qualifiedDb, tables: r.data ?? [] }))
-        .catch(() => ({ qualifiedDb, tables: [] }))
+      return searchMetaTableOptions(undefined, syncForm.datasourceId!, db,
+        { catalog, keyword, limit: DROPDOWN_LIMIT })
+        .then(r => ({ qualifiedDb, tables: (r as any)?.data as Array<{ name: string }> ?? [] }))
+        .catch(() => ({ qualifiedDb, tables: [] as Array<{ name: string }> }))
     })
     const results = await Promise.all(tasks)
+    const all = new Set<string>()
     for (const { qualifiedDb, tables } of results) {
-      for (const t of tables) all.push(`${qualifiedDb}.${t.name}`)
+      for (const t of tables) all.add(`${qualifiedDb}.${t.name}`)
     }
-    tableOptions.value = Array.from(new Set(all)).sort()
-  } catch { tableOptions.value = [] } finally { loadingTables.value = false }
+    // 跨 db 合并去重后的本地 unique count;sum-of-per-db total 会重复计数
+    const merged = Array.from(all).sort()
+    tableOptions.value = merged.slice(0, DROPDOWN_LIMIT)
+    tableTotal.value = merged.length
+  } catch { tableOptions.value = []; tableTotal.value = 0 } finally { loadingTables.value = false }
 }
+
+// 给 ScopeSelector :remote-method 用 — debounce 300ms 后调对应 refresh
+const remoteSearchCatalogs = debounced((kw: string) => { refreshCatalogOptions(kw) })
+const remoteSearchDatabases = debounced((kw: string) => { refreshDatabaseOptions(kw) })
+const remoteSearchTables = debounced((kw: string) => { refreshTableOptions(kw) })
 
 /** "catalog.db" → {catalog, db};"db" → {catalog:null, db}。 */
 function parseQualifiedDb(qualified: string): { catalog: string | null; db: string } {
@@ -502,13 +550,28 @@ function parseQualifiedDb(qualified: string): { catalog: string | null; db: stri
   return { catalog: qualified.slice(0, idx), db: qualified.slice(idx + 1) }
 }
 
+// 选数据源后:只拉 catalog 列表;db / table 等用户主动勾选上一级后再触发
+// (旧实现 then chain 会在 10K catalog 时遍历全部 catalog 拉 db,N+1 爆炸)
 watch(() => syncForm.datasourceId, () => {
   catalogOptions.value = []
   databaseOptions.value = []
   tableOptions.value = []
+  catalogTotal.value = 0
+  databaseTotal.value = 0
+  tableTotal.value = 0
   if (syncForm.datasourceId) {
-    void refreshCatalogOptions().then(() => refreshDatabaseOptions()).then(() => refreshTableOptions())
+    void refreshCatalogOptions()
   }
+})
+
+// 用户主动勾 catalog → 触发 db refresh(只对用户勾选的几个 catalog 并发,N 是 user-bounded)
+watch(includeCatalogsList, () => {
+  if (syncForm.datasourceId) void refreshDatabaseOptions()
+})
+
+// 用户主动勾 db → 触发 table refresh
+watch(includeDatabasesList, () => {
+  if (syncForm.datasourceId) void refreshTableOptions()
 })
 
 function emptyDoc(): AiDocumentVO {

@@ -166,7 +166,7 @@ public class RudderToolCallback implements ToolCallback {
             success = false;
             errMsg = "rejected";
         } catch (Exception e) {
-            String localized = e.getLocalizedMessage();
+            String localized = e.getMessage();
             resultText = "Error: " + (localized == null ? e.getClass().getSimpleName() : localized);
             success = false;
             errMsg = localized;

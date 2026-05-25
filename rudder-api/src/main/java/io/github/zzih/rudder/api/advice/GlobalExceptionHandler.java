@@ -72,7 +72,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Void>> handleRudder(RudderException e) {
         ErrorCode code = e.getErrorCode();
         HttpStatus status = toHttpStatus(code);
-        String msg = e.getLocalizedMessage();
+        String msg = e.getMessage();
         // 仅 5xx 打 ERROR + 堆栈;4xx 与业务码段(1000+ 映射到 200) 走 WARN 不带堆栈,避免高频校验/限流刷屏
         if (status.is5xxServerError()) {
             log.error("Rudder exception: code={}, status={}, message={}", code.getCode(), status.value(), msg, e);

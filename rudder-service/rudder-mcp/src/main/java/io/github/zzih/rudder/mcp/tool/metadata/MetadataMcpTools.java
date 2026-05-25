@@ -54,12 +54,17 @@ public class MetadataMcpTools {
         return metadataService.search(datasourceName, keyword);
     }
 
-    @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/tables", name = "rudder-tables", description = "Tables in the given database/catalog. For single-catalog engines pass catalog='-'. Discover databases via the rudder-datasource-databases resource.", mimeType = "application/json")
+    /** MCP resource 的硬性截断上限 — 防止单库 10K+ 表一次性灌进 LLM context 爆 token。 */
+    private static final int MCP_LIST_HARD_CAP = 200;
+
+    @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/tables", name = "rudder-tables", description = "Tables in the given database/catalog. Returns up to 200 entries; for larger databases "
+            + "use metadata_search tool with a keyword to narrow results. For single-catalog engines pass catalog='-'. "
+            + "Discover databases via the rudder-datasource-databases resource.", mimeType = "application/json")
     @McpCapability("metadata.browse")
     public String listTables(String datasource, String catalog, String database) {
         workspaceGuard.requireDatasourceVisible(datasource);
-        return JsonUtils
-                .toJson(metadataService.listTables(datasource, WorkspaceGuard.unwrapCatalog(catalog), database));
+        List<TableMeta> all = metadataService.listTables(datasource, WorkspaceGuard.unwrapCatalog(catalog), database);
+        return JsonUtils.toJson(all.stream().limit(MCP_LIST_HARD_CAP).toList());
     }
 
     @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/table/{table}", name = "rudder-table", description = "Full table detail (columns + comment). For single-catalog engines pass catalog='-'. Discover table names via the rudder-tables resource or metadata_search tool.", mimeType = "application/json")
@@ -70,11 +75,13 @@ public class MetadataMcpTools {
                 metadataService.getTableDetail(datasource, WorkspaceGuard.unwrapCatalog(catalog), database, table));
     }
 
-    @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/table/{table}/columns", name = "rudder-columns", description = "Columns of the given table. For single-catalog engines pass catalog='-'. Equivalent to reading rudder-table and projecting just the columns array.", mimeType = "application/json")
+    @McpResource(uri = "rudder://datasource/{datasource}/catalog/{catalog}/database/{database}/table/{table}/columns", name = "rudder-columns", description = "Columns of the given table. Returns up to 200 entries (truncated for wide tables). "
+            + "For single-catalog engines pass catalog='-'. Equivalent to reading rudder-table and projecting just the columns array.", mimeType = "application/json")
     @McpCapability("metadata.browse")
     public String listColumns(String datasource, String catalog, String database, String table) {
         workspaceGuard.requireDatasourceVisible(datasource);
-        return JsonUtils.toJson(
-                metadataService.listColumns(datasource, WorkspaceGuard.unwrapCatalog(catalog), database, table));
+        return JsonUtils.toJson(metadataService
+                .listColumns(datasource, WorkspaceGuard.unwrapCatalog(catalog), database, table)
+                .stream().limit(MCP_LIST_HARD_CAP).toList());
     }
 }

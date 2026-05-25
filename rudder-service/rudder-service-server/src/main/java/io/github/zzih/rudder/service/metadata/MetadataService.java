@@ -17,6 +17,7 @@
 
 package io.github.zzih.rudder.service.metadata;
 
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.metadata.api.model.ColumnMeta;
 import io.github.zzih.rudder.metadata.api.model.TableDetail;
 import io.github.zzih.rudder.metadata.api.model.TableMeta;
@@ -27,6 +28,8 @@ import io.github.zzih.rudder.service.coordination.cache.MetadataCacheKeys;
 import io.github.zzih.rudder.service.datasource.DatasourceService;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 
 import org.springframework.stereotype.Service;
 
@@ -98,5 +101,45 @@ public class MetadataService {
     /** 失效该数据源全部缓存。元数据同步、管理员"刷新"按钮调用。 */
     public void invalidateByDatasource(String datasourceName) {
         cache.invalidateByPrefix(GlobalCacheKey.METADATA_DATA, datasourceName + ":");
+    }
+
+    // ==================== 分页 + keyword filter(给 dropdown 远程搜索用)====================
+    // 走全量 list (cache hit O(1));内存 case-insensitive contains filter + limit。
+    // total = filter 后总数,给前端"结果较多,请输入关键字过滤"hint 用。
+
+    public PageResult<String> searchCatalogs(String datasourceName, String keyword, int limit) {
+        return paged(listCatalogs(datasourceName), keyword, limit, Function.identity());
+    }
+
+    public PageResult<String> searchDatabases(String datasourceName, String catalog, String keyword, int limit) {
+        return paged(listDatabases(datasourceName, catalog), keyword, limit, Function.identity());
+    }
+
+    public PageResult<TableMeta> searchTables(String datasourceName, String catalog, String database,
+                                              String keyword, int limit) {
+        return paged(listTables(datasourceName, catalog, database), keyword, limit, TableMeta::getName);
+    }
+
+    public PageResult<ColumnMeta> searchColumns(String datasourceName, String catalog, String database, String table,
+                                                String keyword, int limit) {
+        return paged(listColumns(datasourceName, catalog, database, table), keyword, limit, ColumnMeta::getName);
+    }
+
+    private static <T> PageResult<T> paged(List<T> all, String keyword, int limit, Function<T, String> nameOf) {
+        int effectiveLimit = Math.max(1, Math.min(limit, 500));
+        List<T> filtered;
+        if (keyword == null || keyword.isBlank()) {
+            filtered = all;
+        } else {
+            String kw = keyword.toLowerCase(Locale.ROOT);
+            filtered = all.stream()
+                    .filter(x -> {
+                        String name = nameOf.apply(x);
+                        return name != null && name.toLowerCase(Locale.ROOT).contains(kw);
+                    })
+                    .toList();
+        }
+        return PageResult.of(filtered.stream().limit(effectiveLimit).toList(),
+                filtered.size(), 1, effectiveLimit);
     }
 }

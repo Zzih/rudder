@@ -1659,6 +1659,7 @@ export default {
       resourcePath: '资源路径',
       resourceHint: '每一层都需填写,通配请显式选「全部」',
       placeholderHint: '选择或输入',
+      moreResultsHint: '共 {total} 项 · 显示前 {shown} 项,输入关键字过滤',
       actions: '操作',
       actionsRequired: '至少勾选 1 项',
       selectAll: '全选',

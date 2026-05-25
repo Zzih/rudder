@@ -155,7 +155,7 @@ public class DataPermReconciler {
             stats = doReconcile(config);
         } catch (Exception e) {
             log.error("DataPermReconciler round crashed unexpectedly", e);
-            stats = new ReconcileStats(0, 0, 0, 0, 0, 0, false, e.getLocalizedMessage());
+            stats = new ReconcileStats(0, 0, 0, 0, 0, 0, false, e.getMessage());
         }
         evaluateRound(stats, config);
         log.info("DataPerm reconcile round done: {} elapsed={}ms", stats, System.currentTimeMillis() - t0);
@@ -257,7 +257,7 @@ public class DataPermReconciler {
                 }
                 actualByService.put(svc, byName);
             } catch (BizException e) {
-                lastError = e.getLocalizedMessage();
+                lastError = e.getMessage();
                 if (e.getErrorCode() == DataPermErrorCode.RANGER_UNREACHABLE) {
                     rangerReachable = false;
                     log.error("Ranger Admin unreachable while listing service={}", svc, e);
@@ -271,7 +271,7 @@ public class DataPermReconciler {
                 log.error("List policies failed for service={}, skip this service", svc, e);
                 actualByService.put(svc, Collections.emptyMap());
             } catch (Exception e) {
-                lastError = e.getLocalizedMessage();
+                lastError = e.getMessage();
                 log.error("List policies unexpected failure for service={}", svc, e);
                 actualByService.put(svc, Collections.emptyMap());
             }
@@ -696,7 +696,7 @@ public class DataPermReconciler {
         try {
             rangerClient.updatePolicy(occupying.getId(), payload);
         } catch (BizException e) {
-            throw new BizException(DataPermErrorCode.RANGER_POLICY_TAKEOVER_FAILED, e, e.getLocalizedMessage());
+            throw new BizException(DataPermErrorCode.RANGER_POLICY_TAKEOVER_FAILED, e, e.getMessage());
         }
         log.info("Takeover Ranger policy: service={}, id={}, oldName={}, newName={}, "
                 + "overriddenItems={}, newItems={}",

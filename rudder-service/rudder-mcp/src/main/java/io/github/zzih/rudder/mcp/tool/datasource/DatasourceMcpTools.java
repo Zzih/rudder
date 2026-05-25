@@ -71,18 +71,28 @@ public class DatasourceMcpTools {
                 .toList();
     }
 
-    @McpResource(uri = "rudder://datasource/{name}/catalogs", name = "rudder-datasource-catalogs", description = "Catalogs of the given datasource (Trino/Presto-style multi-catalog). For single-catalog engines (MySQL/Hive) the result is empty — use catalog='-' in nested URIs. Discover datasource names via datasource_list.", mimeType = "application/json")
+    /** MCP resource 的硬性截断上限 — 防止 10K+ catalog 一次性灌进 LLM context 爆 token。 */
+    private static final int MCP_LIST_HARD_CAP = 200;
+
+    @McpResource(uri = "rudder://datasource/{name}/catalogs", name = "rudder-datasource-catalogs", description = "Catalogs of the given datasource (Trino/Presto-style multi-catalog). "
+            + "Returns up to 200 entries; if your datasource has more, use metadata_search tool with a keyword instead. "
+            + "For single-catalog engines (MySQL/Hive) the result is empty — use catalog='-' in nested URIs. "
+            + "Discover datasource names via datasource_list.", mimeType = "application/json")
     @McpCapability("datasource.view")
     public List<String> listCatalogs(String name) {
         workspaceGuard.requireDatasourceVisible(name);
-        return metadataService.listCatalogs(name);
+        return metadataService.listCatalogs(name).stream().limit(MCP_LIST_HARD_CAP).toList();
     }
 
-    @McpResource(uri = "rudder://datasource/{name}/catalog/{catalog}/databases", name = "rudder-datasource-databases", description = "Databases (a.k.a. schemas) of the datasource under the given catalog. For single-catalog engines (MySQL/Hive) pass catalog='-'. Discover datasource names via datasource_list, catalogs via the /catalogs sibling resource.", mimeType = "application/json")
+    @McpResource(uri = "rudder://datasource/{name}/catalog/{catalog}/databases", name = "rudder-datasource-databases", description = "Databases (a.k.a. schemas) of the datasource under the given catalog. "
+            + "Returns up to 200 entries; for larger schemas use metadata_search tool with a keyword. "
+            + "For single-catalog engines (MySQL/Hive) pass catalog='-'. "
+            + "Discover datasource names via datasource_list, catalogs via the /catalogs sibling resource.", mimeType = "application/json")
     @McpCapability("datasource.view")
     public List<String> listDatabases(String name, String catalog) {
         workspaceGuard.requireDatasourceVisible(name);
-        return metadataService.listDatabases(name, WorkspaceGuard.unwrapCatalog(catalog));
+        return metadataService.listDatabases(name, WorkspaceGuard.unwrapCatalog(catalog)).stream()
+                .limit(MCP_LIST_HARD_CAP).toList();
     }
 
     @McpTool(name = "datasource_test_connection", description = "Test datasource connectivity. Returns ok=true if reachable, otherwise error reason.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
@@ -95,7 +105,7 @@ public class DatasourceMcpTools {
             result.setOk(datasourceService.testConnection(dsId));
         } catch (Exception e) {
             result.setOk(false);
-            result.setError(e.getLocalizedMessage() == null ? "" : e.getLocalizedMessage());
+            result.setError(e.getMessage() == null ? "" : e.getMessage());
         }
         return result;
     }
