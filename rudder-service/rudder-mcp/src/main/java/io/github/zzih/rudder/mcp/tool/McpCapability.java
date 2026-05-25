@@ -34,7 +34,7 @@ import java.lang.annotation.Target;
  *
  * <p>用法：
  * <pre>{@code
- * @McpTool(name = "metadata.search", description = "Search tables")
+ * @McpTool(name = "metadata_search", description = "Search tables")
  * @McpCapability("metadata.browse")
  * public List<Table> searchTables(...) { ... }
  * }</pre>

@@ -40,13 +40,13 @@ public class ScriptMcpTools {
 
     private final ScriptService scriptService;
 
-    @McpTool(name = "script.list", description = "List all scripts in the current workspace.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "script_list", description = "List all scripts in the current workspace.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("script.browse")
     public List<ScriptDTO> list() {
         return scriptService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId());
     }
 
-    @McpResource(uri = "rudder://script/{code}", name = "rudder-script", description = "A script in the current workspace (SQL/Python/Shell/etc., addressed by stable code). Use script.list to discover available codes.", mimeType = "application/json")
+    @McpResource(uri = "rudder://script/{code}", name = "rudder-script", description = "A script in the current workspace (SQL/Python/Shell/etc., addressed by stable code). Use script_list to discover available codes.", mimeType = "application/json")
     @McpCapability("script.browse")
     public String get(String code) {
         if (code == null || code.isBlank()) {
@@ -65,7 +65,7 @@ public class ScriptMcpTools {
                 .toList();
     }
 
-    @McpTool(name = "script.create", description = "Create a new script under given directory.")
+    @McpTool(name = "script_create", description = "Create a new script under given directory.")
     @McpCapability("script.author")
     public ScriptDTO create(@McpToolParam(description = "Script body — name + taskType required; dirId null = workspace root", required = true) ScriptDTO body) {
         if (body == null || body.getName() == null || body.getName().isBlank()) {
@@ -77,7 +77,7 @@ public class ScriptMcpTools {
         return scriptService.createDetail(UserContext.requireWorkspaceId(), body);
     }
 
-    @McpTool(name = "script.update", description = "Update an existing script (only non-null fields are applied).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
+    @McpTool(name = "script_update", description = "Update an existing script (only non-null fields are applied).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
     @McpCapability("script.author")
     public ScriptDTO update(
                             @McpToolParam(description = "script code", required = true) Long code,
@@ -88,7 +88,7 @@ public class ScriptMcpTools {
         return scriptService.updateDetail(UserContext.requireWorkspaceId(), code, body);
     }
 
-    @McpTool(name = "script.delete", description = "Delete a script by code (or detach if bound to a task).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpTool(name = "script_delete", description = "Delete a script by code (or detach if bound to a task).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
     @McpCapability("script.author")
     public void delete(
                        @McpToolParam(description = "script code", required = true) Long code) {

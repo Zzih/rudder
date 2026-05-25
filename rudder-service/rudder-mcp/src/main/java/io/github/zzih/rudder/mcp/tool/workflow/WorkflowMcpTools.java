@@ -57,7 +57,7 @@ public class WorkflowMcpTools {
     public record WorkflowSummary(Long code, String name, Long projectCode, String description) {
     }
 
-    @McpTool(name = "workflow.list", description = "List workflow definitions in the current workspace (metadata only, no DAG).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "workflow_list", description = "List workflow definitions in the current workspace (metadata only, no DAG).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("workflow.browse")
     public List<WorkflowSummary> list() {
         return workflowDefinitionService.listByWorkspaceId(UserContext.requireWorkspaceId()).stream()
@@ -66,7 +66,7 @@ public class WorkflowMcpTools {
                 .toList();
     }
 
-    @McpResource(uri = "rudder://workflow/{projectCode}/{code}", name = "rudder-workflow", description = "A workflow definition (DAG of tasks). Use workflow.list to discover (projectCode, code) pairs.", mimeType = "application/json")
+    @McpResource(uri = "rudder://workflow/{projectCode}/{code}", name = "rudder-workflow", description = "A workflow definition (DAG of tasks). Use workflow_list to discover (projectCode, code) pairs.", mimeType = "application/json")
     @McpCapability("workflow.browse")
     public String get(String projectCode, String code) {
         if (projectCode == null || projectCode.isBlank() || code == null || code.isBlank()) {
@@ -76,7 +76,7 @@ public class WorkflowMcpTools {
                 UserContext.requireWorkspaceId(), Long.parseLong(projectCode), Long.parseLong(code)));
     }
 
-    @McpTool(name = "workflow.create", description = "Create a workflow definition. body.dagJson must follow the platform DAG schema.")
+    @McpTool(name = "workflow_create", description = "Create a workflow definition. body.dagJson must follow the platform DAG schema.")
     @McpCapability("workflow.author")
     public WorkflowDefinitionDTO create(
                                         @McpToolParam(description = "project code (workflow lives under this project)", required = true) Long projectCode,
@@ -88,7 +88,7 @@ public class WorkflowMcpTools {
         return workflowDefinitionService.createDetail(UserContext.requireWorkspaceId(), projectCode, body);
     }
 
-    @McpTool(name = "workflow.delete", description = "Delete a workflow definition by code.", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpTool(name = "workflow_delete", description = "Delete a workflow definition by code.", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
     @McpCapability("workflow.author")
     public void delete(
                        @McpToolParam(description = "project code", required = true) Long projectCode,
@@ -99,10 +99,10 @@ public class WorkflowMcpTools {
         workflowDefinitionService.delete(UserContext.requireWorkspaceId(), projectCode, code);
     }
 
-    @McpTool(name = "workflow.run", description = "Trigger a workflow run (manual trigger) with optional runtime params. Returns immediately with the new instance summary including 'id'. "
+    @McpTool(name = "workflow_run", description = "Trigger a workflow run (manual trigger) with optional runtime params. Returns immediately with the new instance summary including 'id'. "
             + "Asynchronous — poll `rudder://workflow_instance/{workflowCode}/{id}` for instance-level status; per-node details via "
-            + "`rudder://workflow_instance/{id}/nodes`. Use `workflow_instance.cancel` to abort a running workflow.", annotations = @McpTool.McpAnnotations(destructiveHint = true, openWorldHint = true))
-    @McpCapability("workflow.run")
+            + "`rudder://workflow_instance/{id}/nodes`. Use `workflow_instance_cancel` to abort a running workflow.", annotations = @McpTool.McpAnnotations(destructiveHint = true, openWorldHint = true))
+    @McpCapability("workflow_run")
     public WorkflowInstanceDTO run(
                                    @McpToolParam(description = "project code", required = true) Long projectCode,
                                    @McpToolParam(description = "workflow code", required = true) Long code,
@@ -121,8 +121,8 @@ public class WorkflowMcpTools {
         return instance;
     }
 
-    @McpTool(name = "workflow.publish", description = "Submit workflow publish (creates a version + approval record).", annotations = @McpTool.McpAnnotations(destructiveHint = true))
-    @McpCapability("workflow.publish")
+    @McpTool(name = "workflow_publish", description = "Submit workflow publish (creates a version + approval record).", annotations = @McpTool.McpAnnotations(destructiveHint = true))
+    @McpCapability("workflow_publish")
     public PublishRecordDTO publish(
                                     @McpToolParam(description = "project code", required = true) Long projectCode,
                                     @McpToolParam(description = "workflow code", required = true) Long workflowCode,

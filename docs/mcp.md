@@ -19,8 +19,8 @@ Rudder 内置一个 MCP Server（基于 Spring AI MCP）。任意标准 MCP 客�
 |:---|:---|
 | **Token (PAT)** | `rdr_pat_xxxxxx` 形式的不可恢复明文，bcrypt 落库；强绑**单个工作空间**，调用范围被锁死 |
 | **Capability** | 能力 ID（如 `metadata.browse` / `execution.run`），共 19 个，按域分组 |
-| **Tool** | LLM 主动调用的"操作"（共 35 个）。例：`script.create` / `execution.run_script` |
-| **Resource** | LLM 按 URI 读的"资源"（共 15 个），URI 形如 `rudder://script/{code}` |
+| **Tool** | LLM 主动调用的"操作"（共 39 个）。例：`script_create` / `execution_run_script` |
+| **Resource** | LLM 按 URI 读的"资源"（共 16 个），URI 形如 `rudder://script/{code}` |
 | **Completion** | URI 路径变量的前缀补全（共 3 个），让 LLM 不用先 list 就能猜到合法 code |
 | **Grant** | Token × Capability 的授权记录；READ → 立即 ACTIVE，WRITE → 走审批 |
 | **双闸门** | 每次调用同时验：token 含此 capability（scope 闸） + 当前角色允许此 capability（RBAC 闸） |
@@ -65,7 +65,7 @@ export RUDDER_MCP_ENABLED=false
 
 撤销：在列表点 「撤销」，确认后立即失效，所有缓存清空。撤销不可逆。
 
-## 19 个 Capability
+## 20 个 Capability
 
 按域分组，4 角色矩阵：
 
@@ -90,10 +90,11 @@ export RUDDER_MCP_ENABLED=false
 | `workflow.publish` | workflow | W | **HIGH** | | | ✓ | ✓ |
 | `approval.view` | approval | R | NORMAL | ✓ | ✓ | ✓ | ✓ |
 | `approval.act` | approval | W | NORMAL | | | ✓ | ✓ |
+| `knowledge.search` | knowledge | R | NORMAL | ✓ | ✓ | ✓ | ✓ |
 
 > 角色是**运行时**生效的：你的角色被工作空间 owner 改了，token 不需要重新申请——下一次调用立即按新角色判定，超出新角色的 grant 自动撤销。
 
-## 35 个 Tool（按域）
+## 39 个 Tool（按域）
 
 ### workspace（无 tool，资源化暴露）
 
@@ -103,73 +104,84 @@ export RUDDER_MCP_ENABLED=false
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `metadata.search` | `metadata.browse` | 全局元数据搜索（datasource + keyword） |
+| `metadata_search` | `metadata.browse` | 全局元数据搜索（datasource + keyword） |
 
 ### datasource
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `datasource.list` | `datasource.view` | 列出 workspace 数据源（凭证脱敏） |
-| `datasource.test_connection` | `datasource.test` | 测连通性 |
-| `datasource.create` | `datasource.manage` | 创建数据源（仅 SUPER_ADMIN） |
-| `datasource.update` | `datasource.manage` | 更新数据源（仅 SUPER_ADMIN） |
-| `datasource.delete` | `datasource.manage` | 删除数据源（仅 SUPER_ADMIN） |
+| `datasource_list` | `datasource.view` | 列出 workspace 数据源（凭证脱敏） |
+| `datasource_test_connection` | `datasource.test` | 测连通性 |
+| `datasource_create` | `datasource.manage` | 创建数据源（仅 SUPER_ADMIN） |
+| `datasource_update` | `datasource.manage` | 更新数据源（仅 SUPER_ADMIN） |
+| `datasource_delete` | `datasource.manage` | 删除数据源（仅 SUPER_ADMIN） |
 
 ### project
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `project.list` | `project.browse` | 列出工作空间下的项目 |
-| `project.create` | `project.author` | 创建项目 |
-| `project.update` | `project.author` | 更新项目 |
-| `project.delete` | `project.author` | 删除项目（仍含工作流时拒绝） |
+| `project_list` | `project.browse` | 列出工作空间下的项目 |
+| `project_create` | `project.author` | 创建项目 |
+| `project_update` | `project.author` | 更新项目 |
+| `project_delete` | `project.author` | 删除项目（仍含工作流时拒绝） |
 
 ### script
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `script.list` | `script.browse` | 列工作空间脚本 |
-| `script.create` | `script.author` | 创建脚本 |
-| `script.update` | `script.author` | 更新脚本（增量） |
-| `script.delete` | `script.author` | 删除脚本 |
-| `script_dir.list` | `script.browse` | 列脚本目录树 |
-| `script_dir.create` | `script.author` | 新建脚本目录 |
-| `script_dir.rename` | `script.author` | 重命名脚本目录 |
-| `script_dir.move` | `script.author` | 移动脚本目录 |
-| `script_dir.delete` | `script.author` | 删除脚本目录（含子节点） |
+| `script_list` | `script.browse` | 列工作空间脚本 |
+| `script_create` | `script.author` | 创建脚本 |
+| `script_update` | `script.author` | 更新脚本（增量） |
+| `script_delete` | `script.author` | 删除脚本 |
+| `script_dir_list` | `script.browse` | 列脚本目录树 |
+| `script_dir_create` | `script.author` | 新建脚本目录 |
+| `script_dir_rename` | `script.author` | 重命名脚本目录 |
+| `script_dir_move` | `script.author` | 移动脚本目录 |
+| `script_dir_delete` | `script.author` | 删除脚本目录（含子节点） |
 
 ### execution
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `execution.log` | `execution.view_status` | 任务日志（按 offsetLine 分页） |
-| `execution.result` | `execution.view_result` | 任务结果（columns + 分页 rows，最大 1000/页） |
-| `execution.run_direct` | `execution.run` | 即兴 SQL/脚本（不绑 script，异步） |
-| `execution.run_script` | `execution.run` | 运行已存在的脚本（可覆盖 SQL/数据源/参数，异步） |
-| `execution.cancel` | `execution.cancel` | 取消运行中任务 |
+| `execution_log` | `execution.view_status` | 任务日志（按 offsetLine 分页） |
+| `execution_result` | `execution.view_result` | 任务结果（columns + 分页 rows，最大 1000/页） |
+| `execution_run_direct` | `execution.run` | 即兴 SQL/脚本（不绑 script，异步） |
+| `execution_run_script` | `execution.run` | 运行已存在的脚本（可覆盖 SQL/数据源/参数，异步） |
+| `execution_cancel` | `execution.cancel` | 取消运行中任务 |
 
 ### workflow
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `workflow.list` | `workflow.browse` | 列工作流定义（不含 DAG） |
-| `workflow.create` | `workflow.author` | 创建工作流 |
-| `workflow.delete` | `workflow.author` | 删除工作流 |
-| `workflow.run` | `workflow.run` | 触发工作流（MANUAL，异步） |
-| `workflow.publish` | `workflow.publish` | 提交发布审批；SUPER_ADMIN 直接发布 |
-| `workflow_instance.list` | `workflow.browse` | 列 workspace 内最近的运行实例 |
-| `workflow_instance.page_by_workflow` | `workflow.browse` | 按工作流定义分页查实例 |
-| `workflow_instance.cancel` | `workflow.run` | 取消运行中工作流实例 |
-| `workflow_schedule.set` | `workflow.author` | 设置/更新 cron 调度 |
+| `workflow_list` | `workflow.browse` | 列工作流定义（不含 DAG） |
+| `workflow_create` | `workflow.author` | 创建工作流 |
+| `workflow_delete` | `workflow.author` | 删除工作流 |
+| `workflow_run` | `workflow.run` | 触发工作流（MANUAL，异步） |
+| `workflow_publish` | `workflow.publish` | 提交发布审批；SUPER_ADMIN 直接发布 |
+| `workflow_instance_list` | `workflow.browse` | 列 workspace 内最近的运行实例 |
+| `workflow_instance_page_by_workflow` | `workflow.browse` | 按工作流定义分页查实例 |
+| `workflow_instance_cancel` | `workflow.run` | 取消运行中工作流实例 |
+| `workflow_schedule_set` | `workflow.author` | 设置/更新 cron 调度 |
 
 ### approval
 
 | Tool | Capability | 说明 |
 |:---|:---|:---|
-| `approval.list` | `approval.view` | 列出审批单（按状态过滤） |
-| `approval.decide` | `approval.act` | 通过 / 拒绝（仅当前阶段候选人） |
+| `approval_list` | `approval.view` | 列出审批单（按状态过滤） |
+| `approval_decide` | `approval.act` | 通过 / 拒绝（仅当前阶段候选人） |
 
-## 15 个 Resource（按 URI）
+### knowledge
+
+工作空间级知识库（WIKI / SCRIPT / SCHEMA / METRIC_DEF / RUNBOOK 等 docType）；语义检索基于 vector store，向量不可用时降级 FULLTEXT 关键字检索。
+
+| Tool | Capability | 说明 |
+|:---|:---|:---|
+| `knowledge_search` | `knowledge.search` | 语义检索片段，Top-K chunk 含文档 id / 标题 / docType / 相关度 |
+| `knowledge_list_doc_types` | `knowledge.search` | 列当前 workspace 实际存在的 docType 类目 |
+| `knowledge_list_documents` | `knowledge.search` | 按 docType 分页列文档元信息（不含正文） |
+| `knowledge_get_document` | `knowledge.search` | 按 id 取单文档全文（配合 list_documents / search 拿 id） |
+
+## 16 个 Resource（按 URI）
 
 `@McpResource` 让 LLM 通过稳定 URI 直接读取数据，区别于 Tool 的"操作"语义。返回类型 `application/json`。
 
@@ -190,6 +202,7 @@ export RUDDER_MCP_ENABLED=false
 | `rudder://datasource/{ds}/catalog/{cat}/database/{db}/table/{tb}` | `metadata.browse` | 表详情（columns + comment） |
 | `rudder://datasource/{ds}/catalog/{cat}/database/{db}/table/{tb}/columns` | `metadata.browse` | 表的列 |
 | `rudder://execution/{id}` | `execution.view_status` | 任务实例状态/host/timestamps |
+| `rudder://knowledge/{id}` | `knowledge.search` | 单个知识库文档全文（配合 knowledge.list_documents / knowledge.search 拿 id） |
 
 > 单 catalog 引擎（MySQL / Hive）的 `{catalog}` 段填 `-`。
 
@@ -205,11 +218,44 @@ export RUDDER_MCP_ENABLED=false
 
 ## 接入客户端
 
-进入 工作空间 → **MCP** → **Connect Guide** 拿到现成的配置模板。也可手填：
+进入 工作空间 → **MCP** → **Connect Guide** 拿到现成的配置模板（含 token 自动填充）。下面是各客户端方案概览，详细步骤见 Connect Guide：
 
-### Claude Desktop
+| 客户端 | 传输 | 配置入口 | 备注 |
+|:---|:---|:---|:---|
+| Claude Code | HTTP（原生） | `claude mcp add --transport http rudder <url> --header "Authorization: Bearer rdr_pat_xxx"` | 推荐用法，命令行一行接入 |
+| Cursor | HTTP（原生 0.46+） | Settings → MCP & Integrations → Add Custom MCP，或编辑 `.cursor/mcp.json` | URL + Headers 直配 |
+| MCP Inspector | HTTP（原生） | `npx @modelcontextprotocol/inspector` 后浏览器 UI 填 URL + Bearer Token | 调试 / 排障专用 |
+| Claude Desktop | stdio（经 `mcp-remote` 桥接） | `claude_desktop_config.json` 用 `command: npx mcp-remote …` | 当前阶段唯一可用方式；Rudder 实现 OAuth 2.1 + DCR 后可改 Settings → Connectors |
 
-`~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）
+### Claude Desktop（mcp-remote 桥接）
+
+`claude_desktop_config.json` 只原生支持 stdio。用 [`mcp-remote`](https://github.com/geelen/mcp-remote) 在本机做 stdio ↔ HTTP 桥接：
+
+```json
+{
+  "mcpServers": {
+    "rudder": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://rudder.example.com/mcp",
+        "--header",
+        "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "AUTH_HEADER": "Bearer rdr_pat_xxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+> 需要 Node.js 18+；`Authorization` 必须经 `env` 注入，绕开 Claude Desktop（Windows）/ Cursor 解析 `args` 含空格参数的 bug。
+
+### Cursor（原生 HTTP）
+
+`.cursor/mcp.json`（项目根 / 用户配置目录）：
 
 ```json
 {
@@ -224,24 +270,14 @@ export RUDDER_MCP_ENABLED=false
 }
 ```
 
-重启 Claude Desktop。在新会话里 LLM 应能列出 Rudder 的 tools + resources。
+### Claude Code（原生 HTTP）
 
-### Cursor
-
-`.cursor/mcp.json`（项目根 / 用户配置目录）
-
-```json
-{
-  "mcpServers": {
-    "rudder": {
-      "url": "https://rudder.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer rdr_pat_xxxxxxxx"
-      }
-    }
-  }
-}
+```bash
+claude mcp add --transport http rudder https://rudder.example.com/mcp \
+  --header "Authorization: Bearer rdr_pat_xxxxxxxx"
 ```
+
+会话内 `/mcp` 查看连接状态，`@rudder` 触发工具调用。项目共享配置加 `--scope project` 写到 `.mcp.json`，PAT 须通过 `${RUDDER_PAT}` env 引用避免明文 commit。
 
 ### MCP Inspector（调试）
 
@@ -254,7 +290,7 @@ npx @modelcontextprotocol/inspector
 
 ### 自研 Agent / SDK
 
-协议层由 [Spring AI MCP server](https://docs.spring.io/spring-ai/reference/2.0/api/mcp/mcp-overview.html) 提供：MCP JSON-RPC 2.0 over Streamable HTTP，按 `Accept` 头自动选择 JSON / SSE。protocol 模式由 `spring.ai.mcp.server.protocol`（默认 `STREAMABLE`）控制。
+协议层由 [Spring AI MCP server](https://docs.spring.io/spring-ai/reference/2.0/api/mcp/mcp-overview.html) 提供：MCP JSON-RPC 2.0 over Streamable HTTP，按 `Accept` 头自动选择 JSON / SSE。protocol 模式由 `spring.ai.mcp.server.protocol` 控制，本项目固定 `STATELESS`(每次请求独立、跨节点 / 重启零 session 状态)。
 
 ```bash
 # tools/list
@@ -268,7 +304,7 @@ curl -X POST https://rudder.example.com/mcp \
   -H "Authorization: Bearer rdr_pat_xxx" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
-       "params":{"name":"metadata.search",
+       "params":{"name":"metadata_search",
                  "arguments":{"datasourceName":"warehouse","keyword":"user_orders"}}}'
 
 # resources/read
@@ -287,8 +323,8 @@ curl -X POST https://rudder.example.com/mcp \
 
 | 单内最高敏感度 | 阶段链 |
 |:---|:---|
-| **NORMAL**（如 `script.author` / `workflow.author` / `workflow.run` / `execution.cancel` / `project.author` / `approval.act`） | `[WORKSPACE_OWNER]`，任一 owner 通过即生效 |
-| **HIGH**（含 `workflow.publish` / `datasource.manage` / `execution.run` 之一） | `[WORKSPACE_OWNER, SUPER_ADMIN]`，每阶段 ANY-1 |
+| **NORMAL**（如 `script.author` / `workflow.author` / `workflow_run` / `execution_cancel` / `project.author` / `approval.act`） | `[WORKSPACE_OWNER]`，任一 owner 通过即生效 |
+| **HIGH**（含 `workflow_publish` / `datasource.manage` / `execution.run` 之一） | `[WORKSPACE_OWNER, SUPER_ADMIN]`，每阶段 ANY-1 |
 
 ```
 Token 入库 (status=ACTIVE)
@@ -300,7 +336,7 @@ Token 入库 (status=ACTIVE)
    任一阶段拒绝 → 全部 WRITE grant → REJECTED
 ```
 
-**SUPER_ADMIN 跳审批**：申请人是 SUPER_ADMIN 时所有 WRITE grant 直接 ACTIVE，不发审批单（同样适用于 `workflow.publish` 工具调用 → 直接发布到生产，跳过 PublishRecord 的 PENDING_APPROVAL 阶段）。
+**SUPER_ADMIN 跳审批**：申请人是 SUPER_ADMIN 时所有 WRITE grant 直接 ACTIVE，不发审批单（同样适用于 `workflow_publish` 工具调用 → 直接发布到生产，跳过 PublishRecord 的 PENDING_APPROVAL 阶段）。
 
 申请人状态可视化：在 「My Tokens」 → 「Detail」 看每个 grant 的状态：`ACTIVE` / `PENDING_APPROVAL` / `REJECTED` / `REVOKED`。
 
@@ -332,7 +368,7 @@ Token 入库 (status=ACTIVE)
 | `client_ip` | 客户端 IP（PatAuthFilter 解析 X-Forwarded-For） |
 | `request_method` / `request_uri` | HTTP 元信息 |
 | `request_params` | 完整 input JSON（截断 4KB） |
-| `description` | `tool=metadata.search, capability=metadata.browse[, code=DENIED_RBAC]`；resource 时格式 `resource=rudder://...` |
+| `description` | `tool=metadata_search, capability=metadata.browse[, code=DENIED_RBAC]`；resource 时格式 `resource=rudder://...` |
 | `duration_ms` | tool 执行耗时 |
 
 进 **管理 → 审计日志** 按 `module=MCP` 过滤即可查到全部 MCP 调用历史。
@@ -354,7 +390,7 @@ rudder:
 
 `POST /mcp` 由 Spring AI MCP server 提供，自动按 client 的 `Accept` 头路由 `application/json`（同步）/ `text/event-stream`（SSE）。本平台使用 `SYNC` 模式（便于 ThreadLocal 透传 UserContext）。
 
-35 个 `@McpTool` / 15 个 `@McpResource` / 3 个 `@McpComplete` 在启动时由 Spring AI 自动扫描注入到 server，protocol 层、SSE、tool inputSchema 自动生成都由框架完成。`McpToolGuardAspect` AOP 切面统一拦截 `(@McpTool || @McpResource) && @McpCapability`，做限流 / 双闸门 / 审计三件事。
+39 个 `@McpTool` / 16 个 `@McpResource` / 3 个 `@McpComplete` 在启动时由 Spring AI 自动扫描注入到 server，protocol 层、SSE、tool inputSchema 自动生成都由框架完成。`McpToolGuardAspect` AOP 切面统一拦截 `(@McpTool || @McpResource) && @McpCapability`，做限流 / 双闸门 / 审计三件事。
 
 ## 多实例部署
 

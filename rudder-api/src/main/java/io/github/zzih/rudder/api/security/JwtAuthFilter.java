@@ -30,7 +30,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -40,11 +39,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** 桥接:Spring SecurityContext.Jwt + X-Workspace-Id → Rudder {@link UserContext} ThreadLocal。 */
+/**
+ * oauth2ResourceServer 验签后,把 JWT claims + {@code X-Workspace-Id} 灌进 {@link UserContext},
+ * 并把 workspace role 合进 SecurityContext authorities(默认 scope 不含)。
+ */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-public class JwtToUserContextFilter extends OncePerRequestFilter {
+public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final MemberService memberService;
 
@@ -58,7 +59,6 @@ public class JwtToUserContextFilter extends OncePerRequestFilter {
                 UserContext.UserInfo userInfo = toUserInfo(jwtAuth.getToken());
                 enrichWorkspaceRole(request, userInfo);
                 UserContext.set(userInfo);
-                // 默认 JwtAuthenticationToken authorities 来自 scope claim,不含 workspace role
                 SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
                         jwtAuth.getToken(),
                         RudderAuthorities.from(userInfo.getRole()),

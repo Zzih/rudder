@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
  *
  * <p>承载当前请求的 user / workspace / role 等信息，由入口 filter 统一注入：
  * <ul>
- *   <li>HTTP: JwtToUserContextFilter 把 Spring Security 解析好的 Jwt + X-Workspace-Id header → set</li>
+ *   <li>HTTP: JwtAuthFilter 把 Spring Security 解析好的 Jwt + X-Workspace-Id header → set</li>
  *   <li>MCP:  PatAuthFilter 解析 PAT → set（workspace_id 来自 token 绑定）</li>
  *   <li>RPC:  RpcContextInterceptor 从消息头读 → set</li>
  * </ul>
@@ -101,7 +101,7 @@ public class UserContext {
 
     /**
      * 校验调用方有权访问指定工作空间(SUPER_ADMIN 直接放行,其他要求 URL workspaceId 等于
-     * 当前 X-Workspace-Id —— 后者由 {@code JwtToUserContextFilter} 经 member 表校验过才设置)。
+     * 当前 X-Workspace-Id —— 后者由 {@code JwtAuthFilter} 经 member 表校验过才设置)。
      * 不等于即抛 {@link io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode#NOT_WORKSPACE_MEMBER},
      * 防止枚举其他工作空间。
      */

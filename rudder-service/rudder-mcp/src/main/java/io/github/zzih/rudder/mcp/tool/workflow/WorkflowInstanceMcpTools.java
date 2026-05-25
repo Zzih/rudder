@@ -43,13 +43,13 @@ public class WorkflowInstanceMcpTools {
 
     private final WorkflowInstanceService workflowInstanceService;
 
-    @McpTool(name = "workflow_instance.list", description = "List workflow run instances in the current workspace (most recent first).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "workflow_instance_list", description = "List workflow run instances in the current workspace (most recent first).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("workflow.browse")
     public List<WorkflowInstanceDTO> list() {
         return workflowInstanceService.listByWorkspaceIdDTO(UserContext.requireWorkspaceId());
     }
 
-    @McpTool(name = "workflow_instance.page_by_workflow", description = "Page through run instances of a specific workflow definition.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "workflow_instance_page_by_workflow", description = "Page through run instances of a specific workflow definition.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("workflow.browse")
     public Page<WorkflowInstanceDTO> pageByWorkflow(
                                                     @McpToolParam(description = "workflow definition code", required = true) Long workflowDefinitionCode,
@@ -66,7 +66,7 @@ public class WorkflowInstanceMcpTools {
         return Page.of(page.getTotal(), p, s, page.getRecords());
     }
 
-    @McpResource(uri = "rudder://workflow_instance/{workflowCode}/{instanceId}", name = "rudder-workflow-instance", description = "A workflow run instance (status, version, runtime params, dag snapshot). Discover instance ids via workflow_instance.list / page_by_workflow.", mimeType = "application/json")
+    @McpResource(uri = "rudder://workflow_instance/{workflowCode}/{instanceId}", name = "rudder-workflow-instance", description = "A workflow run instance (status, version, runtime params, dag snapshot). Discover instance ids via workflow_instance_list / page_by_workflow.", mimeType = "application/json")
     @McpCapability("workflow.browse")
     public String get(String workflowCode, String instanceId) {
         if (workflowCode == null || workflowCode.isBlank() || instanceId == null || instanceId.isBlank()) {
@@ -85,8 +85,8 @@ public class WorkflowInstanceMcpTools {
         return JsonUtils.toJson(workflowInstanceService.listNodeInstancesDTO(Long.parseLong(instanceId)));
     }
 
-    @McpTool(name = "workflow_instance.cancel", description = "Cancel a running workflow instance (sends cancel to all running node task-instances).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
-    @McpCapability("workflow.run")
+    @McpTool(name = "workflow_instance_cancel", description = "Cancel a running workflow instance (sends cancel to all running node task-instances).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpCapability("workflow_run")
     public void cancel(
                        @McpToolParam(description = "workflow instance id", required = true) Long instanceId) {
         if (instanceId == null) {

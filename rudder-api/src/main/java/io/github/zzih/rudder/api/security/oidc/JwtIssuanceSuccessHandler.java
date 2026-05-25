@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.api.security;
+package io.github.zzih.rudder.api.security.oidc;
 
 import io.github.zzih.rudder.dao.dao.UserDao;
 import io.github.zzih.rudder.dao.entity.User;

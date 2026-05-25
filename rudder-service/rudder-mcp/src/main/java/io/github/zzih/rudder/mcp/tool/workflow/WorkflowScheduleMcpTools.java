@@ -37,7 +37,7 @@ public class WorkflowScheduleMcpTools {
 
     private final WorkflowScheduleService workflowScheduleService;
 
-    @McpResource(uri = "rudder://workflow_schedule/{workflowCode}", name = "rudder-workflow-schedule", description = "Cron schedule for a workflow definition (null contents if not scheduled). Use workflow_schedule.set to create/update. Discover workflow codes via workflow.list.", mimeType = "application/json")
+    @McpResource(uri = "rudder://workflow_schedule/{workflowCode}", name = "rudder-workflow-schedule", description = "Cron schedule for a workflow definition (null contents if not scheduled). Use workflow_schedule_set to create/update. Discover workflow codes via workflow_list.", mimeType = "application/json")
     @McpCapability("workflow.browse")
     public String get(String workflowCode) {
         if (workflowCode == null || workflowCode.isBlank()) {
@@ -47,7 +47,7 @@ public class WorkflowScheduleMcpTools {
                 .toJson(workflowScheduleService.getByWorkflowDefinitionCodeDetail(Long.parseLong(workflowCode)));
     }
 
-    @McpTool(name = "workflow_schedule.set", description = "Create or update the cron schedule of a workflow definition. body.status=ONLINE enables it; OFFLINE disables.", annotations = @McpTool.McpAnnotations(idempotentHint = true))
+    @McpTool(name = "workflow_schedule_set", description = "Create or update the cron schedule of a workflow definition. body.status=ONLINE enables it; OFFLINE disables.", annotations = @McpTool.McpAnnotations(idempotentHint = true))
     @McpCapability("workflow.author")
     public WorkflowScheduleDTO set(
                                    @McpToolParam(description = "workflow definition code", required = true) Long workflowDefinitionCode,
