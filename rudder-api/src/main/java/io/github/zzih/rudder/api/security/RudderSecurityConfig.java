@@ -17,8 +17,18 @@
 
 package io.github.zzih.rudder.api.security;
 
+import io.github.zzih.rudder.api.security.oidc.DbClientRegistrationRepository;
+import io.github.zzih.rudder.api.security.oidc.JwtIssuanceSuccessHandler;
+import io.github.zzih.rudder.api.security.oidc.RedisOAuth2AuthorizationRequestRepository;
+import io.github.zzih.rudder.api.security.oidc.RudderOidcUserService;
+import io.github.zzih.rudder.mcp.auth.McpTokenService;
+import io.github.zzih.rudder.mcp.auth.PatAuthFilter;
 import io.github.zzih.rudder.service.auth.security.RudderUserDetailsService;
+import io.github.zzih.rudder.service.workspace.MemberService;
+import io.github.zzih.rudder.service.workspace.UserService;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -46,12 +56,14 @@ import org.springframework.security.oauth2.core.http.converter.OAuth2AccessToken
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.web.client.RestClient;
 
 /**
- * 双 SecurityFilterChain:OIDC 回调路径走 oauth2Login;其他路径走 oauth2-resource-server
- * 校验 Bearer JWT,授权由 controller 方法注解负责。两链均 stateless。
+ * 三条 SecurityFilterChain,按 @Order 路径排他:{@code /mcp/**} 由 {@link PatAuthFilter} 用 PAT 鉴权;
+ * OIDC 回调路径走 oauth2Login;其他路径走 oauth2-resource-server 校验 JWT。三链均 stateless,授权由
+ * controller 方法注解负责。
  */
 @Configuration
 @EnableWebSecurity
@@ -110,6 +122,64 @@ public class RudderSecurityConfig {
     }
 
     @Bean
+    public JwtAuthFilter jwtAuthFilter(MemberService memberService) {
+        return new JwtAuthFilter(memberService);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
+    public PatAuthFilter patAuthFilter(McpTokenService tokenService,
+                                       UserService userService,
+                                       MemberService memberService) {
+        return new PatAuthFilter(tokenService, userService, memberService);
+    }
+
+    /**
+     * 关闭 Spring Boot 对自定义 Filter bean 的全局 servlet 自动注册。两个 filter 都只在各自
+     * SecurityFilterChain 里跑(addFilterBefore / addFilterAfter),否则 Boot 会再把它们作为
+     * 全局 filter 注册一份,**对所有路径生效**,例如 PatAuthFilter 会把 {@code /api/auth/login}
+     * 也拦下 401。
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthFilter> jwtAuthFilterDisableAutoRegistration(JwtAuthFilter f) {
+        FilterRegistrationBean<JwtAuthFilter> reg = new FilterRegistrationBean<>(f);
+        reg.setEnabled(false);
+        return reg;
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
+    public FilterRegistrationBean<PatAuthFilter> patAuthFilterDisableAutoRegistration(PatAuthFilter f) {
+        FilterRegistrationBean<PatAuthFilter> reg = new FilterRegistrationBean<>(f);
+        reg.setEnabled(false);
+        return reg;
+    }
+
+    /** /mcp/** 不挂 oauth2ResourceServer,避免把 PAT 当 JWT 解析。挂 jsonAuthenticationEntryPoint 保证未鉴权请求返 JSON 而非 HTML 错误页。 */
+    @Bean
+    @Order(0)
+    @ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
+    public SecurityFilterChain mcpFilterChain(HttpSecurity http,
+                                              PatAuthFilter patAuthFilter,
+                                              JsonAuthenticationEntryPoint jsonAuthenticationEntryPoint,
+                                              RudderAccessDeniedHandler accessDeniedHandler) throws Exception {
+        return http
+                .securityMatcher("/mcp/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .exceptionHandling(eh -> eh
+                        .authenticationEntryPoint(jsonAuthenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(patAuthFilter, AuthorizationFilter.class)
+                .build();
+    }
+
+    @Bean
     @Order(1)
     public SecurityFilterChain oauth2LoginFilterChain(
                                                       HttpSecurity http,
@@ -138,7 +208,7 @@ public class RudderSecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain mainFilterChain(HttpSecurity http,
-                                               JwtToUserContextFilter jwtToUserContextFilter,
+                                               JwtAuthFilter jwtAuthFilter,
                                                JsonAuthenticationEntryPoint jsonAuthenticationEntryPoint,
                                                RudderAccessDeniedHandler accessDeniedHandler,
                                                BearerTokenResolver bearerTokenResolver) throws Exception {
@@ -157,7 +227,8 @@ public class RudderSecurityConfig {
                         .permitAll()
                         // 外部审批系统回调(由 notifier 校验签名)
                         .requestMatchers("/api/approvals/callback/**").permitAll()
-                        // MCP 协议入口:由 PatAuthFilter 用 PAT 鉴权,跳过 Spring Security
+                        // /mcp/** 兜底:mcpFilterChain @Order(0) 通常先抢匹配;mcp.server.enabled=false
+                        // 时该链不存在,流量落到这里,permitAll 让 DispatcherServlet 返 404 而非 401。
                         .requestMatchers("/mcp/**").permitAll()
                         // 健康检查
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
@@ -170,7 +241,7 @@ public class RudderSecurityConfig {
                         .authenticationEntryPoint(jsonAuthenticationEntryPoint)
                         .jwt(Customizer.withDefaults()))
                 .exceptionHandling(eh -> eh.accessDeniedHandler(accessDeniedHandler))
-                .addFilterAfter(jwtToUserContextFilter, BasicAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthFilter, BasicAuthenticationFilter.class)
                 .build();
     }
 }

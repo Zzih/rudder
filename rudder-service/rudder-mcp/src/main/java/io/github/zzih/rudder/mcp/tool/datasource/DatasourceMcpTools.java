@@ -45,13 +45,13 @@ public class DatasourceMcpTools {
     private final MetadataService metadataService;
     private final WorkspaceGuard workspaceGuard;
 
-    @McpTool(name = "datasource.list", description = "List datasources visible to the current workspace (credentials redacted).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "datasource_list", description = "List datasources visible to the current workspace (credentials redacted).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("datasource.view")
     public List<DatasourceDTO> list() {
         return datasourceService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId());
     }
 
-    @McpResource(uri = "rudder://datasource/{name}", name = "rudder-datasource", description = "A datasource registered in the platform (credentials redacted). Use datasource.list to discover names.", mimeType = "application/json")
+    @McpResource(uri = "rudder://datasource/{name}", name = "rudder-datasource", description = "A datasource registered in the platform (credentials redacted). Use datasource_list to discover names.", mimeType = "application/json")
     @McpCapability("datasource.view")
     public String get(String name) {
         if (name == null || name.isBlank()) {
@@ -71,21 +71,21 @@ public class DatasourceMcpTools {
                 .toList();
     }
 
-    @McpResource(uri = "rudder://datasource/{name}/catalogs", name = "rudder-datasource-catalogs", description = "Catalogs of the given datasource (Trino/Presto-style multi-catalog). For single-catalog engines (MySQL/Hive) the result is empty — use catalog='-' in nested URIs. Discover datasource names via datasource.list.", mimeType = "application/json")
+    @McpResource(uri = "rudder://datasource/{name}/catalogs", name = "rudder-datasource-catalogs", description = "Catalogs of the given datasource (Trino/Presto-style multi-catalog). For single-catalog engines (MySQL/Hive) the result is empty — use catalog='-' in nested URIs. Discover datasource names via datasource_list.", mimeType = "application/json")
     @McpCapability("datasource.view")
     public List<String> listCatalogs(String name) {
         workspaceGuard.requireDatasourceVisible(name);
         return metadataService.listCatalogs(name);
     }
 
-    @McpResource(uri = "rudder://datasource/{name}/catalog/{catalog}/databases", name = "rudder-datasource-databases", description = "Databases (a.k.a. schemas) of the datasource under the given catalog. For single-catalog engines (MySQL/Hive) pass catalog='-'. Discover datasource names via datasource.list, catalogs via the /catalogs sibling resource.", mimeType = "application/json")
+    @McpResource(uri = "rudder://datasource/{name}/catalog/{catalog}/databases", name = "rudder-datasource-databases", description = "Databases (a.k.a. schemas) of the datasource under the given catalog. For single-catalog engines (MySQL/Hive) pass catalog='-'. Discover datasource names via datasource_list, catalogs via the /catalogs sibling resource.", mimeType = "application/json")
     @McpCapability("datasource.view")
     public List<String> listDatabases(String name, String catalog) {
         workspaceGuard.requireDatasourceVisible(name);
         return metadataService.listDatabases(name, WorkspaceGuard.unwrapCatalog(catalog));
     }
 
-    @McpTool(name = "datasource.test_connection", description = "Test datasource connectivity. Returns ok=true if reachable, otherwise error reason.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "datasource_test_connection", description = "Test datasource connectivity. Returns ok=true if reachable, otherwise error reason.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("datasource.test")
     public TestConnectionResultDTO testConnection(
                                                   @McpToolParam(description = "datasource name", required = true) String name) {
@@ -100,7 +100,7 @@ public class DatasourceMcpTools {
         return result;
     }
 
-    @McpTool(name = "datasource.create", description = "Create a datasource. credentialJson is encrypted server-side.")
+    @McpTool(name = "datasource_create", description = "Create a datasource. credentialJson is encrypted server-side.")
     @McpCapability("datasource.manage")
     public DatasourceDTO create(
                                 @McpToolParam(description = "Datasource connection info — name + datasourceType + host required", required = true) DatasourceDTO body,
@@ -114,7 +114,7 @@ public class DatasourceMcpTools {
         return datasourceService.createDetail(body, credentialJson);
     }
 
-    @McpTool(name = "datasource.update", description = "Update a datasource by id (credentialJson null keeps existing).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
+    @McpTool(name = "datasource_update", description = "Update a datasource by id (credentialJson null keeps existing).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
     @McpCapability("datasource.manage")
     public DatasourceDTO update(
                                 @McpToolParam(description = "datasource id", required = true) Long id,
@@ -126,7 +126,7 @@ public class DatasourceMcpTools {
         return datasourceService.updateDetail(id, body, credentialJson);
     }
 
-    @McpTool(name = "datasource.delete", description = "Delete a datasource by id (rejects if still referenced by scripts/tasks).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpTool(name = "datasource_delete", description = "Delete a datasource by id (rejects if still referenced by scripts/tasks).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
     @McpCapability("datasource.manage")
     public void delete(
                        @McpToolParam(description = "datasource id", required = true) Long id) {

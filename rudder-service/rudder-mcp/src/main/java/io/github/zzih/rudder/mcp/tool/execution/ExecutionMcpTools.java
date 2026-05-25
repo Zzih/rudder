@@ -47,7 +47,7 @@ public class ExecutionMcpTools {
     private final TaskInstanceService taskInstanceService;
     private final WorkspaceGuard workspaceGuard;
 
-    @McpResource(uri = "rudder://execution/{id}", name = "rudder-execution", description = "A task execution instance (status, host, timestamps, etc.). Discover ids via execution.run_* or workflow_instance.list_nodes.", mimeType = "application/json")
+    @McpResource(uri = "rudder://execution/{id}", name = "rudder-execution", description = "A task execution instance (status, host, timestamps, etc.). Discover ids via execution_run_* or workflow_instance_list_nodes.", mimeType = "application/json")
     @McpCapability("execution.view_status")
     public String get(String id) {
         if (id == null || id.isBlank()) {
@@ -56,7 +56,7 @@ public class ExecutionMcpTools {
         return JsonUtils.toJson(taskInstanceService.getByIdDetail(Long.parseLong(id)));
     }
 
-    @McpTool(name = "execution.log", description = "Fetch task execution log from offsetLine (default 0).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "execution_log", description = "Fetch task execution log from offsetLine (default 0).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("execution.view_status")
     public LogResponse log(
                            @McpToolParam(description = "execution id", required = true) Long executionId,
@@ -67,7 +67,7 @@ public class ExecutionMcpTools {
         return taskInstanceService.getLog(executionId, offsetLine == null ? 0 : offsetLine);
     }
 
-    @McpTool(name = "execution.result", description = "Fetch task execution result rows (columns + paged rows).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "execution_result", description = "Fetch task execution result rows (columns + paged rows).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("execution.view_result")
     public ResultResponse result(
                                  @McpToolParam(description = "execution id", required = true) Long executionId,
@@ -81,9 +81,9 @@ public class ExecutionMcpTools {
         return taskInstanceService.getResult(executionId, o, l);
     }
 
-    @McpTool(name = "execution.run_direct", description = "Submit ad-hoc SQL/script for execution (no script record persisted). Returns immediately with an instance summary including 'id'. "
+    @McpTool(name = "execution_run_direct", description = "Submit ad-hoc SQL/script for execution (no script record persisted). Returns immediately with an instance summary including 'id'. "
             + "This is asynchronous — to get the actual result, poll the resource `rudder://execution/{id}` until status reaches SUCCESS / FAILED / CANCELLED, "
-            + "then call `execution.result` for output rows or `execution.log` for stdout/stderr.", annotations = @McpTool.McpAnnotations(destructiveHint = true, openWorldHint = true))
+            + "then call `execution_result` for output rows or `execution_log` for stdout/stderr.", annotations = @McpTool.McpAnnotations(destructiveHint = true, openWorldHint = true))
     @McpCapability("execution.run")
     public TaskInstanceDTO runDirect(
                                      @McpToolParam(description = "task type", required = true) TaskType taskType,
@@ -100,8 +100,8 @@ public class ExecutionMcpTools {
                 UserContext.requireWorkspaceId(), taskType, datasourceId, sql, executionMode);
     }
 
-    @McpTool(name = "execution.run_script", description = "Submit an existing script for execution, optionally overriding SQL / datasource / params. Returns immediately with an instance summary including 'id'. "
-            + "Asynchronous — poll `rudder://execution/{id}` until terminal status, then `execution.result` or `execution.log`. Use `execution.cancel` to abort.", annotations = @McpTool.McpAnnotations(destructiveHint = true, openWorldHint = true))
+    @McpTool(name = "execution_run_script", description = "Submit an existing script for execution, optionally overriding SQL / datasource / params. Returns immediately with an instance summary including 'id'. "
+            + "Asynchronous — poll `rudder://execution/{id}` until terminal status, then `execution_result` or `execution_log`. Use `execution_cancel` to abort.", annotations = @McpTool.McpAnnotations(destructiveHint = true, openWorldHint = true))
     @McpCapability("execution.run")
     public TaskInstanceDTO runScript(
                                      @McpToolParam(description = "script code", required = true) Long scriptCode,
@@ -116,8 +116,8 @@ public class ExecutionMcpTools {
         return taskInstanceService.executeDetail(scriptCode, datasourceId, overrideSql, executionMode, params);
     }
 
-    @McpTool(name = "execution.cancel", description = "Cancel a running task instance.", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
-    @McpCapability("execution.cancel")
+    @McpTool(name = "execution_cancel", description = "Cancel a running task instance.", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpCapability("execution_cancel")
     public void cancel(
                        @McpToolParam(description = "execution id", required = true) Long executionId) {
         if (executionId == null) {

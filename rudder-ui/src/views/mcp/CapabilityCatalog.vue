@@ -1,25 +1,30 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Search, Reading, EditPen, WarningFilled } from '@element-plus/icons-vue'
 import { listAllCapabilities, type CapabilityItem } from '@/api/mcp'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const items = ref<CapabilityItem[]>([])
 const loading = ref(false)
 const search = ref('')
 const rwFilter = ref<'all' | 'READ' | 'WRITE'>('all')
 
+// locale 快速切换时,旧请求晚于新请求返回会覆盖正确数据,fetchSeq 丢弃过期响应。
+let fetchSeq = 0
+
 async function load() {
+  const my = ++fetchSeq
   loading.value = true
   try {
     const { data } = await listAllCapabilities()
+    if (my !== fetchSeq) return
     items.value = data ?? []
   } catch {
     /* ignore */
   } finally {
-    loading.value = false
+    if (my === fetchSeq) loading.value = false
   }
 }
 
@@ -64,6 +69,8 @@ const roleColor: Record<string, string> = {
 }
 
 onMounted(load)
+// backend 按 Accept-Language 解析 capability description,语言切换后须重拉
+watch(locale, load)
 </script>
 
 <template>

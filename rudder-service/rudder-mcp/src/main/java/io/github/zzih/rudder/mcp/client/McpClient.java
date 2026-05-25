@@ -26,6 +26,7 @@ package io.github.zzih.rudder.mcp.client;
 public enum McpClient {
 
     CLAUDE_DESKTOP("claude-desktop", "Claude Desktop", "orange"),
+    CLAUDE_CODE("claude-code", "Claude Code", "cyan"),
     CURSOR("cursor", "Cursor", "purple"),
     INSPECTOR("inspector", "MCP Inspector", "teal");
 

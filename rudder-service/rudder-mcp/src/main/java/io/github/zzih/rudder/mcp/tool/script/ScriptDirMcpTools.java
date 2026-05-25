@@ -37,13 +37,13 @@ public class ScriptDirMcpTools {
 
     private final ScriptDirService scriptDirService;
 
-    @McpTool(name = "script_dir.list", description = "List all script directories in the current workspace (flat list with parent ids; reconstruct tree client-side if needed).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "script_dir_list", description = "List all script directories in the current workspace (flat list with parent ids; reconstruct tree client-side if needed).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("script.browse")
     public List<ScriptDirDTO> list() {
         return scriptDirService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId());
     }
 
-    @McpTool(name = "script_dir.create", description = "Create a new script directory under given parent (body.parentId null = root).")
+    @McpTool(name = "script_dir_create", description = "Create a new script directory under given parent (body.parentId null = root).")
     @McpCapability("script.author")
     public ScriptDirDTO create(@McpToolParam(description = "Directory body — name required, parentId optional (null = root)", required = true) ScriptDirDTO body) {
         if (body == null || body.getName() == null || body.getName().isBlank()) {
@@ -52,7 +52,7 @@ public class ScriptDirMcpTools {
         return scriptDirService.createDetail(UserContext.requireWorkspaceId(), body);
     }
 
-    @McpTool(name = "script_dir.rename", description = "Rename a script directory (body.name = new name).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
+    @McpTool(name = "script_dir_rename", description = "Rename a script directory (body.name = new name).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
     @McpCapability("script.author")
     public ScriptDirDTO rename(
                                @McpToolParam(description = "directory id", required = true) Long id,
@@ -63,7 +63,7 @@ public class ScriptDirMcpTools {
         return scriptDirService.updateDetail(UserContext.requireWorkspaceId(), id, body);
     }
 
-    @McpTool(name = "script_dir.move", description = "Move a script directory under a new parent (body.parentId = target; null = root).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
+    @McpTool(name = "script_dir_move", description = "Move a script directory under a new parent (body.parentId = target; null = root).", annotations = @McpTool.McpAnnotations(idempotentHint = true))
     @McpCapability("script.author")
     public ScriptDirDTO move(
                              @McpToolParam(description = "directory id", required = true) Long id,
@@ -75,7 +75,7 @@ public class ScriptDirMcpTools {
                 body == null ? new ScriptDirDTO() : body);
     }
 
-    @McpTool(name = "script_dir.delete", description = "Delete a script directory (must be empty).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
+    @McpTool(name = "script_dir_delete", description = "Delete a script directory (must be empty).", annotations = @McpTool.McpAnnotations(destructiveHint = true, idempotentHint = true))
     @McpCapability("script.author")
     public void delete(
                        @McpToolParam(description = "directory id", required = true) Long id) {

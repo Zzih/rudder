@@ -43,10 +43,10 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>提供「发现 → 浏览 → 检索 → 取全文」闭环：
  * <ul>
- *   <li>{@code knowledge.list_doc_types} — 列当前 workspace 已有的 docType 类目</li>
- *   <li>{@code knowledge.list_documents} — 按 docType 分页列文档元信息</li>
- *   <li>{@code knowledge.search} — 语义检索片段（向量/FULLTEXT 兜底）</li>
- *   <li>{@code knowledge.get_document} — 按 id 取单文档完整内容</li>
+ *   <li>{@code knowledge_list_doc_types} — 列当前 workspace 已有的 docType 类目</li>
+ *   <li>{@code knowledge_list_documents} — 按 docType 分页列文档元信息</li>
+ *   <li>{@code knowledge_search} — 语义检索片段（向量/FULLTEXT 兜底）</li>
+ *   <li>{@code knowledge_get_document} — 按 id 取单文档完整内容</li>
  *   <li>{@code rudder://knowledge/{id}} — 通过 URI 直读文档（resource 形态）</li>
  * </ul>
  *
@@ -59,8 +59,8 @@ public class KnowledgeMcpTools {
 
     private final DocumentRetrievalService retrievalService;
 
-    @McpTool(name = "knowledge.search", description = "Semantic search over the workspace knowledge base. Returns top-K text chunks with source document id / title / docType / relevance score. Falls back to keyword (FULLTEXT) when vector store is unavailable.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
-    @McpCapability("knowledge.search")
+    @McpTool(name = "knowledge_search", description = "Semantic search over the workspace knowledge base. Returns top-K text chunks with source document id / title / docType / relevance score. Falls back to keyword (FULLTEXT) when vector store is unavailable.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpCapability("knowledge_search")
     public List<KnowledgeChunkDTO> search(
                                           @McpToolParam(description = "natural language query", required = true) String query,
                                           @McpToolParam(description = "optional document type filter (WIKI / SCRIPT / SCHEMA / METRIC_DEF / RUNBOOK); null = all types in workspace") String docType,
@@ -76,14 +76,14 @@ public class KnowledgeMcpTools {
                 .toList();
     }
 
-    @McpTool(name = "knowledge.list_doc_types", description = "List the docType categories that actually exist in the current workspace's knowledge base (e.g. WIKI / SCRIPT / SCHEMA / METRIC_DEF / RUNBOOK). Use this before list_documents to know what categories are available.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
-    @McpCapability("knowledge.search")
+    @McpTool(name = "knowledge_list_doc_types", description = "List the docType categories that actually exist in the current workspace's knowledge base (e.g. WIKI / SCRIPT / SCHEMA / METRIC_DEF / RUNBOOK). Use this before list_documents to know what categories are available.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpCapability("knowledge_search")
     public List<String> listDocTypes() {
         return retrievalService.listDocTypes(UserContext.requireWorkspaceId());
     }
 
-    @McpTool(name = "knowledge.list_documents", description = "Page through knowledge base documents (metadata only — no body content). Use knowledge.get_document to fetch full content of a specific id.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
-    @McpCapability("knowledge.search")
+    @McpTool(name = "knowledge_list_documents", description = "Page through knowledge base documents (metadata only — no body content). Use knowledge_get_document to fetch full content of a specific id.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpCapability("knowledge_search")
     public Page<KnowledgeDocumentDTO> listDocuments(
                                                     @McpToolParam(description = "filter by docType (WIKI / SCRIPT / SCHEMA / METRIC_DEF / RUNBOOK); null = all types") String docType,
                                                     @McpToolParam(description = "page number (1-based); default 1") Integer pageNum,
@@ -98,16 +98,16 @@ public class KnowledgeMcpTools {
         return Page.of(page.getTotal(), (int) page.getCurrent(), (int) page.getSize(), rows);
     }
 
-    @McpTool(name = "knowledge.get_document", description = "Fetch the full content of a single knowledge base document by id (discover ids via knowledge.list_documents or knowledge.search).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
-    @McpCapability("knowledge.search")
+    @McpTool(name = "knowledge_get_document", description = "Fetch the full content of a single knowledge base document by id (discover ids via knowledge_list_documents or knowledge_search).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpCapability("knowledge_search")
     public KnowledgeDocumentDetailDTO getDocument(
                                                   @McpToolParam(description = "document id", required = true) Long id) {
         AiDocument doc = retrievalService.getDocument(UserContext.requireWorkspaceId(), id);
         return KnowledgeDocumentDetailDTO.from(doc);
     }
 
-    @McpResource(uri = "rudder://knowledge/{id}", name = "rudder-knowledge-doc", description = "A knowledge base document in the current workspace (full content, addressed by id). Use knowledge.list_documents / knowledge.search to discover ids.", mimeType = "application/json")
-    @McpCapability("knowledge.search")
+    @McpResource(uri = "rudder://knowledge/{id}", name = "rudder-knowledge-doc", description = "A knowledge base document in the current workspace (full content, addressed by id). Use knowledge_list_documents / knowledge_search to discover ids.", mimeType = "application/json")
+    @McpCapability("knowledge_search")
     public String readDocument(String id) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("id required");

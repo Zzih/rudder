@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.mcp.http;
+package io.github.zzih.rudder.mcp.auth;
 
 /** Request 属性 key — PatAuthFilter 写入 / Controller 读取。 */
 public final class McpRequestAttributes {

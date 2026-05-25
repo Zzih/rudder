@@ -128,7 +128,7 @@ spring.ai.mcp.server:
   enabled: ${RUDDER_MCP_ENABLED:true}
   name: rudder
   version: 0.1.0
-  protocol: STREAMABLE      # SSE / STREAMABLE / STATELESS
+  protocol: STATELESS       # SSE / STREAMABLE / STATELESS
   type: SYNC                # 同步模式, 便于 ThreadLocal (UserContext / RequestContextHolder) 透传
 
 springdoc:
