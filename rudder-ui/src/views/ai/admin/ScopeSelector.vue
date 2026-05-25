@@ -82,6 +82,7 @@ function onPickChange(v: string[]) {
           :loading="loading"
           :disabled="disabled"
           :placeholder="$t('aiAdmin.metaSync.scopePickPlaceholder')"
+          popper-class="r-stable-dropdown"
           class="scope-selector__picker"
           @update:model-value="onPickChange"
         >

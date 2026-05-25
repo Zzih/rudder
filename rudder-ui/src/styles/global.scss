@@ -334,3 +334,20 @@ html.dark {
     }
   }
 }
+
+// el-select remote search 时 options 数组替换会让 dropdown 高度从 N→0→M 跳变,
+// 触发 popper.update() 重定位 → 视觉抖动。锁 list / empty / loading 三种状态同高,
+// popper 不再因高度变化重算位置。
+.r-stable-dropdown {
+  .el-select-dropdown__list,
+  .el-select-dropdown__empty,
+  .el-select-dropdown__loading {
+    min-height: 220px;
+  }
+  .el-select-dropdown__empty,
+  .el-select-dropdown__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
