@@ -70,12 +70,12 @@ class PostgresTypeProviderTest {
     }
 
     @Test
-    @DisplayName("buildJdbcUrl 把 sslmode/applicationName 拼到 ?query")
+    @DisplayName("buildJdbcUrl: plugin params 不进 URL,走 Properties single source")
     void buildJdbcUrl() {
         String json = "{\"sslmode\":\"require\",\"applicationName\":\"rudder\"}";
         String url = new PostgresTypeProvider().buildJdbcUrl("h", 5432, "db", json);
-        assertThat(url).startsWith("jdbc:postgresql://h:5432/db?")
-                .contains("sslmode=require")
-                .contains("applicationName=rudder");
+        assertThat(url).isEqualTo("jdbc:postgresql://h:5432/db")
+                .doesNotContain("sslmode=")
+                .doesNotContain("applicationName=");
     }
 }

@@ -49,7 +49,7 @@ public final class ExceptionFormatter {
                 sb.append(CAUSED_BY);
             }
             sb.append(t.getClass().getSimpleName());
-            String msg = t.getLocalizedMessage();
+            String msg = t.getMessage();
             if (msg != null && !msg.isBlank()) {
                 sb.append(": ").append(msg);
             }

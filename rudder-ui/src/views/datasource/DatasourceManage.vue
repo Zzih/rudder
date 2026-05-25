@@ -135,11 +135,6 @@ function ensureTypesLoaded(): Promise<void> {
   return typesLoadPromise
 }
 
-/** 当前 type 的示例 JSON(来自 plugin rawJson entry 的 defaultValue),作为创建时的初值。 */
-function defaultParamsForCurrentType(): string {
-  return rawJsonParam.value?.defaultValue ?? ''
-}
-
 /** 把后端存的 JSON 字符串 pretty-print 成 textarea 友好的多行格式;解析失败直接返回原文。 */
 function prettyPrintJson(raw: string | undefined): string {
   if (typeof raw !== 'string' || !raw.trim()) return ''
@@ -155,17 +150,18 @@ function resetForm() {
 }
 
 function onTypeChange(type: string) {
-  if (!isEdit.value && defaultPorts[type]) {
+  if (isEdit.value) return
+  if (defaultPorts[type]) {
     form.port = defaultPorts[type]
   }
-  form.params = defaultParamsForCurrentType()
+  // 切换 type 时清空 params:旧 type 的 JSON schema 不适用新 type(edit 模式 type 锁定,不会触发)
+  form.params = ''
 }
 
 async function openCreateDialog() {
   await ensureTypesLoaded()
   resetForm()
   isEdit.value = false
-  form.params = defaultParamsForCurrentType()
   dialogVisible.value = true
 }
 

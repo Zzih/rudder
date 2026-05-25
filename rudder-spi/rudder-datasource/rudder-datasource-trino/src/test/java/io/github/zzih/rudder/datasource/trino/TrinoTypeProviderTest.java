@@ -56,14 +56,14 @@ class TrinoTypeProviderTest {
     }
 
     @Test
-    @DisplayName("buildJdbcUrl: 大小写敏感参数 SSL / SSLTrustStorePath 拼到 URL")
-    void buildJdbcUrlUsesUppercaseSsl() {
+    @DisplayName("buildJdbcUrl: plugin params 不进 URL,只输出 base URL — Trino driver 禁止 URL/Properties 双写")
+    void buildJdbcUrlOmitsParams() {
         String json = "{\"SSL\":true,\"SSLTrustStorePath\":\"/etc/trust.jks\",\"SSLTrustStorePassword\":\"pwd\"}";
         String url = new TrinoTypeProvider().buildJdbcUrl("h", 8443, "hive", json);
 
-        assertThat(url).startsWith("jdbc:trino://h:8443/hive?")
-                .contains("SSL=true")
-                .contains("SSLTrustStorePath=/etc/trust.jks")
-                .contains("SSLTrustStorePassword=pwd");
+        assertThat(url).isEqualTo("jdbc:trino://h:8443/hive")
+                .doesNotContain("SSL=")
+                .doesNotContain("SSLTrustStorePath")
+                .doesNotContain("SSLTrustStorePassword");
     }
 }

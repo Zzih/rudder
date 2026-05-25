@@ -64,14 +64,8 @@ public abstract class AbstractJdbcTypeProvider<P> implements DatasourceTypeProvi
         return buildJdbcUrl(host, port, database, props);
     }
 
-    /**
-     * 类型化拼装钩子。默认走 {@code enum 模板 + ?key=value&...} 风格(适合 MySQL family / Postgres /
-     * Trino / ClickHouse / Flink)。Hive/Spark 这种分号分隔的 Beeline 风格需要 override 走
-     * {@link #appendSemicolon(String, Map)};需要剔除特定字段(如 Hive Kerberos 系统配置)的
-     * plugin 也 override 自己控制。
-     */
     protected String buildJdbcUrl(String host, int port, String database, P props) {
-        return appendQuery(dbType().buildJdbcUrl(host, port, database), nonNullFields(props));
+        return dbType().buildJdbcUrl(host, port, database);
     }
 
     /** 把 kv 以 {@code ?key=value&...} 风格追加到 URL。url 已有 ? 时用 & 衔接,同名参数后者覆盖前者。 */

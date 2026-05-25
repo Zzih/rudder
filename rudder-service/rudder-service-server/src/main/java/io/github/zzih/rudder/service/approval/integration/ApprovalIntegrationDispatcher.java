@@ -108,7 +108,7 @@ public class ApprovalIntegrationDispatcher {
                 }
                 log.warn("ApprovalIntegration attempt {}/{} failed: resourceType={}, code={}, err={}",
                         attempt + 1, MAX_RETRIES, event.resourceType(), event.resourceCode(),
-                        e.getLocalizedMessage());
+                        e.getMessage());
                 sleepBackoff(attempt);
             }
         }
@@ -124,7 +124,7 @@ public class ApprovalIntegrationDispatcher {
                     .title(I18n.t("msg.approval.integrationFailure.title",
                             event.resourceType(), event.resourceCode()))
                     .content(I18n.t("msg.approval.integrationFailure.content",
-                            event.resourceType(), event.resourceCode(), cause.getLocalizedMessage()))
+                            event.resourceType(), event.resourceCode(), cause.getMessage()))
                     .build());
         } catch (Exception nfe) {
             log.warn("ApprovalIntegration failure notification also failed: {}", nfe.getMessage());

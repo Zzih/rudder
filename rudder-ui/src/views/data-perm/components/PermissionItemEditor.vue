@@ -3,10 +3,10 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Delete } from '@element-plus/icons-vue'
 import {
-  listMetaCatalogs,
-  listMetaDatabases,
-  listMetaTables,
-  listMetaColumns,
+  searchMetaCatalogOptions,
+  searchMetaDatabaseOptions,
+  searchMetaTableOptions,
+  searchMetaColumnOptions,
 } from '@/api/datasource'
 import { DANGEROUS_ACCESS_RE, type DataPermAdapter, type DataPermRolePermissionItem, type DataPermScope } from '@/api/data-perm'
 
@@ -26,12 +26,25 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const STAR = '*'
+// dropdown 单次返回上限 — 生产 10K+ catalog 时,用户必须用 keyword 缩范围;100 项也够无搜索时浏览
+const DROPDOWN_LIMIT = 100
 
 const catalogs = ref<string[]>([])
 const databases = ref<string[]>([])
 const tables = ref<string[]>([])
 const columns = ref<string[]>([])
 const loading = ref({ catalogs: false, databases: false, tables: false, columns: false })
+// filter 后总数(不是后端全集大小;keyword 变了 total 跟着变)— 给底部 hint 用
+const totals = ref({ catalogs: 0, databases: 0, tables: 0, columns: 0 })
+
+/** 简易 debounce:300ms 内重复触发只跑最后一次 — 给 el-select :remote-method 用。 */
+function debounced<T extends (...args: any[]) => void>(fn: T, ms = 300): T {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return ((...args: any[]) => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => fn(...args), ms)
+  }) as T
+}
 
 const service = computed<DataPermScope | null>(() =>
   props.scopes.find(s => s.code === props.modelValue.scopeCode) ?? null)
@@ -154,51 +167,75 @@ function metaDsId(): number | null {
   return service.value?.metadataDatasourceId ?? null
 }
 
-async function loadCatalogs() {
+async function loadCatalogs(keyword = '') {
   const dsId = metaDsId()
   if (!dsId) return
   loading.value.catalogs = true
   try {
-    const res: any = await listMetaCatalogs(props.workspaceId, dsId)
+    const res: any = await searchMetaCatalogOptions(props.workspaceId, dsId, { keyword, limit: DROPDOWN_LIMIT })
     catalogs.value = (res?.data as string[]) ?? []
-  } catch { catalogs.value = [] } finally { loading.value.catalogs = false }
+    totals.value.catalogs = (res?.total as number) ?? 0
+  } catch { catalogs.value = []; totals.value.catalogs = 0 } finally { loading.value.catalogs = false }
 }
-async function loadDatabases() {
+async function loadDatabases(keyword = '') {
   const dsId = metaDsId()
   if (!dsId) return
   loading.value.databases = true
   try {
     const cat = props.modelValue.catalogName && props.modelValue.catalogName !== STAR
       ? props.modelValue.catalogName : null
-    const res: any = await listMetaDatabases(props.workspaceId, dsId, cat)
+    const res: any = await searchMetaDatabaseOptions(props.workspaceId, dsId, { catalog: cat, keyword, limit: DROPDOWN_LIMIT })
     databases.value = (res?.data as string[]) ?? []
-  } catch { databases.value = [] } finally { loading.value.databases = false }
+    totals.value.databases = (res?.total as number) ?? 0
+  } catch { databases.value = []; totals.value.databases = 0 } finally { loading.value.databases = false }
 }
-async function loadTables() {
+async function loadTables(keyword = '') {
   const dsId = metaDsId()
   if (!dsId) return
   loading.value.tables = true
   try {
     const cat = props.modelValue.catalogName && props.modelValue.catalogName !== STAR
       ? props.modelValue.catalogName : null
-    const res: any = await listMetaTables(
-      props.workspaceId, dsId,
-      props.modelValue.databaseName!, cat)
+    const res: any = await searchMetaTableOptions(
+      props.workspaceId, dsId, props.modelValue.databaseName!,
+      { catalog: cat, keyword, limit: DROPDOWN_LIMIT })
     tables.value = ((res?.data as Array<{ name: string }>) ?? []).map(x => x.name)
-  } catch { tables.value = [] } finally { loading.value.tables = false }
+    totals.value.tables = (res?.total as number) ?? 0
+  } catch { tables.value = []; totals.value.tables = 0 } finally { loading.value.tables = false }
 }
-async function loadColumns() {
+async function loadColumns(keyword = '') {
   const dsId = metaDsId()
   if (!dsId) return
   loading.value.columns = true
   try {
     const cat = props.modelValue.catalogName && props.modelValue.catalogName !== STAR
       ? props.modelValue.catalogName : null
-    const res: any = await listMetaColumns(
-      props.workspaceId, dsId,
-      props.modelValue.databaseName!, props.modelValue.tableName!, cat)
+    const res: any = await searchMetaColumnOptions(
+      props.workspaceId, dsId, props.modelValue.databaseName!, props.modelValue.tableName!,
+      { catalog: cat, keyword, limit: DROPDOWN_LIMIT })
     columns.value = ((res?.data as Array<{ name: string }>) ?? []).map(x => x.name)
-  } catch { columns.value = [] } finally { loading.value.columns = false }
+    totals.value.columns = (res?.total as number) ?? 0
+  } catch { columns.value = []; totals.value.columns = 0 } finally { loading.value.columns = false }
+}
+
+// 给 el-select :remote-method 用 — debounce 300ms 后调对应 load
+const remoteSearchCatalogs = debounced((kw: string) => { loadCatalogs(kw) })
+const remoteSearchDatabases = debounced((kw: string) => { loadDatabases(kw) })
+const remoteSearchTables = debounced((kw: string) => { loadTables(kw) })
+const remoteSearchColumns = debounced((kw: string) => { loadColumns(kw) })
+
+function getRemoteMethod(level: 'catalog' | 'database' | 'table' | 'column') {
+  if (level === 'catalog')  return remoteSearchCatalogs
+  if (level === 'database') return remoteSearchDatabases
+  if (level === 'table')    return remoteSearchTables
+  return remoteSearchColumns
+}
+
+function getLevelTotal(level: 'catalog' | 'database' | 'table' | 'column'): number {
+  if (level === 'catalog')  return totals.value.catalogs
+  if (level === 'database') return totals.value.databases
+  if (level === 'table')    return totals.value.tables
+  return totals.value.columns
 }
 
 function getLevelValue(level: 'catalog' | 'database' | 'table' | 'column') {
@@ -290,6 +327,9 @@ function getLevelLoading(level: 'catalog' | 'database' | 'table' | 'column') {
               :model-value="getLevelValue(lv)"
               :placeholder="t('dataPerm.apply.placeholderHint')"
               filterable allow-create
+              remote
+              :remote-method="getRemoteMethod(lv)"
+              reserve-keyword
               :loading="getLevelLoading(lv)"
               class="perm-card__pick"
               :class="{ 'is-invalid': !getLevelValue(lv), 'is-wildcard': getLevelValue(lv) === STAR }"
@@ -298,6 +338,9 @@ function getLevelLoading(level: 'catalog' | 'database' | 'table' | 'column') {
               <el-option :value="STAR" :label="t('dataPerm.apply.allValue')" />
               <el-option v-for="x in getLevelOptions(lv)" :key="x" :value="x" :label="x" />
             </el-select>
+            <div v-if="getLevelTotal(lv) > getLevelOptions(lv).length" class="perm-card__pick-hint">
+              {{ t('dataPerm.apply.moreResultsHint', { total: getLevelTotal(lv), shown: getLevelOptions(lv).length }) }}
+            </div>
           </div>
         </div>
       </div>
@@ -430,6 +473,13 @@ function getLevelLoading(level: 'catalog' | 'database' | 'table' | 'column') {
   }
   &__pick.is-invalid:deep(.el-select__wrapper) {
     box-shadow: 0 0 0 1px var(--r-danger) inset;
+  }
+
+  &__pick-hint {
+    margin-top: 4px;
+    font-size: var(--r-font-xs);
+    color: var(--r-text-muted);
+    line-height: 1.3;
   }
 
   &__access {

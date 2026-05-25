@@ -161,7 +161,7 @@ public abstract class AbstractConfigurablePluginRegistry<C, F extends Configurab
         try {
             props = deserializeProps(f, json);
         } catch (BizException e) {
-            return ValidationResult.fail(null, e.getLocalizedMessage());
+            return ValidationResult.fail(null, e.getMessage());
         }
         return f.validate(props);
     }

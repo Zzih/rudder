@@ -49,16 +49,16 @@ class MysqlTypeProviderTest {
     }
 
     @Test
-    @DisplayName("buildJdbcUrl 把强类型 props 拼成 ?key=value& 风格 query string")
-    void buildJdbcUrlAppendsQueryString() {
-        // enum 模板自带 useUnicode=true&characterEncoding=UTF-8&useInformationSchema=true
-        // props 提供的 useSSL/allowPublicKeyRetrieval 应追加到末尾,同名参数后者覆盖
+    @DisplayName("buildJdbcUrl: plugin params 不再拼 URL(走 Properties single source),只保留 enum 模板内置 default")
+    void buildJdbcUrlOnlyTemplateParams() {
+        // 用户配置的 useSSL/allowPublicKeyRetrieval 由 task init / Hikari 走 Properties 路径传递,
+        // 避免与 URL 重复(Trino driver 严格禁止双写)。URL 只保留 enum 模板自带的工程默认。
         String json = "{\"useSSL\":false,\"allowPublicKeyRetrieval\":true}";
         String url = new MysqlTypeProvider().buildJdbcUrl("h", 3306, "db", json);
 
-        assertThat(url).startsWith("jdbc:mysql://h:3306/db?")
-                .contains("useSSL=false")
-                .contains("allowPublicKeyRetrieval=true");
+        assertThat(url).isEqualTo(DatasourceType.MYSQL.buildJdbcUrl("h", 3306, "db"))
+                .doesNotContain("useSSL=false")
+                .doesNotContain("allowPublicKeyRetrieval=true");
     }
 
     @Test

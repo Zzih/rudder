@@ -1657,6 +1657,7 @@ export default {
       resourcePath: 'Resource path',
       resourceHint: 'Every level required; pick "All" explicitly for wildcard.',
       placeholderHint: 'Pick or type',
+      moreResultsHint: '{total} total · showing first {shown}, type to filter',
       actions: 'Actions',
       actionsRequired: 'pick at least one',
       selectAll: 'Select all',

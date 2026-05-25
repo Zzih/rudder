@@ -29,6 +29,7 @@ import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
@@ -183,6 +184,56 @@ public class DatasourceController {
         Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
         return Result.ok(metadataService.listColumns(dsName, catalog, db, table));
+    }
+
+    // ==================== Paged + keyword 版本(给 dropdown 远程搜索)====================
+    // catalog 量级 10000+ 时,前端不能一次拉全量;走这套接口取 default 前 100,搜索时 keyword filter
+    // limit 100。total 返回 filter 后的总数,前端用来显示"结果较多,请输入关键字过滤"hint。
+
+    @GetMapping("/{id}/meta/catalogs/search")
+    @RequireViewer
+    public PageResult<String> searchCatalogs(@PathVariable Long id,
+                                             @RequestParam(required = false) String keyword,
+                                             @RequestParam(defaultValue = "100") int limit) {
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
+        String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
+        return metadataService.searchCatalogs(dsName, keyword, limit);
+    }
+
+    @GetMapping("/{id}/meta/databases/search")
+    @RequireViewer
+    public PageResult<String> searchDatabases(@PathVariable Long id,
+                                              @RequestParam(required = false) String catalog,
+                                              @RequestParam(required = false) String keyword,
+                                              @RequestParam(defaultValue = "100") int limit) {
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
+        String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
+        return metadataService.searchDatabases(dsName, catalog, keyword, limit);
+    }
+
+    @GetMapping("/{id}/meta/databases/{db}/tables/search")
+    @RequireViewer
+    public PageResult<TableMeta> searchTablesPaged(@PathVariable Long id,
+                                                   @PathVariable String db,
+                                                   @RequestParam(required = false) String catalog,
+                                                   @RequestParam(required = false) String keyword,
+                                                   @RequestParam(defaultValue = "100") int limit) {
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
+        String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
+        return metadataService.searchTables(dsName, catalog, db, keyword, limit);
+    }
+
+    @GetMapping("/{id}/meta/databases/{db}/tables/{table}/columns/search")
+    @RequireViewer
+    public PageResult<ColumnMeta> searchColumnsPaged(@PathVariable Long id,
+                                                     @PathVariable String db,
+                                                     @PathVariable String table,
+                                                     @RequestParam(required = false) String catalog,
+                                                     @RequestParam(required = false) String keyword,
+                                                     @RequestParam(defaultValue = "100") int limit) {
+        Long workspaceId = UserContext.getWorkspaceIdOrNull();
+        String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
+        return metadataService.searchColumns(dsName, catalog, db, table, keyword, limit);
     }
 
     @GetMapping("/{id}/meta/search")
