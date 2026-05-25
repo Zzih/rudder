@@ -167,6 +167,7 @@ onMounted(async () => {
         <span class="snap-filters__label"><el-icon><User /></el-icon>{{ t('dataPermGrant.filterUser') }}</span>
         <el-select v-model="selectedUserIds" multiple filterable remote :remote-method="searchUsers"
           :loading="userSearchLoading" :placeholder="t('dataPermGrant.userSearchPlaceholder')"
+          popper-class="r-stable-dropdown"
           collapse-tags collapse-tags-tooltip clearable class="snap-filters__select">
           <el-option v-for="u in userOptions" :key="u.id" :value="u.id" :label="u.username" />
         </el-select>

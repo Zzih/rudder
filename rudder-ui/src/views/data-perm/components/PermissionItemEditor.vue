@@ -331,6 +331,7 @@ function getLevelLoading(level: 'catalog' | 'database' | 'table' | 'column') {
               :remote-method="getRemoteMethod(lv)"
               reserve-keyword
               :loading="getLevelLoading(lv)"
+              popper-class="r-stable-dropdown"
               class="perm-card__pick"
               :class="{ 'is-invalid': !getLevelValue(lv), 'is-wildcard': getLevelValue(lv) === STAR }"
               @update:model-value="v => setLevelValue(lv, v as string)"
