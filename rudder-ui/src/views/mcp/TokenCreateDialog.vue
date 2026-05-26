@@ -50,6 +50,10 @@ const form = ref({
 const workspaces = ref<WorkspaceItem[]>([])
 const availableCaps = ref<CapabilityItem[]>([])
 const currentRole = ref<string>('')
+
+// AI 客户端最常见用途是触发并管理任务执行,run/cancel 配套加入默认勾选;两者都是 WRITE,
+// 仍走审批流程,只是减少用户每次手勾的步骤。其他 WRITE 不预勾,避免误申请高危权限。
+const DEFAULT_WRITE_CAPABILITIES = ['execution.run', 'execution.cancel']
 const submitting = ref(false)
 const plainToken = ref<string>('')
 const ackSaved = ref(false)
@@ -97,7 +101,7 @@ async function loadScopes(wsId: number) {
     availableCaps.value = data?.capabilities ?? []
     currentRole.value = data?.role ?? ''
     form.value.capabilities = availableCaps.value
-      .filter(c => c.rwClass === 'READ')
+      .filter(c => c.rwClass === 'READ' || DEFAULT_WRITE_CAPABILITIES.includes(c.id))
       .map(c => c.id)
   } catch { /* ignore */ }
 }

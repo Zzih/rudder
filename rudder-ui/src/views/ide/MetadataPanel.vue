@@ -39,6 +39,7 @@
     <el-tree
       v-else-if="currentDatasource"
       :key="treeKey"
+      ref="treeRef"
       :props="treeProps"
       node-key="key"
       lazy
@@ -46,18 +47,22 @@
       @node-click="handleNodeClick"
     >
       <template #default="{ data }">
-        <span class="meta-node" :class="{ 'meta-node--pk': data.isPrimaryKey }">
+        <span
+          class="meta-node"
+          :class="{ 'meta-node--pk': data.isPrimaryKey, 'meta-node--load-more': data.nodeType === 'loadMore' }"
+        >
           <el-icon class="meta-node__icon">
-            <Files v-if="data.nodeType === 'catalog'" />
+            <Refresh v-if="data.nodeType === 'loadMore'" />
+            <Files v-else-if="data.nodeType === 'catalog'" />
             <Coin v-else-if="data.nodeType === 'database'" />
             <Grid v-else-if="data.nodeType === 'table'" />
             <Key v-else-if="data.isPrimaryKey" />
             <Tickets v-else />
           </el-icon>
           <el-tooltip v-if="data.comment" :content="data.comment" placement="right" :show-after="500">
-            <span class="meta-node__label">{{ data.label }}</span>
+            <span class="meta-node__label">{{ nodeLabel(data) }}</span>
           </el-tooltip>
-          <span v-else class="meta-node__label">{{ data.label }}</span>
+          <span v-else class="meta-node__label">{{ nodeLabel(data) }}</span>
           <span v-if="data.colType" class="meta-node__type">{{ data.colType }}</span>
           <span v-if="data.comment" class="meta-node__comment">{{ data.comment }}</span>
           <!-- Table: Pin button (AI context) -->
@@ -86,7 +91,7 @@ import { IDE_STATE_KEY } from './ideState'
 import { useI18n } from 'vue-i18n'
 import { Search, Connection, Coin, Grid, Key, Tickets, Refresh, Loading, Star, StarFilled, Files } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { listMetaCatalogs, listMetaDatabases, listMetaTables, listMetaColumns, refreshMetaCache, searchMetaTables, type TableSearchResult } from '@/api/datasource'
+import { refreshMetaCache, searchMetaCatalogOptions, searchMetaDatabaseOptions, searchMetaTableOptions, searchMetaColumnOptions, searchMetaTables, type TableSearchResult } from '@/api/datasource'
 import { useDatasourceStore } from '@/stores/datasource'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { pinnedTables as pinnedApi, type AiPinnedTableVO } from '@/api/ai'
@@ -94,7 +99,7 @@ import { pinnedTables as pinnedApi, type AiPinnedTableVO } from '@/api/ai'
 interface MetaNode {
   key: string
   label: string
-  nodeType: 'catalog' | 'database' | 'table' | 'column'
+  nodeType: 'catalog' | 'database' | 'table' | 'column' | 'loadMore'
   isLeaf: boolean
   isPrimaryKey?: boolean
   colType?: string
@@ -103,6 +108,11 @@ interface MetaNode {
   database?: string
   /** 三层引擎;两层引擎为 undefined。 */
   catalog?: string
+  /** loadMore 节点专用:下一页 offset + 父级类型,点击时复用 */
+  offset?: number
+  parentLevel?: 'catalog' | 'database' | 'table' | 'column'
+  /** loadMore 节点专用:总数,用于模板里实时 t() 渲染 label(避免构造时求值后 locale 切换不刷新) */
+  totalCount?: number
 }
 
 // 三层引擎:root 先拉 catalog 再拉 database。两层引擎:root 直接拉 database。
@@ -119,7 +129,14 @@ const workspaceStore = useWorkspaceStore()
 const workspaceId = computed(() => workspaceStore.currentWorkspace?.id)
 const searchQuery = ref('')
 const treeKey = ref(0)
+const treeRef = ref<any>(null)
 const treeProps = { label: 'label', children: 'children', isLeaf: 'isLeaf' }
+// tree 节点分页大小,末尾 loadMore 伪节点拉下一页,避免 mount 几千节点
+const TREE_PAGE_SIZE = 100
+// in-flight loadMore 节点 key 集合,nodeLabel 据此切到"加载中"文案,handleLoadMore 据此防重复点击
+const loadingMoreKeys = ref<Set<string>>(new Set())
+// 三层引擎驱动 catalog API 异常时标记为两层走 fallback,避免每次 root reload 重复探测
+const twoTierFallbackDsIds = new Set<number>()
 
 const currentDatasource = computed(() => {
   const activeTab = ideState.tabs.find((t: any) => t.id === ideState.activeTabId)
@@ -127,7 +144,7 @@ const currentDatasource = computed(() => {
   return datasourceStore.datasources.find((ds) => ds.id === activeTab.datasourceId) ?? null
 })
 
-// Force tree rebuild when datasource changes
+// 切 ds → tree 重建
 watch(currentDatasource, () => { treeKey.value++ })
 
 function insertAtCursor(text: string) {
@@ -195,106 +212,250 @@ async function handleRefresh() {
   refreshing.value = true
   try {
     await refreshMetaCache(workspaceId.value!, ds.id)
-    treeKey.value++ // force tree reload
+    // 清 fallback memo 让 catalog 重新探测 — 后端权限/同步状态变化后能恢复三层视图
+    twoTierFallbackDsIds.delete(ds.id)
+    treeKey.value++
   } catch { /* ignore */ } finally {
     refreshing.value = false
   }
 }
 
+// ==================== Tree lazy load (database / table / column 分页) ====================
+// 每层走 paged search API + 末尾 loadMore 伪节点;点击 loadMore → fetch 下一页 → tree.append + 替换 loadMore
+
+interface PageResp<T> { data?: T[]; total?: number }
+
+async function fetchCatalogsPage(dsId: number, offset: number)
+    : Promise<{ items: string[]; total: number }> {
+  const res: any = await searchMetaCatalogOptions(workspaceId.value!, dsId,
+    { keyword: '', offset, limit: TREE_PAGE_SIZE })
+  return { items: ((res as PageResp<string>)?.data ?? []), total: res?.total ?? 0 }
+}
+async function fetchDatabasesPage(dsId: number, catalog: string | null, offset: number)
+    : Promise<{ items: string[]; total: number }> {
+  const res: any = await searchMetaDatabaseOptions(workspaceId.value!, dsId,
+    { catalog, keyword: '', offset, limit: TREE_PAGE_SIZE })
+  return { items: ((res as PageResp<string>)?.data ?? []), total: res?.total ?? 0 }
+}
+async function fetchTablesPage(dsId: number, catalog: string | undefined, database: string, offset: number)
+    : Promise<{ items: { name: string; comment: string }[]; total: number }> {
+  const res: any = await searchMetaTableOptions(workspaceId.value!, dsId, database,
+    { catalog: catalog ?? null, keyword: '', offset, limit: TREE_PAGE_SIZE })
+  return { items: ((res?.data as { name: string; comment: string }[]) ?? []), total: res?.total ?? 0 }
+}
+async function fetchColumnsPage(dsId: number, catalog: string | undefined, database: string, table: string,
+                                offset: number)
+    : Promise<{ items: { name: string; type: string; comment: string }[]; total: number }> {
+  const res: any = await searchMetaColumnOptions(workspaceId.value!, dsId, database, table,
+    { catalog: catalog ?? null, keyword: '', offset, limit: TREE_PAGE_SIZE })
+  return { items: ((res?.data as { name: string; type: string; comment: string }[]) ?? []),
+           total: res?.total ?? 0 }
+}
+
+function buildLoadMoreNode(
+  parentLevel: 'catalog' | 'database' | 'table' | 'column',
+  keyPrefix: string,
+  nextOffset: number,
+  total: number,
+  catalog?: string,
+): MetaNode {
+  // label 留空,模板走 nodeLabel(data) 实时 t() 渲染,locale 切换才能刷新文案
+  return {
+    key: `loadmore-${keyPrefix}-${nextOffset}`,
+    label: '',
+    nodeType: 'loadMore',
+    isLeaf: true,
+    offset: nextOffset,
+    parentLevel,
+    catalog,
+    totalCount: total,
+  }
+}
+
+function nodeLabel(data: MetaNode): string {
+  if (data.nodeType === 'loadMore') {
+    if (loadingMoreKeys.value.has(data.key)) return t('common.loading')
+    if (data.totalCount != null) {
+      return t('common.loadMore', { shown: data.offset ?? 0, total: data.totalCount })
+    }
+  }
+  return data.label
+}
+
+// items.length===0 时不 push loadMore,否则 offset 不前进会让用户点死循环
+function buildCatalogNodes(dsId: number, items: string[], total: number, offset: number): MetaNode[] {
+  const nodes: MetaNode[] = items.map(name => ({
+    key: `cat-${dsId}-${name}`,
+    label: name,
+    nodeType: 'catalog' as const,
+    isLeaf: false,
+    catalog: name,
+  }))
+  const shown = offset + items.length
+  if (items.length > 0 && shown < total) nodes.push(buildLoadMoreNode('catalog', `cat-${dsId}`, shown, total))
+  return nodes
+}
+function buildDatabaseNodes(items: string[], catalog: string | null, total: number, offset: number): MetaNode[] {
+  const nodes: MetaNode[] = items.map(name => ({
+    key: `db-${catalog ?? ''}-${name}`,
+    label: name,
+    nodeType: 'database' as const,
+    isLeaf: false,
+    database: name,
+    catalog: catalog ?? undefined,
+  }))
+  const shown = offset + items.length
+  if (items.length > 0 && shown < total) {
+    nodes.push(buildLoadMoreNode('database', `db-${catalog ?? ''}`, shown, total, catalog ?? undefined))
+  }
+  return nodes
+}
+function buildTableNodes(items: { name: string; comment: string }[], parent: MetaNode,
+                         total: number, offset: number): MetaNode[] {
+  const nodes: MetaNode[] = items.map(it => ({
+    key: `table-${parent.catalog ?? ''}-${parent.label}-${it.name}`,
+    label: it.name,
+    nodeType: 'table' as const,
+    isLeaf: false,
+    tableName: it.name,
+    database: parent.label,
+    catalog: parent.catalog,
+    comment: it.comment || undefined,
+  }))
+  const shown = offset + items.length
+  if (items.length > 0 && shown < total) {
+    nodes.push(buildLoadMoreNode('table', `tbl-${parent.catalog ?? ''}-${parent.label}`, shown, total, parent.catalog))
+  }
+  return nodes
+}
+function buildColumnNodes(items: { name: string; type: string; comment: string }[], parent: MetaNode,
+                          total: number, offset: number): MetaNode[] {
+  const nodes: MetaNode[] = items.map(c => ({
+    key: `col-${parent.catalog ?? ''}-${parent.database}-${parent.label}-${c.name}`,
+    label: c.name,
+    nodeType: 'column' as const,
+    isLeaf: true,
+    colType: c.type,
+    isPrimaryKey: false,
+    comment: c.comment || undefined,
+  }))
+  const shown = offset + items.length
+  if (items.length > 0 && shown < total) {
+    nodes.push(buildLoadMoreNode('column',
+        `col-${parent.catalog ?? ''}-${parent.database}-${parent.label}`, shown, total, parent.catalog))
+  }
+  return nodes
+}
+
 async function loadNode(node: any, resolve: (data: MetaNode[]) => void) {
   const ds = currentDatasource.value
-  if (!ds) { resolve([]); return }
+  if (!ds || workspaceId.value == null) { resolve([]); return }
 
-  // Root level → 三层引擎先拉 catalog,两层直接拉 database
   if (node.level === 0) {
-    if (hasCatalog(ds.datasourceType)) {
+    // 三层引擎:catalog API 异常曾标记两层 fallback 走过的 ds 直接走两层,省一次 RTT
+    const threeTier = hasCatalog(ds.datasourceType) && !twoTierFallbackDsIds.has(ds.id)
+    if (threeTier) {
       try {
-        const { data } = await listMetaCatalogs(workspaceId.value!, ds.id)
-        const cats = data ?? []
-        if (cats.length > 0) {
-          resolve(cats.map((cat: string) => ({
-            key: `cat-${cat}`,
-            label: cat,
-            nodeType: 'catalog' as const,
-            isLeaf: false,
-            catalog: cat,
-          })))
-          return
-        }
-        // 三层声明但驱动返回空:回退成两层
-      } catch { /* fall through to databases */ }
+        const { items, total } = await fetchCatalogsPage(ds.id, 0)
+        // 拉到 0 项不 fall-through:三层引擎应当显式 resolve([]),让用户看到空+刷新按钮重试,
+        // 否则下面 fetchDatabasesPage(null) 在后端会调 getCatalogs() 把 catalog 名当 database 返回
+        resolve(buildCatalogNodes(ds.id, items, total, 0))
+        return
+      } catch (e) {
+        // 真异常才退两层兜底,记忆此 ds 防下次 reload 重复探测
+        console.warn('[MetadataPanel] fetch catalogs failed, fallback to two-tier:', e)
+        twoTierFallbackDsIds.add(ds.id)
+      }
     }
     try {
-      const { data } = await listMetaDatabases(workspaceId.value!, ds.id)
-      resolve((data ?? []).map((dbName: string) => ({
-        key: `db-${dbName}`,
-        label: dbName,
-        nodeType: 'database' as const,
-        isLeaf: false,
-        database: dbName,
-      })))
+      const { items, total } = await fetchDatabasesPage(ds.id, null, 0)
+      resolve(buildDatabaseNodes(items, null, total, 0))
     } catch { resolve([]) }
     return
   }
 
   const nodeData = node.data as MetaNode
-
-  // Catalog level → load databases under catalog
   if (nodeData.nodeType === 'catalog') {
     try {
-      const { data } = await listMetaDatabases(workspaceId.value!, ds.id, nodeData.catalog)
-      resolve((data ?? []).map((dbName: string) => ({
-        key: `db-${nodeData.catalog}-${dbName}`,
-        label: dbName,
-        nodeType: 'database' as const,
-        isLeaf: false,
-        database: dbName,
-        catalog: nodeData.catalog,
-      })))
+      const catalog = nodeData.catalog ?? nodeData.label
+      const { items, total } = await fetchDatabasesPage(ds.id, catalog, 0)
+      resolve(buildDatabaseNodes(items, catalog, total, 0))
     } catch { resolve([]) }
     return
   }
-
-  // Database level → load tables
   if (nodeData.nodeType === 'database') {
     try {
-      const { data: tables } = await listMetaTables(workspaceId.value!, ds.id, nodeData.label, nodeData.catalog)
-      resolve((tables ?? []).map((t: any) => ({
-        key: `table-${nodeData.catalog ?? ''}-${nodeData.label}-${t.name}`,
-        label: t.name,
-        nodeType: 'table' as const,
-        isLeaf: false,
-        tableName: t.name,
-        database: nodeData.label,
-        catalog: nodeData.catalog,
-        comment: t.comment || undefined,
-      })))
+      const { items, total } = await fetchTablesPage(ds.id, nodeData.catalog, nodeData.label, 0)
+      resolve(buildTableNodes(items, nodeData, total, 0))
     } catch { resolve([]) }
     return
   }
-
-  // Table level → load columns
   if (nodeData.nodeType === 'table') {
     try {
-      const { data: columns } = await listMetaColumns(
-        workspaceId.value!, ds.id, nodeData.database!, nodeData.label, nodeData.catalog)
-      resolve((columns ?? []).map((c: any) => ({
-        key: `col-${nodeData.catalog ?? ''}-${nodeData.database}-${nodeData.label}-${c.name}`,
-        label: c.name,
-        nodeType: 'column' as const,
-        isLeaf: true,
-        colType: c.type,
-        isPrimaryKey: false,
-        comment: c.comment || undefined,
-      })))
+      const { items, total } = await fetchColumnsPage(ds.id, nodeData.catalog, nodeData.database!, nodeData.label, 0)
+      resolve(buildColumnNodes(items, nodeData, total, 0))
     } catch { resolve([]) }
     return
   }
-
   resolve([])
 }
 
-function handleNodeClick(data: MetaNode) {
+async function handleLoadMore(loadMoreData: MetaNode, loadMoreNode: any) {
+  const ds = currentDatasource.value
+  if (!ds || loadMoreData.offset == null) return
+  if (loadingMoreKeys.value.has(loadMoreData.key)) return
+  // snapshot 上下文:await 期间若 treeKey++ / ds 切换 / ws 切换,旧 parentKey 在新 store 失效,append 会静默丢数据
+  const snapshotTk = treeKey.value
+  const snapshotDsId = ds.id
+  const snapshotWsId = workspaceId.value
+  const stillSameContext = () =>
+    snapshotTk === treeKey.value
+    && snapshotDsId === currentDatasource.value?.id
+    && snapshotWsId === workspaceId.value
+
+  const parentNode = loadMoreNode.parent
+  const parentData = (parentNode?.data ?? null) as MetaNode | null
+  const offset = loadMoreData.offset
+  // 不立即 remove,改为标记 in-flight 让 nodeLabel 显示"加载中",成功后才换真节点
+  loadingMoreKeys.value = new Set(loadingMoreKeys.value).add(loadMoreData.key)
+  const parentKey = parentData?.key ?? undefined
+
+  try {
+    let newNodes: MetaNode[] = []
+    if (loadMoreData.parentLevel === 'catalog') {
+      const { items, total } = await fetchCatalogsPage(ds.id, offset)
+      if (!stillSameContext()) return
+      newNodes = buildCatalogNodes(ds.id, items, total, offset)
+    } else if (loadMoreData.parentLevel === 'database') {
+      const catalog = loadMoreData.catalog ?? null
+      const { items, total } = await fetchDatabasesPage(ds.id, catalog, offset)
+      if (!stillSameContext()) return
+      newNodes = buildDatabaseNodes(items, catalog, total, offset)
+    } else if (loadMoreData.parentLevel === 'table' && parentData) {
+      const { items, total } = await fetchTablesPage(ds.id, parentData.catalog, parentData.label, offset)
+      if (!stillSameContext()) return
+      newNodes = buildTableNodes(items, parentData, total, offset)
+    } else if (loadMoreData.parentLevel === 'column' && parentData) {
+      const { items, total } = await fetchColumnsPage(ds.id, parentData.catalog,
+          parentData.database!, parentData.label, offset)
+      if (!stillSameContext()) return
+      newNodes = buildColumnNodes(items, parentData, total, offset)
+    }
+    treeRef.value?.remove(loadMoreData)
+    // parentKey 为 undefined 时 el-tree 挂到 root
+    for (const n of newNodes) {
+      treeRef.value?.append(n, parentKey)
+    }
+  } catch { /* 失败保留 loadMore 节点,用户可重试 */ }
+  finally {
+    const next = new Set(loadingMoreKeys.value)
+    next.delete(loadMoreData.key)
+    loadingMoreKeys.value = next
+  }
+}
+
+function handleNodeClick(data: MetaNode, node: any) {
+  if (data.nodeType === 'loadMore') { handleLoadMore(data, node); return }
   if (data.nodeType === 'table' && data.tableName) insertAtCursor(data.tableName)
 }
 
@@ -378,6 +539,9 @@ async function togglePin(data: MetaNode) {
 
 .meta-node { display: flex; align-items: center; gap: 5px; font-size: 12px; }
 .meta-node--pk .meta-node__label { color: var(--r-danger); font-weight: 500; }
+.meta-node--load-more .meta-node__label {
+  color: var(--r-accent); font-style: italic; cursor: pointer;
+}
 .meta-node__icon { font-size: 13px; color: $ide-text-muted; }
 .meta-node__label { color: $ide-text-secondary; }
 .meta-node__type { color: var(--r-success); font-size: 11px; margin-left: 4px; }

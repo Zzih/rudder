@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
@@ -8,12 +8,15 @@ const props = defineProps<{
   allLabel: string
   selected: string[]
   options: string[]
+  /** 仅控 hint 区"加载中"文案;el-select 输入框不再显示 spinner(防 dropdown 内 loading 占位切换抖动) */
   loading?: boolean
   disabled?: boolean
   /** 传入则启用 remote search:el-select 切 :remote=true 模式,典型用于 10K+ catalog 场景。 */
   remoteMethod?: (keyword: string) => void
-  /** filter 后总数;> options.length 时显示底部 hint 引导输入关键字。 */
+  /** filter 后总数;> options.length 时显示底部 hint 引导输入关键字或滚动加载。 */
   total?: number
+  /** 传入则启用滚动加载下一页;client-side merge 模式不传,只走 keyword search */
+  loadMore?: () => void
 }>()
 
 const emit = defineEmits<{ 'update:selected': [value: string[]] }>()
@@ -42,8 +45,12 @@ const displayOptions = computed(() => {
   return out
 })
 
-const hasMore = computed(() =>
-  !!props.remoteMethod && (props.total ?? 0) > props.options.length)
+// 仅 remote 模式 + 还有未加载项时显示;有 loadMore 走 load-hint,无走 search-hint(引导搜索)
+const showHint = computed(() => {
+  if (!props.remoteMethod) return false
+  return (props.total ?? 0) > props.options.length
+})
+const hintKey = computed(() => props.loadMore ? 'common.dropdownLoadHint' : 'common.dropdownSearchHint')
 
 function onModeChange(v: string | number | boolean | undefined) {
   const m = v === 'pick' ? 'pick' : 'all'
@@ -56,6 +63,39 @@ function onModeChange(v: string | number | boolean | undefined) {
 function onPickChange(v: string[]) {
   emit('update:selected', v ?? [])
 }
+
+// 实例隔离 popperClass,避免多 ScopeSelector 同时打开时 querySelector 命中错误 wrap
+const dropdownClass = 'scope-dd-' + Math.random().toString(36).slice(2, 8)
+let scrollEl: HTMLElement | null = null
+function onScroll() {
+  const el = scrollEl
+  if (!el || props.loading || !props.loadMore) return
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - 24) return
+  if ((props.total ?? 0) <= props.options.length) return
+  props.loadMore()
+}
+function detachScroll() {
+  scrollEl?.removeEventListener('scroll', onScroll)
+  scrollEl = null
+}
+function onDropdownVisible(visible: boolean) {
+  if (!visible) { detachScroll(); return }
+  if (!props.loadMore) return
+  // popper teleport 时序不保证一个 nextTick 内挂载完成,重试几次避免 scroll 监听静默失败
+  let tries = 0
+  const tryAttach = () => {
+    const wrap = document.querySelector(`.${dropdownClass} .el-select-dropdown__wrap`) as HTMLElement | null
+    if (wrap) {
+      detachScroll()
+      scrollEl = wrap
+      wrap.addEventListener('scroll', onScroll)
+      return
+    }
+    if (++tries < 5) setTimeout(tryAttach, 50)
+  }
+  nextTick(tryAttach)
+}
+onUnmounted(detachScroll)
 </script>
 
 <template>
@@ -79,17 +119,18 @@ function onPickChange(v: string[]) {
           :remote="!!remoteMethod"
           :remote-method="remoteMethod"
           reserve-keyword
-          :loading="loading"
           :disabled="disabled"
           :placeholder="$t('aiAdmin.metaSync.scopePickPlaceholder')"
-          popper-class="r-stable-dropdown"
+          :popper-class="`r-stable-dropdown ${dropdownClass}`"
           class="scope-selector__picker"
           @update:model-value="onPickChange"
+          @visible-change="onDropdownVisible"
         >
           <el-option v-for="o in displayOptions" :key="o" :label="o" :value="o" />
         </el-select>
-        <div v-if="hasMore" class="scope-selector__hint">
-          {{ t('dataPerm.apply.moreResultsHint', { total, shown: options.length }) }}
+        <div class="scope-selector__hint">
+          <template v-if="loading">{{ t('common.loading') }}</template>
+          <template v-else-if="showHint">{{ t(hintKey, { total, shown: options.length }) }}</template>
         </div>
       </div>
     </div>
@@ -146,6 +187,7 @@ function onPickChange(v: string[]) {
 
 .scope-selector__hint {
   margin-top: 4px;
+  min-height: calc(var(--r-font-xs) * 1.3);
   font-size: var(--r-font-xs);
   color: var(--r-text-muted);
   line-height: 1.3;

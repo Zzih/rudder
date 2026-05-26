@@ -21,6 +21,7 @@ import io.github.zzih.rudder.common.model.ColumnMeta;
 import io.github.zzih.rudder.common.param.Property;
 import io.github.zzih.rudder.common.sql.ResolvedColumn;
 import io.github.zzih.rudder.common.sql.SqlDialect;
+import io.github.zzih.rudder.common.sql.SqlLimitInjector;
 import io.github.zzih.rudder.common.sql.SqlProjectionResolver;
 import io.github.zzih.rudder.datasource.api.DatasourceTypeProvider;
 import io.github.zzih.rudder.task.api.task.sink.ResultSink;
@@ -66,11 +67,13 @@ public final class SqlExecutor {
         }
         String[] statements = splitSql(sqlText);
         boolean sinkInitialized = false;
+        SqlDialect dialect = provider != null ? provider.dialect() : null;
 
         for (int si = 0; si < statements.length; si++) {
             String rawSql = statements[si];
             SqlPreprocessor.Prepared prep = SqlPreprocessor.preprocess(rawSql, paramMap);
-            String sql = prep.sql();
+            // preprocess 后 ${var}/!{var} 已变 ?,Calcite babel 能解析;LIMIT 必须下推 SQL 文本,setMaxRows 仅 client 截断
+            String sql = SqlLimitInjector.inject(prep.sql(), maxRows, dialect);
             if (statements.length > 1) {
                 log.info("Executing ({}/{}): {}", si + 1, statements.length,
                         sql.length() <= 200 ? sql : sql.substring(0, 200) + "...");
@@ -184,9 +187,13 @@ public final class SqlExecutor {
         }
 
         boolean sinkInitialized = false;
+        SqlDialect dialect = provider != null ? provider.dialect() : null;
 
         for (int si = 0; si < statements.length; si++) {
-            String sql = statements[si];
+            // 仅查询路径需要 LIMIT;pre/post/SET 不能加
+            String sql = expectResultSet
+                    ? SqlLimitInjector.inject(statements[si], maxRows, dialect)
+                    : statements[si];
             if (statements.length > 1) {
                 log.info("Executing ({}/{}): {}", si + 1, statements.length,
                         sql.length() <= 200 ? sql : sql.substring(0, 200) + "...");

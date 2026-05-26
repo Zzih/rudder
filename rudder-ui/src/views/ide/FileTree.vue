@@ -309,8 +309,12 @@ async function openScript(data: TreeNode) {
   }
   openingScripts.add(data.code)
   try {
-    const res = await getScript(workspaceId.value!, data.code)
-    const script = res.data
+    // 两请求互不依赖,并行省一次 RTT;listExec 失败兜底空数组,getScript 失败才整体 fail
+    const [scriptRes, execRes] = await Promise.all([
+      getScript(workspaceId.value!, data.code),
+      listExecutionsByScript(data.code).catch(() => ({ data: [] as any[] })),
+    ])
+    const script = scriptRes.data
     // 可能在等待期间已被其他入口打开，做一次二次校验
     const raced = ideState.tabs.find((t: any) => t.scriptCode === data.code)
     if (raced) { ideState.activeTabId = raced.id; return }
@@ -318,18 +322,15 @@ async function openScript(data: TreeNode) {
     // ResultPanel 会在 tab 激活时 watch 触发 polling
     let lastExecId: number | null = null
     let runningExecId: number | null = null
-    try {
-      const execRes = await listExecutionsByScript(data.code)
-      const executions = execRes.data || []
-      if (executions.length > 0) {
-        const latest = executions[0]
-        lastExecId = latest.id
-        if (latest.status === 'RUNNING' || latest.status === 'PENDING') {
-          runningExecId = latest.id
-          ideState.resultPanelVisible = true
-        }
+    const executions = execRes.data || []
+    if (executions.length > 0) {
+      const latest = executions[0]
+      lastExecId = latest.id
+      if (latest.status === 'RUNNING' || latest.status === 'PENDING') {
+        runningExecId = latest.id
+        ideState.resultPanelVisible = true
       }
-    } catch { /* ignore */ }
+    }
 
     ideState.tabs.push({
       id: `tab-${data.code}-${crypto.randomUUID()}`,

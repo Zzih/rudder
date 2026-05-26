@@ -251,7 +251,13 @@ public class TaskWorker implements TaskCountProvider {
                 Map<String, String> resolvedFilePaths = null;
                 AbstractTaskParams taskParams = channel.parseParams(paramsJson);
                 if (taskParams instanceof SqlTaskParams sqlParams) {
-                    sqlParams.setQueryLimit(resultConfigService.getDefaultQueryRows());
+                    int defaultRows = resultConfigService.getDefaultQueryRows();
+                    sqlParams.setQueryLimit(defaultRows);
+                    log.info("Apply queryLimit={} from RESULT SPI config (overrides script JSON value)",
+                            defaultRows);
+                    // channel.createTask 内部会再次 fromJson(paramsJson) 拿全新实例,这里回写让两侧一致 —
+                    // 否则 task 实例的 queryLimit 永远是用户脚本 JSON 里的原值(默认 0),LIMIT 注入失效。
+                    paramsJson = JsonUtils.toJson(taskParams);
                 }
 
                 // Layer 1 — 通用 params 结构 dump,所有 task 都会打这一条;

@@ -85,16 +85,18 @@ const ideState = reactive<IdeState>({
 
 provide(IDE_STATE_KEY, ideState)
 
-// Persist tabs to localStorage on change
-watch(() => ideState.tabs, (tabs) => {
-  const persisted: PersistedTab[] = tabs.map(t => ({
+// computed 投影只读持久化字段(不含 sql),sql 变化不会让 computed 失效,避免按键时同步 localStorage.setItem 阻塞
+const persistedTabsJson = computed(() => JSON.stringify(
+  ideState.tabs.map<PersistedTab>(t => ({
     id: t.id, name: t.name, scriptCode: t.scriptCode,
     taskType: t.taskType, datasourceId: t.datasourceId,
     executionMode: t.executionMode, lastExecutionId: t.lastExecutionId,
     params: t.params,
-  }))
-  localStorage.setItem(tabsStorageKey.value, JSON.stringify(persisted))
-}, { deep: true })
+  })),
+))
+watch(persistedTabsJson, (json) => {
+  localStorage.setItem(tabsStorageKey.value, json)
+})
 
 watch(() => ideState.activeTabId, (id) => {
   if (id) localStorage.setItem(activeTabStorageKey.value, id)

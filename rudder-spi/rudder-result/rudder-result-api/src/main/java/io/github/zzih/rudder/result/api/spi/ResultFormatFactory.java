@@ -21,6 +21,9 @@ import io.github.zzih.rudder.result.api.ResultFormat;
 import io.github.zzih.rudder.result.api.ResultProperties;
 import io.github.zzih.rudder.spi.api.ConfigurablePluginProviderFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
+import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
+
+import java.util.List;
 
 /**
  * Result format provider 工厂。所有 5 个 provider(PARQUET/CSV/JSON/ORC/AVRO)共用 {@link ResultProperties},
@@ -39,6 +42,23 @@ public interface ResultFormatFactory extends ConfigurablePluginProviderFactory<P
     @Override
     default Class<ResultProperties> propertiesClass() {
         return ResultProperties.class;
+    }
+
+    /** 5 个 provider 共用 {@link ResultProperties} 一份 schema,接口层 default 暴露,实现不重复 override。 */
+    @Override
+    default List<PluginParamDefinition> params() {
+        return List.of(
+                PluginParamDefinition.builder()
+                        .name("defaultQueryRows")
+                        .label("spi.result.defaultQueryRows.label")
+                        .type("number")
+                        .required(false)
+                        .placeholder("spi.result.defaultQueryRows.placeholder")
+                        .defaultValue(String.valueOf(ResultProperties.DEFAULT_QUERY_ROWS))
+                        .min(1)
+                        .max(10_000_000)
+                        .step(1000)
+                        .build());
     }
 
     ResultFormat create(ProviderContext ctx, ResultProperties props);

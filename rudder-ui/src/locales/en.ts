@@ -23,6 +23,9 @@ export default {
     description: 'Description',
     type: 'Type',
     loading: 'Loading...',
+    dropdownLoadHint: '{total} total · {shown} loaded',
+    dropdownSearchHint: 'Showing {shown}, type to filter more',
+    loadMore: 'Load more ({shown}/{total})',
     success: 'Success',
     failed: 'Failed',
     unknown: 'Unknown error',
@@ -808,9 +811,6 @@ export default {
     disabledHint: 'Result format is disabled',
     setupGuide: 'Format Notes',
     emptyTip: 'Select a result format to view its notes',
-    queryLimitTitle: 'SQL Row Cap',
-    defaultQueryRows: 'Default Query Rows',
-    defaultQueryRowsHint: 'Default value passed to setMaxRows for SQL tasks; falls back to 1000 when unset',
   },
 
   instance: {

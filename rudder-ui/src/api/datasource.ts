@@ -65,56 +65,33 @@ export function setDatasourceWorkspaces(datasourceId: number, workspaceIds: numb
 }
 
 // ==================== Metadata ====================
-
-/** 三层引擎(Trino / StarRocks 带外部 catalog)返回 catalog 名列表;两层引擎返回空数组。 */
-export function listMetaCatalogs(workspaceId: number | undefined, datasourceId: number) {
-  return request.get<string[]>(`/datasources/${datasourceId}/meta/catalogs`, { params: { workspaceId } })
-}
-
-export function listMetaDatabases(workspaceId: number | undefined, datasourceId: number, catalog?: string | null) {
-  return request.get<string[]>(`/datasources/${datasourceId}/meta/databases`,
-    { params: { workspaceId, catalog: catalog || undefined } })
-}
-
-export function listMetaTables(workspaceId: number | undefined, datasourceId: number, database: string, catalog?: string | null) {
-  return request.get<{ name: string; comment: string }[]>(
-    `/datasources/${datasourceId}/meta/databases/${database}/tables`,
-    { params: { workspaceId, catalog: catalog || undefined } },
-  )
-}
-
-export function listMetaColumns(workspaceId: number | undefined, datasourceId: number, database: string, table: string,
-  catalog?: string | null) {
-  return request.get<{ name: string; type: string; comment: string }[]>(
-    `/datasources/${datasourceId}/meta/databases/${database}/tables/${table}/columns`,
-    { params: { workspaceId, catalog: catalog || undefined } },
-  )
-}
+// 全量 list 接口已废弃,统一走下面的分页 search 版本
 
 // 分页 + keyword 版本(给 dropdown remote search 用,避免 10K+ catalog 一次性拉爆前端)
-// 返回 PageResult: { data: items[], total: 过滤后总数, pageNum: 1, pageSize: limit }
+// 返回 PageResult: { data: items[], total: 过滤后总数, pageNum, pageSize: limit }
+// offset 滚动加载下一页;keyword 变化时重置 offset=0。
 // 注:与下方旧 searchMetaTables(全文跨表搜索)语义不同 — 这组只在单层级内做 paged search,故加 Options 后缀
 
 export function searchMetaCatalogOptions(workspaceId: number | undefined, datasourceId: number,
-  params?: { keyword?: string; limit?: number }) {
+  params?: { keyword?: string; offset?: number; limit?: number }) {
   return request.get(`/datasources/${datasourceId}/meta/catalogs/search`,
     { params: { workspaceId, ...params } })
 }
 
 export function searchMetaDatabaseOptions(workspaceId: number | undefined, datasourceId: number,
-  params?: { catalog?: string | null; keyword?: string; limit?: number }) {
+  params?: { catalog?: string | null; keyword?: string; offset?: number; limit?: number }) {
   return request.get(`/datasources/${datasourceId}/meta/databases/search`,
     { params: { workspaceId, ...params, catalog: params?.catalog || undefined } })
 }
 
 export function searchMetaTableOptions(workspaceId: number | undefined, datasourceId: number, database: string,
-  params?: { catalog?: string | null; keyword?: string; limit?: number }) {
+  params?: { catalog?: string | null; keyword?: string; offset?: number; limit?: number }) {
   return request.get(`/datasources/${datasourceId}/meta/databases/${database}/tables/search`,
     { params: { workspaceId, ...params, catalog: params?.catalog || undefined } })
 }
 
 export function searchMetaColumnOptions(workspaceId: number | undefined, datasourceId: number, database: string,
-  table: string, params?: { catalog?: string | null; keyword?: string; limit?: number }) {
+  table: string, params?: { catalog?: string | null; keyword?: string; offset?: number; limit?: number }) {
   return request.get(`/datasources/${datasourceId}/meta/databases/${database}/tables/${table}/columns/search`,
     { params: { workspaceId, ...params, catalog: params?.catalog || undefined } })
 }

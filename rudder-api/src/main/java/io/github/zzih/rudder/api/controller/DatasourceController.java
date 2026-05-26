@@ -187,17 +187,19 @@ public class DatasourceController {
     }
 
     // ==================== Paged + keyword 版本(给 dropdown 远程搜索)====================
-    // catalog 量级 10000+ 时,前端不能一次拉全量;走这套接口取 default 前 100,搜索时 keyword filter
-    // limit 100。total 返回 filter 后的总数,前端用来显示"结果较多,请输入关键字过滤"hint。
+    // catalog 量级 10000+ 时,前端不能一次拉全量;走这套接口默认每页 100,前端用 offset 滚动
+    // 加载下一页,搜索时 keyword filter。total 返回 filter 后的总数,前端用于:hint "结果较多"
+    // + 判断是否还有下一页(offset+limit < total)。
 
     @GetMapping("/{id}/meta/catalogs/search")
     @RequireViewer
     public PageResult<String> searchCatalogs(@PathVariable Long id,
                                              @RequestParam(required = false) String keyword,
+                                             @RequestParam(defaultValue = "0") int offset,
                                              @RequestParam(defaultValue = "100") int limit) {
         Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
-        return metadataService.searchCatalogs(dsName, keyword, limit);
+        return metadataService.searchCatalogs(dsName, keyword, offset, limit);
     }
 
     @GetMapping("/{id}/meta/databases/search")
@@ -205,10 +207,11 @@ public class DatasourceController {
     public PageResult<String> searchDatabases(@PathVariable Long id,
                                               @RequestParam(required = false) String catalog,
                                               @RequestParam(required = false) String keyword,
+                                              @RequestParam(defaultValue = "0") int offset,
                                               @RequestParam(defaultValue = "100") int limit) {
         Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
-        return metadataService.searchDatabases(dsName, catalog, keyword, limit);
+        return metadataService.searchDatabases(dsName, catalog, keyword, offset, limit);
     }
 
     @GetMapping("/{id}/meta/databases/{db}/tables/search")
@@ -217,10 +220,11 @@ public class DatasourceController {
                                                    @PathVariable String db,
                                                    @RequestParam(required = false) String catalog,
                                                    @RequestParam(required = false) String keyword,
+                                                   @RequestParam(defaultValue = "0") int offset,
                                                    @RequestParam(defaultValue = "100") int limit) {
         Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
-        return metadataService.searchTables(dsName, catalog, db, keyword, limit);
+        return metadataService.searchTables(dsName, catalog, db, keyword, offset, limit);
     }
 
     @GetMapping("/{id}/meta/databases/{db}/tables/{table}/columns/search")
@@ -230,10 +234,11 @@ public class DatasourceController {
                                                      @PathVariable String table,
                                                      @RequestParam(required = false) String catalog,
                                                      @RequestParam(required = false) String keyword,
+                                                     @RequestParam(defaultValue = "0") int offset,
                                                      @RequestParam(defaultValue = "100") int limit) {
         Long workspaceId = UserContext.getWorkspaceIdOrNull();
         String dsName = datasourceService.resolveNameByWorkspace(workspaceId, id);
-        return metadataService.searchColumns(dsName, catalog, db, table, keyword, limit);
+        return metadataService.searchColumns(dsName, catalog, db, table, keyword, offset, limit);
     }
 
     @GetMapping("/{id}/meta/search")

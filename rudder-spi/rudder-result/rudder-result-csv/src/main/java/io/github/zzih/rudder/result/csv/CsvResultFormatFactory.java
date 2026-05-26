@@ -21,9 +21,6 @@ import io.github.zzih.rudder.result.api.ResultFormat;
 import io.github.zzih.rudder.result.api.ResultProperties;
 import io.github.zzih.rudder.result.api.spi.ResultFormatFactory;
 import io.github.zzih.rudder.spi.api.context.ProviderContext;
-import io.github.zzih.rudder.spi.api.model.PluginParamDefinition;
-
-import java.util.List;
 
 import com.google.auto.service.AutoService;
 
@@ -33,11 +30,6 @@ public class CsvResultFormatFactory implements ResultFormatFactory {
     @Override
     public String getProvider() {
         return "csv";
-    }
-
-    @Override
-    public List<PluginParamDefinition> params() {
-        return List.of();
     }
 
     @Override
