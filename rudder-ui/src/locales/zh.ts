@@ -23,6 +23,9 @@ export default {
     description: '描述',
     type: '类型',
     loading: '加载中...',
+    dropdownLoadHint: '共 {total} 项 · 已加载 {shown}',
+    dropdownSearchHint: '已显示 {shown} 项,输入关键字过滤更多',
+    loadMore: '加载更多 ({shown}/{total})',
     success: '成功',
     failed: '失败',
     unknown: '未知错误',
@@ -810,9 +813,6 @@ export default {
     disabledHint: '结果格式已停用',
     setupGuide: '格式说明',
     emptyTip: '选择结果格式查看说明',
-    queryLimitTitle: 'SQL 行数上限',
-    defaultQueryRows: '默认查询行数',
-    defaultQueryRowsHint: 'SQL 任务执行时 setMaxRows 的默认值,未设置时回退到 1000',
   },
 
   instance: {

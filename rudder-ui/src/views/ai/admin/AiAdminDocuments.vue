@@ -238,6 +238,7 @@
               :loading="loadingCatalogs"
               :remote-method="remoteSearchCatalogs"
               :total="catalogTotal"
+              :load-more="loadMoreCatalogs"
               @update:selected="setIncludeCatalogs"
             />
           </div>
@@ -440,6 +441,10 @@ const loadingTables = ref(false)
 const catalogTotal = ref(0)
 const databaseTotal = ref(0)
 const tableTotal = ref(0)
+// catalog scroll load 复用最新 keyword;db/table 是 client-side merge 不走分页
+const catalogKeyword = ref('')
+// 单调 seq 丢弃过期响应,防 keyword 切换 + 并发 scroll load 互相覆盖
+let catalogSeq = 0
 
 /** 简易 debounce:300ms 内重复触发只跑最后一次 — 给 el-select :remote-method 用。 */
 function debounced<T extends (...args: any[]) => void>(fn: T, ms = 300): T {
@@ -450,19 +455,32 @@ function debounced<T extends (...args: any[]) => void>(fn: T, ms = 300): T {
   }) as T
 }
 
-async function refreshCatalogOptions(keyword = '') {
+async function refreshCatalogOptions(keyword = '', offset = 0) {
   if (!syncForm.datasourceId || !scopeHasCatalog.value) {
     catalogOptions.value = []
     catalogTotal.value = 0
     return
   }
+  const mySeq = ++catalogSeq
   loadingCatalogs.value = true
   try {
     const res: any = await searchMetaCatalogOptions(undefined, syncForm.datasourceId,
-      { keyword, limit: DROPDOWN_LIMIT })
-    catalogOptions.value = (res?.data as string[]) ?? []
+      { keyword, offset, limit: DROPDOWN_LIMIT })
+    if (mySeq !== catalogSeq) return
+    const items = (res?.data as string[]) ?? []
+    catalogOptions.value = offset === 0 ? items : [...catalogOptions.value, ...items]
     catalogTotal.value = (res?.total as number) ?? 0
-  } catch { catalogOptions.value = []; catalogTotal.value = 0 } finally { loadingCatalogs.value = false }
+    catalogKeyword.value = keyword
+  } catch {
+    if (mySeq !== catalogSeq) return
+    if (offset === 0) { catalogOptions.value = []; catalogTotal.value = 0 }
+  } finally { if (mySeq === catalogSeq) loadingCatalogs.value = false }
+}
+
+function loadMoreCatalogs() {
+  if (loadingCatalogs.value) return
+  if (catalogOptions.value.length >= catalogTotal.value) return
+  refreshCatalogOptions(catalogKeyword.value, catalogOptions.value.length)
 }
 
 async function refreshDatabaseOptions(keyword = '') {
@@ -535,8 +553,8 @@ async function refreshTableOptions(keyword = '') {
   } catch { tableOptions.value = []; tableTotal.value = 0 } finally { loadingTables.value = false }
 }
 
-// 给 ScopeSelector :remote-method 用 — debounce 300ms 后调对应 refresh
-const remoteSearchCatalogs = debounced((kw: string) => { refreshCatalogOptions(kw) })
+// 给 ScopeSelector :remote-method 用 — debounce 300ms 后调对应 refresh(catalog 重置 offset=0)
+const remoteSearchCatalogs = debounced((kw: string) => { refreshCatalogOptions(kw, 0) })
 const remoteSearchDatabases = debounced((kw: string) => { refreshDatabaseOptions(kw) })
 const remoteSearchTables = debounced((kw: string) => { refreshTableOptions(kw) })
 

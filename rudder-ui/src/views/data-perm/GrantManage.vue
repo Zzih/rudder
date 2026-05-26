@@ -26,22 +26,27 @@ const { isSuperAdmin } = usePermission()
 const { services: scopes, ensureLoaded: ensureScopes } = useDataPermScopes()
 
 const userOptions = ref<Array<{ id: number; username: string }>>([])
-const userSearchLoading = ref(false)
 const selectedUserIds = ref<number[]>([])
 const selectedScopeCodes = ref<number[]>([])
 const keyword = ref('')
 const asOf = ref<string>('')
 
-async function searchUsers(q: string) {
-  userSearchLoading.value = true
-  try {
-    const res = (await searchDataPermUsers(q)) as any
-    userOptions.value = (res?.data as Array<{ id: number; username: string }>) ?? []
-  } catch {
-    userOptions.value = []
-  } finally {
-    userSearchLoading.value = false
-  }
+// seq 丢弃过期响应,防快速打字时旧 keyword 响应覆盖新 keyword 结果误导授权
+let userSearchSeq = 0
+let userSearchTimer: number | null = null
+function searchUsers(q: string) {
+  if (userSearchTimer !== null) clearTimeout(userSearchTimer)
+  userSearchTimer = window.setTimeout(async () => {
+    const mySeq = ++userSearchSeq
+    try {
+      const res = (await searchDataPermUsers(q)) as any
+      if (mySeq !== userSearchSeq) return
+      userOptions.value = (res?.data as Array<{ id: number; username: string }>) ?? []
+    } catch {
+      if (mySeq !== userSearchSeq) return
+      userOptions.value = []
+    }
+  }, 300)
 }
 
 const {
@@ -166,7 +171,7 @@ onMounted(async () => {
       <div class="snap-filters__field">
         <span class="snap-filters__label"><el-icon><User /></el-icon>{{ t('dataPermGrant.filterUser') }}</span>
         <el-select v-model="selectedUserIds" multiple filterable remote :remote-method="searchUsers"
-          :loading="userSearchLoading" :placeholder="t('dataPermGrant.userSearchPlaceholder')"
+          :placeholder="t('dataPermGrant.userSearchPlaceholder')"
           popper-class="r-stable-dropdown"
           collapse-tags collapse-tags-tooltip clearable class="snap-filters__select">
           <el-option v-for="u in userOptions" :key="u.id" :value="u.id" :label="u.username" />

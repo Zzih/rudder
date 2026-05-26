@@ -12,8 +12,7 @@ const props = defineProps<{
   getProviderDefinitions: () => Promise<any>
   getConfig: () => Promise<any>
   listConfigs: () => Promise<any>
-  saveConfig: (data: { provider: string; providerParams?: string; enabled?: boolean; [key: string]: any }) => Promise<any>
-  extraFields?: string[]
+  saveConfig: (data: { provider: string; providerParams?: string; enabled?: boolean }) => Promise<any>
   /** 不传则不显示"测试连接"按钮。 */
   testConfig?: (data: { provider: string; providerParams: string }) => Promise<any>
 }>()
@@ -34,9 +33,8 @@ const currentGuide = computed(() => providerDefs.value[form.value.provider]?.gui
 
 const form = ref({
   provider: '',
-  providerParams: {} as Record<string, string>,
+  providerParams: {} as Record<string, any>,
   enabled: true,
-  extra: {} as Record<string, any>,
 })
 
 function providerDesc(p: string): string {
@@ -57,19 +55,33 @@ function providerMonogram(p: string): string {
 
 const configsByProvider = ref<Record<string, any>>({})
 
+/** 按 param.type 把 defaultValue 从 string coerce 成 number/boolean,避免 el-input-number 等组件类型不匹配。 */
+function coerceDefault(p: { type: string; defaultValue?: string }): any {
+  if (p.defaultValue == null) return undefined
+  if (p.type === 'number') return Number(p.defaultValue)
+  if (p.type === 'boolean') return p.defaultValue === 'true'
+  return p.defaultValue
+}
+
+function defaultsForProvider(provider: string): Record<string, any> {
+  const defs = providerDefs.value[provider]?.params ?? []
+  const out: Record<string, any> = {}
+  for (const p of defs) {
+    const v = coerceDefault(p)
+    if (v !== undefined) out[p.name] = v
+  }
+  return out
+}
+
 function onProviderChange() {
   const saved = configsByProvider.value[form.value.provider]
   if (saved) {
-    form.value.providerParams = (saved.providerParams ?? {}) as Record<string, string>
+    // 旧 row 可能没存全新字段,merge defaults 兜底
+    form.value.providerParams = { ...defaultsForProvider(form.value.provider), ...(saved.providerParams ?? {}) }
     form.value.enabled = saved.enabled !== false
     return
   }
-  const defs = providerDefs.value[form.value.provider]?.params ?? []
-  const next: Record<string, string> = {}
-  for (const p of defs) {
-    if (p.defaultValue) next[p.name] = p.defaultValue
-  }
-  form.value.providerParams = next
+  form.value.providerParams = defaultsForProvider(form.value.provider)
   form.value.enabled = true
 }
 
@@ -94,14 +106,8 @@ async function loadData() {
     if (cfg) {
       form.value.provider = cfg.provider || firstProvider
       form.value.enabled = cfg.enabled !== false
-      form.value.providerParams = (cfg.providerParams ?? {}) as Record<string, string>
-      if (props.extraFields) {
-        for (const key of props.extraFields) {
-          if (cfg[key] !== undefined) {
-            form.value.extra[key] = cfg[key]
-          }
-        }
-      }
+      // 旧 row(本次以前持久化的)可能没存某些新字段,merge defaults 防止 UI 显示空白
+      form.value.providerParams = { ...defaultsForProvider(form.value.provider), ...(cfg.providerParams ?? {}) }
     } else {
       form.value.provider = firstProvider
       onProviderChange()
@@ -112,7 +118,8 @@ async function loadData() {
 
 function validateRequired(): boolean {
   for (const param of currentProviderParams.value) {
-    if (param.required && !form.value.providerParams[param.name]?.trim()) {
+    const v = form.value.providerParams[param.name]
+    if (param.required && (v == null || String(v).trim() === '')) {
       ElMessage.warning(`${param.label} is required`)
       return false
     }
@@ -128,7 +135,6 @@ async function handleSave() {
       provider: form.value.provider,
       providerParams: JSON.stringify(form.value.providerParams),
       enabled: form.value.enabled,
-      ...form.value.extra,
     })
     // 与后端 disableOthers 同步本地 cache 的 enabled 状态。
     const next: Record<string, any> = {}
@@ -239,6 +245,15 @@ watch(locale, async () => {
                       v-else-if="param.type === 'boolean'"
                       v-model="form.providerParams[param.name]"
                     />
+                    <el-input-number
+                      v-else-if="param.type === 'number'"
+                      v-model="form.providerParams[param.name]"
+                      :min="param.min ?? 1"
+                      :max="param.max ?? 2147483647"
+                      :step="param.step ?? 1"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
                     <el-input
                       v-else
                       v-model="form.providerParams[param.name]"
@@ -247,13 +262,14 @@ watch(locale, async () => {
                       :placeholder="param.placeholder"
                       size="default"
                     />
+                    <span
+                      v-if="param.placeholder && param.type === 'number'"
+                      class="spi-param__hint"
+                    >{{ param.placeholder }}</span>
                   </div>
                 </div>
               </section>
             </Transition>
-
-            <!-- Extra settings (slot) -->
-            <slot name="extra-settings" :form="form" />
 
             <!-- Enable switch -->
             <section class="spi-section">
@@ -459,6 +475,12 @@ watch(locale, async () => {
 .spi-param__req {
   color: var(--r-danger);
   margin-left: 2px;
+}
+
+.spi-param__hint {
+  font-size: var(--r-font-xs);
+  color: var(--r-text-muted);
+  line-height: var(--r-leading-snug);
 }
 
 .spi-enable {

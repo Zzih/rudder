@@ -41,4 +41,10 @@ public class PluginParamDefinition {
     private boolean required = false;
     private String placeholder;
     private String defaultValue;
+
+    /** type="number" 专用:数值约束。其他 type 留空。 */
+    private Integer min;
+
+    private Integer max;
+    private Integer step;
 }

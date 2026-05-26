@@ -119,6 +119,9 @@ public abstract class AbstractConfigurablePluginRegistry<C, F extends Configurab
                         .required(p.isRequired())
                         .placeholder(I18n.t(p.getPlaceholder(), locale))
                         .defaultValue(p.getDefaultValue())
+                        .min(p.getMin())
+                        .max(p.getMax())
+                        .step(p.getStep())
                         .build())
                 .toList();
     }

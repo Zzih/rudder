@@ -104,29 +104,33 @@ public class MetadataService {
     }
 
     // ==================== 分页 + keyword filter(给 dropdown 远程搜索用)====================
-    // 走全量 list (cache hit O(1));内存 case-insensitive contains filter + limit。
-    // total = filter 后总数,给前端"结果较多,请输入关键字过滤"hint 用。
+    // 走全量 list (cache hit O(1));内存 case-insensitive contains filter + offset/limit slice。
+    // total = filter 后总数,前端用于:hint "结果较多" + 判断是否还有下一页(offset+limit < total)。
 
-    public PageResult<String> searchCatalogs(String datasourceName, String keyword, int limit) {
-        return paged(listCatalogs(datasourceName), keyword, limit, Function.identity());
+    public PageResult<String> searchCatalogs(String datasourceName, String keyword, int offset, int limit) {
+        return paged(listCatalogs(datasourceName), keyword, offset, limit, Function.identity());
     }
 
-    public PageResult<String> searchDatabases(String datasourceName, String catalog, String keyword, int limit) {
-        return paged(listDatabases(datasourceName, catalog), keyword, limit, Function.identity());
+    public PageResult<String> searchDatabases(String datasourceName, String catalog, String keyword,
+                                              int offset, int limit) {
+        return paged(listDatabases(datasourceName, catalog), keyword, offset, limit, Function.identity());
     }
 
     public PageResult<TableMeta> searchTables(String datasourceName, String catalog, String database,
-                                              String keyword, int limit) {
-        return paged(listTables(datasourceName, catalog, database), keyword, limit, TableMeta::getName);
+                                              String keyword, int offset, int limit) {
+        return paged(listTables(datasourceName, catalog, database), keyword, offset, limit, TableMeta::getName);
     }
 
     public PageResult<ColumnMeta> searchColumns(String datasourceName, String catalog, String database, String table,
-                                                String keyword, int limit) {
-        return paged(listColumns(datasourceName, catalog, database, table), keyword, limit, ColumnMeta::getName);
+                                                String keyword, int offset, int limit) {
+        return paged(listColumns(datasourceName, catalog, database, table), keyword, offset, limit,
+                ColumnMeta::getName);
     }
 
-    private static <T> PageResult<T> paged(List<T> all, String keyword, int limit, Function<T, String> nameOf) {
+    private static <T> PageResult<T> paged(List<T> all, String keyword, int offset, int limit,
+                                           Function<T, String> nameOf) {
         int effectiveLimit = Math.max(1, Math.min(limit, 500));
+        int effectiveOffset = Math.max(0, offset);
         List<T> filtered;
         if (keyword == null || keyword.isBlank()) {
             filtered = all;
@@ -139,7 +143,11 @@ public class MetadataService {
                     })
                     .toList();
         }
-        return PageResult.of(filtered.stream().limit(effectiveLimit).toList(),
-                filtered.size(), 1, effectiveLimit);
+        int total = filtered.size();
+        int from = Math.min(effectiveOffset, total);
+        int to = Math.min(from + effectiveLimit, total);
+        // pageNum 计算为 1-based,offset 跨页时按 effectiveLimit 整除;用于 PageResult 元信息展示。
+        int pageNum = (effectiveOffset / effectiveLimit) + 1;
+        return PageResult.of(filtered.subList(from, to), total, pageNum, effectiveLimit);
     }
 }

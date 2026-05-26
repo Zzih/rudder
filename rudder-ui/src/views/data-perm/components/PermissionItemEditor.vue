@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Delete } from '@element-plus/icons-vue'
 import {
@@ -36,6 +36,10 @@ const columns = ref<string[]>([])
 const loading = ref({ catalogs: false, databases: false, tables: false, columns: false })
 // filter 后总数(不是后端全集大小;keyword 变了 total 跟着变)— 给底部 hint 用
 const totals = ref({ catalogs: 0, databases: 0, tables: 0, columns: 0 })
+// 每级最新 keyword,scroll load 下一页时复用
+const keywords = ref({ catalogs: '', databases: '', tables: '', columns: '' })
+// 单调 seq 丢弃过期响应,防 keyword 切换 + 并发 scroll load 互相覆盖
+const seqs = { catalogs: 0, databases: 0, tables: 0, columns: 0 }
 
 /** 简易 debounce:300ms 内重复触发只跑最后一次 — 给 el-select :remote-method 用。 */
 function debounced<T extends (...args: any[]) => void>(fn: T, ms = 300): T {
@@ -167,62 +171,144 @@ function metaDsId(): number | null {
   return service.value?.metadataDatasourceId ?? null
 }
 
-async function loadCatalogs(keyword = '') {
+// offset=0 时 replace,>0 时 append(给 scroll load 用)。keyword 在 remoteSearch* 入口同步 set,
+// 不在这里写,避免 scroll 拉下一页时 maybeLoadMore 读到 success 后才更新的 lag 值
+async function loadCatalogs(keyword = '', offset = 0) {
   const dsId = metaDsId()
   if (!dsId) return
+  const mySeq = ++seqs.catalogs
   loading.value.catalogs = true
   try {
-    const res: any = await searchMetaCatalogOptions(props.workspaceId, dsId, { keyword, limit: DROPDOWN_LIMIT })
-    catalogs.value = (res?.data as string[]) ?? []
+    const res: any = await searchMetaCatalogOptions(props.workspaceId, dsId,
+      { keyword, offset, limit: DROPDOWN_LIMIT })
+    if (mySeq !== seqs.catalogs) return
+    const items = (res?.data as string[]) ?? []
+    catalogs.value = offset === 0 ? items : [...catalogs.value, ...items]
     totals.value.catalogs = (res?.total as number) ?? 0
-  } catch { catalogs.value = []; totals.value.catalogs = 0 } finally { loading.value.catalogs = false }
+  } catch {
+    if (mySeq !== seqs.catalogs) return
+    if (offset === 0) { catalogs.value = []; totals.value.catalogs = 0 }
+  } finally { if (mySeq === seqs.catalogs) loading.value.catalogs = false }
 }
-async function loadDatabases(keyword = '') {
+async function loadDatabases(keyword = '', offset = 0) {
   const dsId = metaDsId()
   if (!dsId) return
+  const mySeq = ++seqs.databases
   loading.value.databases = true
   try {
     const cat = props.modelValue.catalogName && props.modelValue.catalogName !== STAR
       ? props.modelValue.catalogName : null
-    const res: any = await searchMetaDatabaseOptions(props.workspaceId, dsId, { catalog: cat, keyword, limit: DROPDOWN_LIMIT })
-    databases.value = (res?.data as string[]) ?? []
+    const res: any = await searchMetaDatabaseOptions(props.workspaceId, dsId,
+      { catalog: cat, keyword, offset, limit: DROPDOWN_LIMIT })
+    if (mySeq !== seqs.databases) return
+    const items = (res?.data as string[]) ?? []
+    databases.value = offset === 0 ? items : [...databases.value, ...items]
     totals.value.databases = (res?.total as number) ?? 0
-  } catch { databases.value = []; totals.value.databases = 0 } finally { loading.value.databases = false }
+  } catch {
+    if (mySeq !== seqs.databases) return
+    if (offset === 0) { databases.value = []; totals.value.databases = 0 }
+  } finally { if (mySeq === seqs.databases) loading.value.databases = false }
 }
-async function loadTables(keyword = '') {
+async function loadTables(keyword = '', offset = 0) {
   const dsId = metaDsId()
   if (!dsId) return
+  const mySeq = ++seqs.tables
   loading.value.tables = true
   try {
     const cat = props.modelValue.catalogName && props.modelValue.catalogName !== STAR
       ? props.modelValue.catalogName : null
     const res: any = await searchMetaTableOptions(
       props.workspaceId, dsId, props.modelValue.databaseName!,
-      { catalog: cat, keyword, limit: DROPDOWN_LIMIT })
-    tables.value = ((res?.data as Array<{ name: string }>) ?? []).map(x => x.name)
+      { catalog: cat, keyword, offset, limit: DROPDOWN_LIMIT })
+    if (mySeq !== seqs.tables) return
+    const items = ((res?.data as Array<{ name: string }>) ?? []).map(x => x.name)
+    tables.value = offset === 0 ? items : [...tables.value, ...items]
     totals.value.tables = (res?.total as number) ?? 0
-  } catch { tables.value = []; totals.value.tables = 0 } finally { loading.value.tables = false }
+  } catch {
+    if (mySeq !== seqs.tables) return
+    if (offset === 0) { tables.value = []; totals.value.tables = 0 }
+  } finally { if (mySeq === seqs.tables) loading.value.tables = false }
 }
-async function loadColumns(keyword = '') {
+async function loadColumns(keyword = '', offset = 0) {
   const dsId = metaDsId()
   if (!dsId) return
+  const mySeq = ++seqs.columns
   loading.value.columns = true
   try {
     const cat = props.modelValue.catalogName && props.modelValue.catalogName !== STAR
       ? props.modelValue.catalogName : null
     const res: any = await searchMetaColumnOptions(
       props.workspaceId, dsId, props.modelValue.databaseName!, props.modelValue.tableName!,
-      { catalog: cat, keyword, limit: DROPDOWN_LIMIT })
-    columns.value = ((res?.data as Array<{ name: string }>) ?? []).map(x => x.name)
+      { catalog: cat, keyword, offset, limit: DROPDOWN_LIMIT })
+    if (mySeq !== seqs.columns) return
+    const items = ((res?.data as Array<{ name: string }>) ?? []).map(x => x.name)
+    columns.value = offset === 0 ? items : [...columns.value, ...items]
     totals.value.columns = (res?.total as number) ?? 0
-  } catch { columns.value = []; totals.value.columns = 0 } finally { loading.value.columns = false }
+  } catch {
+    if (mySeq !== seqs.columns) return
+    if (offset === 0) { columns.value = []; totals.value.columns = 0 }
+  } finally { if (mySeq === seqs.columns) loading.value.columns = false }
 }
 
-// 给 el-select :remote-method 用 — debounce 300ms 后调对应 load
-const remoteSearchCatalogs = debounced((kw: string) => { loadCatalogs(kw) })
-const remoteSearchDatabases = debounced((kw: string) => { loadDatabases(kw) })
-const remoteSearchTables = debounced((kw: string) => { loadTables(kw) })
-const remoteSearchColumns = debounced((kw: string) => { loadColumns(kw) })
+// keyword 在入口同步 set 给 keywords.value(maybeLoadMore 读最新值);load 走 debounce
+const doSearchCatalogs = debounced((kw: string) => { loadCatalogs(kw, 0) })
+const doSearchDatabases = debounced((kw: string) => { loadDatabases(kw, 0) })
+const doSearchTables = debounced((kw: string) => { loadTables(kw, 0) })
+const doSearchColumns = debounced((kw: string) => { loadColumns(kw, 0) })
+function remoteSearchCatalogs(kw: string) { keywords.value.catalogs = kw; doSearchCatalogs(kw) }
+function remoteSearchDatabases(kw: string) { keywords.value.databases = kw; doSearchDatabases(kw) }
+function remoteSearchTables(kw: string) { keywords.value.tables = kw; doSearchTables(kw) }
+function remoteSearchColumns(kw: string) { keywords.value.columns = kw; doSearchColumns(kw) }
+
+// el-select 无原生 @scroll,hook 内部 wrap DOM 监听;每级独立 popperClass 避免 querySelector 误命中
+type LevelKey = 'catalog' | 'database' | 'table' | 'column'
+const PERM_DROPDOWN_PREFIX = 'perm-dd-' + Math.random().toString(36).slice(2, 8)
+const popperClassFor = (lv: LevelKey) => `r-stable-dropdown ${PERM_DROPDOWN_PREFIX}-${lv}`
+const scrollEls: Record<LevelKey, HTMLElement | null> = {
+  catalog: null, database: null, table: null, column: null,
+}
+const onScrollHandlers: Record<LevelKey, () => void> = {
+  catalog: () => maybeLoadMore('catalog'),
+  database: () => maybeLoadMore('database'),
+  table: () => maybeLoadMore('table'),
+  column: () => maybeLoadMore('column'),
+}
+function maybeLoadMore(lv: LevelKey) {
+  const el = scrollEls[lv]
+  if (!el || getLevelLoading(lv)) return
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - 24) return
+  const shown = getLevelOptions(lv).length
+  if (shown >= getLevelTotal(lv)) return
+  const kw = (keywords.value as Record<string, string>)[lv + 's']
+  if (lv === 'catalog')  loadCatalogs(kw, shown)
+  else if (lv === 'database') loadDatabases(kw, shown)
+  else if (lv === 'table')    loadTables(kw, shown)
+  else                        loadColumns(kw, shown)
+}
+function detachScroll(lv: LevelKey) {
+  scrollEls[lv]?.removeEventListener('scroll', onScrollHandlers[lv])
+  scrollEls[lv] = null
+}
+function onDropdownVisibleFor(lv: LevelKey, visible: boolean) {
+  if (!visible) { detachScroll(lv); return }
+  // popper teleport 时序不保证一个 nextTick 内挂载完成,重试几次避免 scroll 监听静默失败
+  const cls = `${PERM_DROPDOWN_PREFIX}-${lv}`
+  let tries = 0
+  const tryAttach = () => {
+    const wrap = document.querySelector(`.${cls} .el-select-dropdown__wrap`) as HTMLElement | null
+    if (wrap) {
+      detachScroll(lv)
+      scrollEls[lv] = wrap
+      wrap.addEventListener('scroll', onScrollHandlers[lv])
+      return
+    }
+    if (++tries < 5) setTimeout(tryAttach, 50)
+  }
+  nextTick(tryAttach)
+}
+onUnmounted(() => {
+  (['catalog', 'database', 'table', 'column'] as LevelKey[]).forEach(detachScroll)
+})
 
 function getRemoteMethod(level: 'catalog' | 'database' | 'table' | 'column') {
   if (level === 'catalog')  return remoteSearchCatalogs
@@ -330,17 +416,21 @@ function getLevelLoading(level: 'catalog' | 'database' | 'table' | 'column') {
               remote
               :remote-method="getRemoteMethod(lv)"
               reserve-keyword
-              :loading="getLevelLoading(lv)"
-              popper-class="r-stable-dropdown"
+              :popper-class="popperClassFor(lv)"
               class="perm-card__pick"
               :class="{ 'is-invalid': !getLevelValue(lv), 'is-wildcard': getLevelValue(lv) === STAR }"
               @update:model-value="v => setLevelValue(lv, v as string)"
+              @visible-change="(v: boolean) => onDropdownVisibleFor(lv, v)"
             >
               <el-option :value="STAR" :label="t('dataPerm.apply.allValue')" />
               <el-option v-for="x in getLevelOptions(lv)" :key="x" :value="x" :label="x" />
             </el-select>
-            <div v-if="getLevelTotal(lv) > getLevelOptions(lv).length" class="perm-card__pick-hint">
-              {{ t('dataPerm.apply.moreResultsHint', { total: getLevelTotal(lv), shown: getLevelOptions(lv).length }) }}
+            <div class="perm-card__pick-hint">
+              <template v-if="getLevelLoading(lv)">{{ t('common.loading') }}</template>
+              <template v-else-if="getLevelTotal(lv) > getLevelOptions(lv).length">{{
+                t('common.dropdownLoadHint',
+                  { total: getLevelTotal(lv), shown: getLevelOptions(lv).length })
+              }}</template>
             </div>
           </div>
         </div>
@@ -478,6 +568,7 @@ function getLevelLoading(level: 'catalog' | 'database' | 'table' | 'column') {
 
   &__pick-hint {
     margin-top: 4px;
+    min-height: calc(var(--r-font-xs) * 1.3); // 占位防 mount/unmount 抖动
     font-size: var(--r-font-xs);
     color: var(--r-text-muted);
     line-height: 1.3;

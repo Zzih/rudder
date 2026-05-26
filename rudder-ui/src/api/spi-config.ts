@@ -7,6 +7,10 @@ export interface PluginParamDefinition {
   required: boolean
   placeholder: string
   defaultValue?: string
+  /** type='number' 专用,el-input-number 直接消费。 */
+  min?: number
+  max?: number
+  step?: number
 }
 
 export interface ProviderMetadata {
