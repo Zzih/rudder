@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.common.jdbc;
 
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
@@ -38,8 +39,14 @@ public final class JdbcConnections {
     /** 开一个新连接。调用方负责 close,推荐 try-with-resources。 */
     public static Connection open(String jdbcUrl, String username, String password,
                                   String driverClass) throws SQLException {
-        ensureDriverLoaded(driverClass);
-        return DriverManager.getConnection(jdbcUrl, username, password);
+        Properties props = new Properties();
+        if (username != null) {
+            props.put("user", username);
+        }
+        if (password != null) {
+            props.put("password", password);
+        }
+        return open(jdbcUrl, props, driverClass);
     }
 
     /**
@@ -47,19 +54,27 @@ public final class JdbcConnections {
      * username / password 已并入 props,调用方在构造 props 时塞进去。
      */
     public static Connection open(String jdbcUrl, Properties props, String driverClass) throws SQLException {
-        ensureDriverLoaded(driverClass);
-        return DriverManager.getConnection(jdbcUrl, props);
+        Driver driver = resolveDriver(driverClass);
+        if (driver == null) {
+            return DriverManager.getConnection(jdbcUrl, props);
+        }
+        Connection conn = driver.connect(jdbcUrl, props);
+        if (conn == null) {
+            throw new SQLException("Driver " + driverClass + " rejected JDBC URL: " + jdbcUrl);
+        }
+        return conn;
     }
 
-    private static void ensureDriverLoaded(String driverClass) {
-        // JDBC 4 驱动会通过 META-INF/services 自注册;但少数老驱动(如 Hive)需要显式触发 SPI 注册。
-        // Class.forName 自身命中 JVM ClassLoader 缓存,不需要再加一层手动 cache。
-        if (driverClass != null && !driverClass.isBlank()) {
-            try {
-                Class.forName(driverClass);
-            } catch (ClassNotFoundException e) {
-                throw new IllegalStateException("JDBC driver not on classpath: " + driverClass, e);
-            }
+    private static Driver resolveDriver(String driverClass) throws SQLException {
+        if (driverClass == null || driverClass.isBlank()) {
+            return null;
+        }
+        try {
+            return (Driver) Class.forName(driverClass).getDeclaredConstructor().newInstance();
+        } catch (ClassNotFoundException e) {
+            throw new SQLException("JDBC driver not on classpath: " + driverClass, e);
+        } catch (ReflectiveOperationException e) {
+            throw new SQLException("Cannot instantiate JDBC driver: " + driverClass, e);
         }
     }
 
