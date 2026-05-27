@@ -68,7 +68,7 @@ public class JdbcMetadataClient implements MetadataClient {
         }
         List<String> catalogs = new ArrayList<>();
         try (
-                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
+                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.toConnectionProperties(),
                         target.getDriverClass())) {
             try (ResultSet rs = conn.getMetaData().getCatalogs()) {
                 while (rs.next()) {
@@ -98,7 +98,7 @@ public class JdbcMetadataClient implements MetadataClient {
         boolean hasCatalog = target.isHasCatalog();
         List<String> databases = new ArrayList<>();
         try (
-                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
+                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.toConnectionProperties(),
                         target.getDriverClass())) {
             prepareStarRocksCatalog(target, conn, catalog);
             if (hasCatalog && catalog != null) {
@@ -148,7 +148,7 @@ public class JdbcMetadataClient implements MetadataClient {
     public List<TableMeta> listTables(DataSourceInfo target, String catalog, String database) {
         List<TableMeta> tables = new ArrayList<>();
         try (
-                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
+                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.toConnectionProperties(),
                         target.getDriverClass())) {
             prepareStarRocksCatalog(target, conn, catalog);
             try {
@@ -194,7 +194,7 @@ public class JdbcMetadataClient implements MetadataClient {
     public List<ColumnMeta> listColumns(DataSourceInfo target, String catalog, String database, String table) {
         List<ColumnMeta> columns = new ArrayList<>();
         try (
-                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
+                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.toConnectionProperties(),
                         target.getDriverClass())) {
             prepareStarRocksCatalog(target, conn, catalog);
             try {
@@ -244,7 +244,7 @@ public class JdbcMetadataClient implements MetadataClient {
         List<String> primaryKeys = new ArrayList<>();
 
         try (
-                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
+                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.toConnectionProperties(),
                         target.getDriverClass())) {
             prepareStarRocksCatalog(target, conn, catalog);
             boolean useFallback = false;
@@ -308,7 +308,7 @@ public class JdbcMetadataClient implements MetadataClient {
         boolean threeTier = target.isHasCatalog();
         List<TableMeta> tables = new ArrayList<>();
         try (
-                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.getUsername(), target.getPassword(),
+                Connection conn = JdbcConnections.open(target.getJdbcUrl(), target.toConnectionProperties(),
                         target.getDriverClass())) {
             DatabaseMetaData metaData = conn.getMetaData();
             // 第一维枚举:三层引擎用 catalog,两层用 getCatalogs 返回的 database 名

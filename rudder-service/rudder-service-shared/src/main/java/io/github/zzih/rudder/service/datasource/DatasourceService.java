@@ -187,7 +187,7 @@ public class DatasourceService {
         DataSourceInfo info = getDataSourceInfo(id);
         DatasourceTypeProvider provider = DatasourceTypeProviderRegistry.get(DatasourceType.of(info.getType()));
         try {
-            return JdbcConnections.runWith(info.getJdbcUrl(), info.getUsername(), info.getPassword(),
+            return JdbcConnections.runWith(info.getJdbcUrl(), info.toConnectionProperties(),
                     info.getDriverClass(), provider::validateConnection);
         } catch (Exception e) {
             log.error("Connection test failed for datasource {}: {}", id, e.getMessage());

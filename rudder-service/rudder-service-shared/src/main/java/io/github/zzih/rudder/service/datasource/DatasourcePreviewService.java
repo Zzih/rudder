@@ -91,7 +91,7 @@ public class DatasourcePreviewService {
     private DatasourcePreviewDTO runViaSqlExecutor(Datasource ds, DataSourceInfo info, String sql, int rowCap,
                                                    String defaultDatabase, String opLabel) {
         try {
-            return JdbcConnections.runWith(info.getJdbcUrl(), info.getUsername(), info.getPassword(),
+            return JdbcConnections.runWith(info.getJdbcUrl(), info.toConnectionProperties(),
                     info.getDriverClass(), conn -> {
                         try (Statement stmt = conn.createStatement()) {
                             CollectingResultSink sink = new CollectingResultSink(redactionService);

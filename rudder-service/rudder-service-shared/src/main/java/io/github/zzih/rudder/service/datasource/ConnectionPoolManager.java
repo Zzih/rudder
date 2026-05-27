@@ -23,7 +23,6 @@ import io.github.zzih.rudder.spi.api.context.DataSourceInfo;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -91,15 +90,9 @@ public class ConnectionPoolManager {
         if (info.getDriverClass() != null && !info.getDriverClass().isBlank()) {
             cfg.setDriverClassName(info.getDriverClass());
         }
-        if (info.getUsername() != null) {
-            cfg.setUsername(info.getUsername());
-        }
-        if (info.getPassword() != null) {
-            cfg.setPassword(info.getPassword());
-        }
-        if (info.getProperties() != null) {
-            info.getProperties().forEach((k, v) -> cfg.addDataSourceProperty(Objects.toString(k), v));
-        }
+        // 与非池化路径(task / test / preview / metadata)共用同一份连接参数装配:account/password
+        // 已并入,HikariCP 透传给 driver.connect。
+        cfg.setDataSourceProperties(info.toConnectionProperties());
         cfg.setPoolName("rudder-ds-" + datasourceId);
         cfg.setMaximumPoolSize(POOL_MAX_SIZE);
         cfg.setMinimumIdle(POOL_MIN_IDLE);

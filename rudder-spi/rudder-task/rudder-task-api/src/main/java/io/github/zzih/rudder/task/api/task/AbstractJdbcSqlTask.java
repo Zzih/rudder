@@ -45,7 +45,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -144,18 +143,8 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask
     public void init() throws TaskException {
         DataSourceInfo ds = effectiveDataSourceInfo();
         log.info("Connecting to {} → {}", type(), ds.getJdbcUrl());
-        Properties props = new Properties();
-        if (ds.getUsername() != null) {
-            props.setProperty("user", ds.getUsername());
-        }
-        if (ds.getPassword() != null) {
-            props.setProperty("password", ds.getPassword());
-        }
-        if (ds.getProperties() != null) {
-            ds.getProperties().forEach(props::setProperty);
-        }
         try {
-            this.connection = JdbcConnections.open(ds.getJdbcUrl(), props, ds.getDriverClass());
+            this.connection = JdbcConnections.open(ds.getJdbcUrl(), ds.toConnectionProperties(), ds.getDriverClass());
             this.status = TaskStatus.RUNNING;
         } catch (SQLException e) {
             this.status = TaskStatus.FAILED;

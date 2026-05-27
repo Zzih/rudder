@@ -26,7 +26,7 @@ import java.util.function.Function;
 
 /**
  * 纯 JDBC 工具:开/关连接 + 模板执行。无任何业务概念(也不感知 SPI 的 DataSourceInfo),
- * 任何模块都可以用。调用方负责把数据源信息解构成 {@code (url, user, password, driverClass)} 传入。
+ * 任何模块都可以用。调用方负责把数据源信息解构成 {@code (url, props, driverClass)} 传入。
  *
  * <p>SPI provider 用 {@link #runWith} 跑一次性 metadata 查询;长连接 / 连接池由调用方
  * 自己管(连接池实现属业务装配,不在 common 范畴)。
@@ -36,22 +36,9 @@ public final class JdbcConnections {
     private JdbcConnections() {
     }
 
-    /** 开一个新连接。调用方负责 close,推荐 try-with-resources。 */
-    public static Connection open(String jdbcUrl, String username, String password,
-                                  String driverClass) throws SQLException {
-        Properties props = new Properties();
-        if (username != null) {
-            props.put("user", username);
-        }
-        if (password != null) {
-            props.put("password", password);
-        }
-        return open(jdbcUrl, props, driverClass);
-    }
-
     /**
-     * 开一个新连接,支持额外的 Properties(传给 driver 的 ssl / fetchsize / 自定义 hints)。
-     * username / password 已并入 props,调用方在构造 props 时塞进去。
+     * 开一个新连接。username / password 须由调用方并入 props(JDBC 标准 {@code user}/{@code password} key);
+     * 调用方负责 close,推荐 try-with-resources。
      */
     public static Connection open(String jdbcUrl, Properties props, String driverClass) throws SQLException {
         Driver driver = resolveDriver(driverClass);
@@ -79,9 +66,8 @@ public final class JdbcConnections {
     }
 
     /** 模板:开连接 → 跑函数 → 自动关。SQL 异常包成 RuntimeException 让调用方一行写完。 */
-    public static <T> T runWith(String jdbcUrl, String username, String password, String driverClass,
-                                JdbcCallback<T> fn) {
-        try (Connection conn = open(jdbcUrl, username, password, driverClass)) {
+    public static <T> T runWith(String jdbcUrl, Properties props, String driverClass, JdbcCallback<T> fn) {
+        try (Connection conn = open(jdbcUrl, props, driverClass)) {
             return fn.apply(conn);
         } catch (SQLException e) {
             throw new IllegalStateException("JDBC operation failed: " + e.getMessage(), e);
