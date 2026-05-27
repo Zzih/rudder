@@ -190,7 +190,7 @@ public class DatasourceService {
             return JdbcConnections.runWith(info.getJdbcUrl(), info.toConnectionProperties(),
                     info.getDriverClass(), provider::validateConnection);
         } catch (Exception e) {
-            log.error("Connection test failed for datasource {}: {}", id, e.getMessage());
+            log.error("Connection test failed for datasource {}", id, e);
             throw new BizException(DatasourceErrorCode.DS_CONNECTION_FAILED, e.getMessage(), e);
         }
     }
