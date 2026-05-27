@@ -88,6 +88,9 @@ public class ConnectionPoolManager {
         DataSourceInfo info = datasourceService.getDataSourceInfo(datasourceId);
         HikariConfig cfg = new HikariConfig();
         cfg.setJdbcUrl(info.getJdbcUrl());
+        if (info.getDriverClass() != null && !info.getDriverClass().isBlank()) {
+            cfg.setDriverClassName(info.getDriverClass());
+        }
         if (info.getUsername() != null) {
             cfg.setUsername(info.getUsername());
         }
