@@ -49,10 +49,9 @@ class MysqlTypeProviderTest {
     }
 
     @Test
-    @DisplayName("buildJdbcUrl: plugin params 不再拼 URL(走 Properties single source),只保留 enum 模板内置 default")
+    @DisplayName("buildJdbcUrl: 参数一律不拼 URL,全部走 Properties single source")
     void buildJdbcUrlOnlyTemplateParams() {
-        // 用户配置的 useSSL/allowPublicKeyRetrieval 由 task init / Hikari 走 Properties 路径传递,
-        // 避免与 URL 重复(Trino driver 严格禁止双写)。URL 只保留 enum 模板自带的工程默认。
+        // 用户配置的参数由 task init / Hikari 走 Properties 路径传递,避免与 URL 重复(Trino driver 严格禁止双写)。
         String json = "{\"useSSL\":false,\"allowPublicKeyRetrieval\":true}";
         String url = new MysqlTypeProvider().buildJdbcUrl("h", 3306, "db", json);
 

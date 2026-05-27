@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.spi.api.context;
 
 import java.util.Map;
+import java.util.Properties;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,4 +43,28 @@ public class DataSourceInfo {
     private Map<String, String> properties;
     /** Provider 自报的探活 SQL,HikariCP {@code connectionTestQuery} 用它。默认 {@code SELECT 1}。 */
     private String validationQuery;
+
+    /**
+     * 连接用 Properties:account/password 以 JDBC 标准 {@code user}/{@code password} key 并入
+     * {@link #properties}。所有连接路径(池化 HikariCP / task / test / preview / metadata)共用,
+     * 保证用户配置的参数在每条路径一致生效。
+     */
+    public Properties toConnectionProperties() {
+        Properties props = new Properties();
+        if (username != null) {
+            props.setProperty("user", username);
+        }
+        if (password != null) {
+            props.setProperty("password", password);
+        }
+        if (properties != null) {
+            // Properties 不接受 null value;用户配置里的 null 项直接跳过。
+            properties.forEach((k, v) -> {
+                if (v != null) {
+                    props.setProperty(k, v);
+                }
+            });
+        }
+        return props;
+    }
 }

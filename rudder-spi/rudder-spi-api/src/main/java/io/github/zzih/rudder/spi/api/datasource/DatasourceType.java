@@ -37,14 +37,9 @@ import lombok.Getter;
 public enum DatasourceType {
 
     HIVE("org.apache.hive.jdbc.HiveDriver", "jdbc:hive2://%s:%d/%s", false),
-    STARROCKS("com.starrocks.cj.jdbc.Driver",
-            "jdbc:starrocks://%s:%d/%s?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&useServerPrepStmts=false&cachePrepStmts=false&useInformationSchema=false",
-            true),
-    MYSQL("com.mysql.cj.jdbc.Driver",
-            "jdbc:mysql://%s:%d/%s?useUnicode=true&characterEncoding=UTF-8&useInformationSchema=true", false),
-    DORIS("com.mysql.cj.jdbc.Driver",
-            "jdbc:mysql://%s:%d/%s?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true",
-            false),
+    STARROCKS("com.starrocks.cj.jdbc.Driver", "jdbc:starrocks://%s:%d/%s", true),
+    MYSQL("com.mysql.cj.jdbc.Driver", "jdbc:mysql://%s:%d/%s", false),
+    DORIS("com.mysql.cj.jdbc.Driver", "jdbc:mysql://%s:%d/%s", false),
     POSTGRES("org.postgresql.Driver", "jdbc:postgresql://%s:%d/%s", false),
     CLICKHOUSE("com.clickhouse.jdbc.ClickHouseDriver", "jdbc:clickhouse://%s:%d/%s", false),
     TRINO("io.trino.jdbc.TrinoDriver", "jdbc:trino://%s:%d/%s", true),
@@ -66,8 +61,6 @@ public enum DatasourceType {
     public String buildJdbcUrl(String host, int port, String database) {
         String db = (database != null && !database.isBlank()) ? database : "";
         String url = String.format(urlTemplate, host, port, db);
-        // 当 database 为空时移除查询参数前的尾部斜杠
-        // 例如 jdbc:mysql://host:9030/?params → jdbc:mysql://host:9030?params
-        return url.replace("/?", "?").replaceAll("/$", "");
+        return url.replaceAll("/$", "");
     }
 }
