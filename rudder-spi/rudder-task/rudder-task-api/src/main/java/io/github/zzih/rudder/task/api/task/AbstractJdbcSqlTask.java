@@ -149,7 +149,7 @@ public abstract class AbstractJdbcSqlTask extends AbstractTask
         } catch (SQLException e) {
             this.status = TaskStatus.FAILED;
             log.error("{} connection failed", type(), e);
-            throw new TaskException(TaskErrorCode.TASK_INIT_FAILED, e);
+            throw new TaskException(TaskErrorCode.TASK_INIT_FAILED, e.getMessage());
         }
     }
 
