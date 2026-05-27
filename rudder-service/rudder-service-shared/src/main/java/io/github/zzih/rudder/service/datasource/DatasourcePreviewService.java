@@ -115,7 +115,7 @@ public class DatasourcePreviewService {
                         }
                     });
         } catch (Exception e) {
-            log.error("{} failed for datasource {}: {}", opLabel, ds.getId(), e.getMessage());
+            log.error("{} failed for datasource {}", opLabel, ds.getId(), e);
             throw new BizException(DatasourceErrorCode.DS_CONNECTION_FAILED,
                     opLabel + " failed: " + e.getMessage(), e);
         }
