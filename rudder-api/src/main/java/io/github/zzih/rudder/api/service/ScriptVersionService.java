@@ -98,7 +98,7 @@ public class ScriptVersionService {
     }
 
     private String buildDirPath(Long workspaceId, Long dirId) {
-        if (dirId == null) {
+        if (dirId == null || dirId == 0) {
             return "";
         }
         List<ScriptDir> allDirs = scriptDirDao.selectByWorkspaceId(workspaceId);

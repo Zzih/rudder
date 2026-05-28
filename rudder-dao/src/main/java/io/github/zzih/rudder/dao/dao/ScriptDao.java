@@ -29,6 +29,7 @@ public interface ScriptDao {
 
     Script selectByWorkspaceIdAndCode(Long workspaceId, Long code);
 
+    /** 仅匹配 source_type=TASK 的脚本(workflow reconcile 路径专用);IDE 脚本可跨目录同名,按 name 查询语义已不唯一。 */
     Script selectByWorkspaceIdAndName(Long workspaceId, String name);
 
     List<Script> selectByCodes(java.util.Collection<Long> codes);
@@ -37,7 +38,7 @@ public interface ScriptDao {
 
     List<Script> selectByWorkspaceId(Long workspaceId);
 
-    long countInDirAndNameExcludeId(Long dirId, String name, Long excludeId);
+    long countInDirAndNameExcludeId(Long workspaceId, Long dirId, String name, Long excludeId);
 
     long countAll();
 

@@ -44,7 +44,8 @@ public interface ScriptMapper extends BaseMapper<Script> {
 
     List<Script> queryByWorkspaceId(@Param("workspaceId") Long workspaceId);
 
-    long countInDirAndNameExcludeId(@Param("dirId") Long dirId,
+    long countInDirAndNameExcludeId(@Param("workspaceId") Long workspaceId,
+                                    @Param("dirId") Long dirId,
                                     @Param("name") String name,
                                     @Param("excludeId") Long excludeId);
 
