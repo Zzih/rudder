@@ -47,10 +47,17 @@ public class ScriptService {
     private final ScriptDirDao scriptDirDao;
     private final TaskDefinitionDao taskDefinitionDao;
 
+    // 根目录用 0 编码而非 NULL,使 uk_ws_dir_name 唯一键对根目录同样生效(MySQL 唯一索引不约束 NULL)。
+    private static final Long ROOT_DIR_ID = 0L;
+
     public Script create(Script script) {
+        if (script.getDirId() == null) {
+            script.setDirId(ROOT_DIR_ID);
+        }
         log.info("创建脚本, workspaceId={}, name={}, taskType={}", script.getWorkspaceId(), script.getName(),
                 script.getTaskType());
-        if (scriptDao.countInDirAndNameExcludeId(script.getDirId(), script.getName(), null) > 0) {
+        if (scriptDao.countInDirAndNameExcludeId(script.getWorkspaceId(), script.getDirId(), script.getName(),
+                null) > 0) {
             log.warn("创建脚本失败: 名称已存在, dirId={}, name={}", script.getDirId(), script.getName());
             throw new BizException(ScriptErrorCode.SCRIPT_NAME_EXISTS);
         }
@@ -89,7 +96,8 @@ public class ScriptService {
         Script existing = getByCode(workspaceId, code);
 
         if (script.getName() != null && !script.getName().equals(existing.getName())) {
-            if (scriptDao.countInDirAndNameExcludeId(existing.getDirId(), script.getName(), existing.getId()) > 0) {
+            if (scriptDao.countInDirAndNameExcludeId(workspaceId, existing.getDirId(), script.getName(),
+                    existing.getId()) > 0) {
                 throw new BizException(ScriptErrorCode.SCRIPT_NAME_EXISTS);
             }
             existing.setName(script.getName());
@@ -111,22 +119,21 @@ public class ScriptService {
     public Script move(Long workspaceId, Long code, Long targetDirId) {
         log.info("移动脚本, workspaceId={}, code={}, targetDirId={}", workspaceId, code, targetDirId);
         Script existing = getByCode(workspaceId, code);
-        if (targetDirId != null) {
-            ScriptDir dir = scriptDirDao.selectByWorkspaceIdAndId(workspaceId, targetDirId);
+        Long target = targetDirId == null ? ROOT_DIR_ID : targetDirId;
+        if (!ROOT_DIR_ID.equals(target)) {
+            ScriptDir dir = scriptDirDao.selectByWorkspaceIdAndId(workspaceId, target);
             if (dir == null) {
                 throw new NotFoundException(ScriptErrorCode.SCRIPT_DIR_NOT_FOUND);
             }
         }
-        Long currentDirId = existing.getDirId();
-        if ((currentDirId == null && targetDirId == null)
-                || (currentDirId != null && currentDirId.equals(targetDirId))) {
+        if (target.equals(existing.getDirId())) {
             return existing;
         }
-        if (scriptDao.countInDirAndNameExcludeId(targetDirId, existing.getName(), existing.getId()) > 0) {
+        if (scriptDao.countInDirAndNameExcludeId(workspaceId, target, existing.getName(), existing.getId()) > 0) {
             throw new BizException(ScriptErrorCode.SCRIPT_NAME_EXISTS);
         }
-        scriptDao.updateDirId(existing.getId(), targetDirId);
-        existing.setDirId(targetDirId);
+        scriptDao.updateDirId(existing.getId(), target);
+        existing.setDirId(target);
         return existing;
     }
 

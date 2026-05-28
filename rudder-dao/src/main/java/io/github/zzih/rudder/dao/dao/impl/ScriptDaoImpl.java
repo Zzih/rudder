@@ -73,8 +73,8 @@ public class ScriptDaoImpl implements ScriptDao {
     }
 
     @Override
-    public long countInDirAndNameExcludeId(Long dirId, String name, Long excludeId) {
-        return scriptMapper.countInDirAndNameExcludeId(dirId, name, excludeId);
+    public long countInDirAndNameExcludeId(Long workspaceId, Long dirId, String name, Long excludeId) {
+        return scriptMapper.countInDirAndNameExcludeId(workspaceId, dirId, name, excludeId);
     }
 
     @Override

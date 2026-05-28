@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS `t_r_script` (
     `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     `code`            BIGINT NOT NULL                   COMMENT '雪花ID业务标识',
     `workspace_id`    BIGINT NOT NULL                   COMMENT '所属工作空间ID',
-    `dir_id`          BIGINT                            COMMENT '所属目录ID',
+    `dir_id`          BIGINT NOT NULL DEFAULT 0          COMMENT '所属目录ID, 0=根目录',
     `name`            VARCHAR(128) NOT NULL             COMMENT '脚本名称',
     `task_type`       VARCHAR(32)                        COMMENT '任务类型: MYSQL/HIVE_SQL/PYTHON/SHELL等',
     `content`         LONGTEXT                          COMMENT '脚本内容(JSON: 与对应TaskParams结构一致)',
@@ -143,8 +143,7 @@ CREATE TABLE IF NOT EXISTS `t_r_script` (
     `updated_by`      BIGINT                            COMMENT '更新人ID',
     `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY `uk_code` (`code`),
-    UNIQUE KEY `uk_ws_name` (`workspace_id`, `name`),
-    INDEX `idx_workspace` (`workspace_id`),
+    UNIQUE KEY `uk_ws_dir_name` (`workspace_id`, `dir_id`, `name`),
     INDEX `idx_dir` (`dir_id`)
 ) ENGINE=InnoDB COMMENT='脚本';
 

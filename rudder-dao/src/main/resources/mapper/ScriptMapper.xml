@@ -26,6 +26,7 @@
         from t_r_script
         where workspace_id = #{workspaceId}
           and name = #{name}
+          and source_type = 'TASK'
         limit 1
     </select>
 
@@ -55,14 +56,10 @@
     <select id="countInDirAndNameExcludeId" resultType="long">
         select count(*)
         from t_r_script
-        <where>
-            <choose>
-                <when test="dirId == null">dir_id is null</when>
-                <otherwise>dir_id = #{dirId}</otherwise>
-            </choose>
-            and name = #{name}
-            <if test="excludeId != null">and id != #{excludeId}</if>
-        </where>
+        where workspace_id = #{workspaceId}
+          and dir_id = #{dirId}
+          and name = #{name}
+        <if test="excludeId != null">and id != #{excludeId}</if>
     </select>
 
     <update id="updateDirId">
