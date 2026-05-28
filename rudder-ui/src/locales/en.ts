@@ -725,6 +725,7 @@ export default {
     decisionApprove: 'Approved',
     decisionReject: 'Rejected',
     noDecisions: 'No decisions yet',
+    candidates: 'Candidates',
     stepCompleted: 'Done',
     stepCurrent: 'Current',
     stepWaiting: 'Waiting',

@@ -50,16 +50,20 @@ import io.github.zzih.rudder.service.config.ApprovalConfigService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.workflow.approver.ApproverResolver;
 import io.github.zzih.rudder.service.workflow.approver.ApproverResolverRegistry;
+import io.github.zzih.rudder.service.workflow.dto.ApprovalCandidate;
 import io.github.zzih.rudder.service.workflow.dto.ApprovalRecordDTO;
 import io.github.zzih.rudder.service.workflow.stage.ApprovalStageFlowRegistry;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -182,20 +186,140 @@ public class ApprovalService {
         if (userInfo != null && userInfo.getRole() != null) {
             roleLevel = io.github.zzih.rudder.common.enums.auth.RoleType.of(userInfo.getRole()).getLevel();
         }
-        return BeanConvertUtils.convertPage(
+        IPage<ApprovalRecordDTO> page = BeanConvertUtils.convertPage(
                 approvalRecordDao.selectPage(pageNum, pageSize, status, userId, roleLevel, workspaceId),
                 ApprovalRecordDTO.class);
+        // 列表路径只算 canDecide 用于按钮可见性,不下发 stageCandidates(列表不渲染候选人列表)。
+        enrichDecideFlag(page.getRecords());
+        return page;
     }
 
     public List<ApprovalRecordDTO> listByResource(String resourceType, Long resourceCode) {
-        return BeanConvertUtils.convertList(
+        List<ApprovalRecordDTO> list = BeanConvertUtils.convertList(
                 approvalRecordDao.selectByResourceTypeAndResourceCode(resourceType, resourceCode),
                 ApprovalRecordDTO.class);
+        // 资源关联列表内部消费者只读 status,不需要候选人。仅算 canDecide 兜底前端按钮判定。
+        enrichDecideFlag(list);
+        return list;
     }
 
     public ApprovalRecordDTO getById(Long id) {
         ApprovalRecordDetailView view = approvalRecordDao.selectDetailById(id);
-        return BeanConvertUtils.convert(view, ApprovalRecordDTO.class);
+        ApprovalRecordDTO dto = BeanConvertUtils.convert(view, ApprovalRecordDTO.class);
+        if (dto != null) {
+            // 详情路径填全 stageChain 候选人,用于审批进度展示。
+            enrichFullStageCandidates(dto);
+        }
+        return dto;
+    }
+
+    /**
+     * 列表路径:仅算 currentUserCanDecide(按钮可见性),不下发完整 stageCandidates 收敛 payload + 省 N-1 个 stage 的 resolver 调用。
+     *
+     * <p>currentUserCanDecide = (role >= DEVELOPER && 是 currentStage 候选人) || SUPER_ADMIN。
+     * role gate 对齐后端 {@code @RequireDeveloper},避免 VIEWER 项目创建者被前端 lure 点按钮再被 403。
+     */
+    private void enrichDecideFlag(List<ApprovalRecordDTO> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        Long currentUserId = UserContext.getUserId();
+        boolean isSuperAdmin = UserContext.isSuperAdmin();
+        boolean isDeveloperOrAbove = isRoleAtLeastDeveloper();
+        for (ApprovalRecordDTO dto : records) {
+            dto.setStageCandidates(Collections.emptyMap());
+            if (dto.getStatus() != ApprovalStatus.PENDING || dto.getCurrentStage() == null) {
+                dto.setCurrentUserCanDecide(false);
+                continue;
+            }
+            if (isSuperAdmin) {
+                dto.setCurrentUserCanDecide(true);
+                continue;
+            }
+            if (currentUserId == null || !isDeveloperOrAbove) {
+                dto.setCurrentUserCanDecide(false);
+                continue;
+            }
+            List<Long> uids = resolveCandidateUserIdsSafe(dto.getCurrentStage(), dto);
+            dto.setCurrentUserCanDecide(uids.contains(currentUserId));
+        }
+    }
+
+    /**
+     * 详情路径:填全 stageChain 候选人(含 username,用于进度展示) + currentUserCanDecide。批查 user 避免 N+1。
+     */
+    private void enrichFullStageCandidates(ApprovalRecordDTO dto) {
+        if (dto.getStatus() != ApprovalStatus.PENDING) {
+            dto.setStageCandidates(Collections.emptyMap());
+            dto.setCurrentUserCanDecide(false);
+            return;
+        }
+        List<String> chain = dto.getStageChain();
+        if (chain == null || chain.isEmpty()) {
+            dto.setStageCandidates(Collections.emptyMap());
+            dto.setCurrentUserCanDecide(false);
+            return;
+        }
+        Map<String, List<Long>> stageMap = new LinkedHashMap<>(chain.size() * 2);
+        Set<Long> allUserIds = new LinkedHashSet<>();
+        for (String stage : chain) {
+            List<Long> uids = resolveCandidateUserIdsSafe(stage, dto);
+            stageMap.put(stage, uids);
+            allUserIds.addAll(uids);
+        }
+        Map<Long, String> usernameById = allUserIds.isEmpty()
+                ? Collections.emptyMap()
+                : userDao.selectByIds(allUserIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getUsername, (a, b) -> a));
+        Map<String, List<ApprovalCandidate>> out = new LinkedHashMap<>(stageMap.size() * 2);
+        stageMap.forEach((stage, uids) -> {
+            List<ApprovalCandidate> candidates = new ArrayList<>(uids.size());
+            for (Long uid : uids) {
+                candidates.add(new ApprovalCandidate(uid, usernameById.getOrDefault(uid, null)));
+            }
+            out.put(stage, candidates);
+        });
+        dto.setStageCandidates(out);
+        Long currentUserId = UserContext.getUserId();
+        boolean isSuperAdmin = UserContext.isSuperAdmin();
+        boolean isDeveloperOrAbove = isRoleAtLeastDeveloper();
+        List<Long> currentStageUids = stageMap.getOrDefault(dto.getCurrentStage(), List.of());
+        dto.setCurrentUserCanDecide(
+                isSuperAdmin
+                        || (currentUserId != null
+                                && isDeveloperOrAbove
+                                && currentStageUids.contains(currentUserId)));
+    }
+
+    /**
+     * 调 resolver 容错:数据库历史 stage 值未注册 resolver 时,只 warn + 留空,不让一条脏 record 让整页 500。
+     * resolver 只读 createdBy/projectCode/workspaceId 三个字段,显式构造最小 entity 避免 BeanConvertUtils 反向反射开销。
+     */
+    private List<Long> resolveCandidateUserIdsSafe(String stage, ApprovalRecordDTO dto) {
+        try {
+            ApprovalRecord ctx = new ApprovalRecord();
+            ctx.setCreatedBy(dto.getCreatedBy());
+            ctx.setProjectCode(dto.getProjectCode());
+            ctx.setWorkspaceId(dto.getWorkspaceId());
+            return approverResolverRegistry.require(stage).resolveCandidateUserIds(ctx);
+        } catch (IllegalStateException e) {
+            log.warn("No ApproverResolver registered for stage={} (approval id={}), candidates left empty",
+                    stage, dto.getId());
+            return List.of();
+        }
+    }
+
+    private boolean isRoleAtLeastDeveloper() {
+        UserContext.UserInfo info = UserContext.get();
+        if (info == null || info.getRole() == null) {
+            return false;
+        }
+        try {
+            return io.github.zzih.rudder.common.enums.auth.RoleType.of(info.getRole())
+                    .getLevel() >= io.github.zzih.rudder.common.enums.auth.RoleType.DEVELOPER.getLevel();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /**

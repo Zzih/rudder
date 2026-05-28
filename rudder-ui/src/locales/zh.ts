@@ -727,6 +727,7 @@ export default {
     decisionApprove: '通过',
     decisionReject: '拒绝',
     noDecisions: '暂无决议记录',
+    candidates: '可审批人',
     stepCompleted: '已完成',
     stepCurrent: '当前',
     stepWaiting: '等待中',

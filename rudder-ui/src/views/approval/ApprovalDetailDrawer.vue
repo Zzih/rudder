@@ -11,7 +11,6 @@ import {
   type ApprovalDecision,
 } from '@/api/approval'
 import { formatDate } from '@/utils/dateFormat'
-import { usePermission } from '@/composables/usePermission'
 import {
   STAGE_LABEL_KEY,
   TYPE_LABEL_KEY,
@@ -32,7 +31,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { canEdit } = usePermission()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -72,6 +70,11 @@ function decisionsOf(stage: string): ApprovalDecision[] {
   return (detail.value?.decisions ?? []).filter(d => d.stage === stage)
 }
 
+function candidatesOf(stage: string): string[] {
+  const list = detail.value?.stageCandidates?.[stage] ?? []
+  return list.map(c => c.username || `#${c.userId}`)
+}
+
 function openAction(type: 'approve' | 'reject') {
   actionType.value = type
   actionComment.value = ''
@@ -99,7 +102,7 @@ async function submitAction() {
 }
 
 const canDecide = computed(() =>
-  canEdit
+  !!detail.value?.currentUserCanDecide
   && detail.value?.status === 'PENDING'
   && detail.value?.channel === 'LOCAL')
 </script>
@@ -240,6 +243,10 @@ const canDecide = computed(() =>
                     </div>
                   </li>
                 </ul>
+                <p v-else-if="candidatesOf(stage).length" class="apd__node-candidates">
+                  <span class="apd__node-candidates-label">{{ t('approval.candidates') }}</span>
+                  <span class="apd__node-candidates-list">{{ candidatesOf(stage).join('、') }}</span>
+                </p>
                 <p v-else class="apd__node-empty">{{ t('approval.noDecisions') }}</p>
               </div>
             </li>
@@ -591,6 +598,23 @@ const canDecide = computed(() =>
   font-size: var(--r-font-xs);
   color: var(--r-text-disabled);
   font-style: italic;
+}
+.apd__node-candidates {
+  margin: 0 0 var(--r-space-2) 0;
+  font-size: var(--r-font-xs);
+  color: var(--r-text-secondary);
+  display: flex;
+  gap: var(--r-space-2);
+}
+.apd__node-candidates-label {
+  color: var(--r-text-muted);
+  flex-shrink: 0;
+  &::after { content: ':'; }
+}
+.apd__node-candidates-list {
+  color: var(--r-text-primary);
+  font-weight: var(--r-weight-medium);
+  word-break: break-all;
 }
 
 /* Decisions */

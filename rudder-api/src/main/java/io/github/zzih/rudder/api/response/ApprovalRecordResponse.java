@@ -19,9 +19,11 @@ package io.github.zzih.rudder.api.response;
 
 import io.github.zzih.rudder.common.enums.approval.ApprovalStatus;
 import io.github.zzih.rudder.common.enums.approval.DecisionRule;
+import io.github.zzih.rudder.service.workflow.dto.ApprovalCandidate;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import lombok.Data;
 
@@ -55,4 +57,10 @@ public class ApprovalRecordResponse {
 
     /** 决议历史（前端审计列表展示用） */
     private List<ApprovalDecisionResponse> decisions;
+
+    /** 每个 stage 的候选审批人(动态实时)。仅 PENDING 时填全 stageChain;终态留空。 */
+    private Map<String, List<ApprovalCandidate>> stageCandidates;
+
+    /** 当前登录用户对此审批是否有决议权(候选人匹配 + SUPER_ADMIN 兜底)。 */
+    private Boolean currentUserCanDecide;
 }
