@@ -88,14 +88,13 @@
           <el-button text size="small">
             <el-icon><Setting /></el-icon>
             <span>{{ t('ide.params') }}</span>
-            <el-tag v-if="activeTab && Object.keys(activeTab.params || {}).length" size="small" round effect="plain" style="margin-left: 4px">
-              {{ Object.keys(activeTab.params).length }}
+            <el-tag v-if="Object.keys(activeTab?.params || {}).length" size="small" round effect="plain" style="margin-left: 4px">
+              {{ Object.keys(activeTab?.params || {}).length }}
             </el-tag>
           </el-button>
         </template>
         <ParamsPanel
-          v-if="activeTab"
-          :model-value="activeTab.params || {}"
+          :model-value="activeTab?.params || {}"
           @update:model-value="onParamsChange($event)"
         />
       </el-popover>
@@ -438,6 +437,7 @@ function onExecutionModeChange() {
 function onParamsChange(params: Record<string, string>) {
   if (activeTab.value) {
     activeTab.value.params = params
+    activeTab.value.modified = true
   }
 }
 

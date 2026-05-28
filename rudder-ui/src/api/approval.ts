@@ -13,6 +13,11 @@ export interface ApprovalDecision {
   remark: string
 }
 
+export interface ApprovalCandidate {
+  userId: number
+  username: string
+}
+
 export interface ApprovalDetail {
   id: number
   channel: string
@@ -39,6 +44,10 @@ export interface ApprovalDetail {
   createdAt: string
   updatedAt: string
   decisions: ApprovalDecision[]
+  /** 每个 stage 的候选审批人(动态),仅 PENDING 时填全 stageChain,终态为空对象。 */
+  stageCandidates: Record<string, ApprovalCandidate[]>
+  /** 当前用户对此审批是否有决议权(候选人匹配 + SUPER_ADMIN 兜底)。 */
+  currentUserCanDecide: boolean
 }
 
 export function pageApprovals(params: { pageNum?: number; pageSize?: number; status?: string }) {

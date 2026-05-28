@@ -3,21 +3,14 @@
     <div class="pp-head">
       <div class="pp-head__left">
         <span class="pp-head__title">{{ t('ide.params') }}</span>
-        <span v-if="rows.length" class="pp-head__badge">{{ rows.length }}</span>
+        <span class="pp-head__badge">{{ rows.length }}</span>
       </div>
       <button class="pp-head__add" @click="addRow">
         <el-icon :size="11"><Plus /></el-icon>
       </button>
     </div>
 
-    <div v-if="!rows.length" class="pp-empty" @click="addRow">
-      <div class="pp-empty__icon">
-        <el-icon :size="18"><Setting /></el-icon>
-      </div>
-      <span>{{ t('ide.paramHint') }}</span>
-    </div>
-
-    <div v-else class="pp-list">
+    <div class="pp-list">
       <div v-for="(row, idx) in rows" :key="row.uid" class="pp-row">
         <div class="pp-field">
           <span class="pp-field__badge pp-field__badge--key">K</span>
@@ -65,15 +58,20 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Plus, Close, Setting, ArrowRight } from '@element-plus/icons-vue'
+import { Plus, Close, ArrowRight } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
-
 let nextUid = 0
 interface Row { uid: number; key: string; val: string }
 
-const props = defineProps<{ modelValue: Record<string, string> }>()
+const props = defineProps<{ modelValue?: Record<string, string> | null }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: Record<string, string>): void }>()
+
+// rows 必保持 >= 1: 嵌套在 el-popover 的 default slot 里, 顶层 v-if/v-else 一旦
+// 切换 (rows.length 0↔非0) 会触发 prod build 下 popover content 被 unmount 且无法
+// 再渲染 (slot vnode 被替换为 commentVNode), popover 高度坍缩成 2px。
+// 永远渲染 .pp-list 分支, 空数据时呈现一个待填的空行作为 affordance。
+const blankRow = (): Row => ({ uid: nextUid++, key: '', val: '' })
 
 const rows = ref<Row[]>(toRows(props.modelValue))
 const refOpen = ref(false)
@@ -92,8 +90,10 @@ const timeRefs = computed(() => [
   { code: '$[last_day(yyyy-MM-dd)]', desc: t('ide.paramLastDay') },
 ])
 
-function toRows(rec: Record<string, string>): Row[] {
-  return Object.entries(rec).map(([k, v]) => ({ uid: nextUid++, key: k, val: v }))
+function toRows(rec: Record<string, string> | null | undefined): Row[] {
+  const entries = rec ? Object.entries(rec) : []
+  if (!entries.length) return [blankRow()]
+  return entries.map(([k, v]) => ({ uid: nextUid++, key: k, val: v }))
 }
 
 let selfEmitting = false
@@ -111,7 +111,7 @@ function emitRecord() {
 }
 
 function addRow() {
-  rows.value.push({ uid: nextUid++, key: '', val: '' })
+  rows.value.push(blankRow())
   nextTick(() => {
     const last = rowRefs.value[rowRefs.value.length - 1]
     last?.focus()
@@ -120,6 +120,7 @@ function addRow() {
 
 function removeRow(idx: number) {
   rows.value.splice(idx, 1)
+  if (rows.value.length === 0) rows.value.push(blankRow())
   emitRecord()
 }
 
@@ -191,39 +192,6 @@ function copyRef(code: string) {
     color: $ide-accent;
     background: $ide-accent-bg;
   }
-}
-
-// ---- Empty state ----
-.pp-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 28px 14px;
-  cursor: pointer;
-
-  &:hover {
-    .pp-empty__icon { background: $ide-accent-bg; color: $ide-accent; }
-    span { color: $ide-text-secondary; }
-  }
-
-  span {
-    font-size: 12px;
-    color: $ide-text-disabled;
-    transition: color 0.15s;
-  }
-}
-
-.pp-empty__icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: $ide-hover-bg;
-  color: $ide-text-muted;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
 }
 
 // ---- Parameter rows ----

@@ -14,11 +14,9 @@ import {
   type ApprovalStageState,
 } from './labels'
 import { usePagination } from '@/composables/usePagination'
-import { usePermission } from '@/composables/usePermission'
 import ApprovalDetailDrawer from './ApprovalDetailDrawer.vue'
 
 const { t } = useI18n()
-const { canEdit } = usePermission()
 
 interface ApprovalRecord {
   id: number
@@ -37,6 +35,8 @@ interface ApprovalRecord {
   resolvedAt: string
   createdAt: string
   workflows: string[]
+  /** 当前用户对此审批是否有决议权(后端按候选人列表 + SUPER_ADMIN 兜底算)。 */
+  currentUserCanDecide: boolean
 }
 
 const statusOptions = [
@@ -259,7 +259,7 @@ onMounted(fetchApprovals)
                 <button class="ap-btn ap-btn--detail" @click="openDetail(row.id)">
                   {{ t('common.detail') }}
                 </button>
-                <template v-if="canEdit && row.status === 'PENDING' && row.channel === 'LOCAL'">
+                <template v-if="row.currentUserCanDecide && row.status === 'PENDING' && row.channel === 'LOCAL'">
                   <button class="ap-btn ap-btn--approve" @click="openAction(row.id, 'approve')">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     {{ t('approval.approve') }}
