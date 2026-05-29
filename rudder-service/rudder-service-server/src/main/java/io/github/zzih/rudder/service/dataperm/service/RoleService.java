@@ -57,15 +57,15 @@ public class RoleService {
         com.baomidou.mybatisplus.core.metadata.IPage<DataPermRole> page =
                 roleDao.selectPage(keyword, pageNum, pageSize);
         Map<Long, Long> countByRole = userRoleGrantDao.countActiveByRoleIds(
-                page.getRecords().stream().map(DataPermRole::getId).toList());
+                page.getRecords().stream().map(DataPermRole::getId).toList(), LocalDateTime.now());
         return page.convert(r -> toBriefDto(r, countByRole.getOrDefault(r.getId(), 0L)));
     }
 
-    /** 列出所有 role,附 active grant 计数(无权限项明细)。 */
+    /** 列出所有 role,附当前授权独立用户数(无权限项明细)。 */
     public List<DataPermRoleDTO> listAll() {
         List<DataPermRole> roles = roleDao.selectAll();
         Map<Long, Long> countByRole = userRoleGrantDao.countActiveByRoleIds(
-                roles.stream().map(DataPermRole::getId).toList());
+                roles.stream().map(DataPermRole::getId).toList(), LocalDateTime.now());
         return roles.stream()
                 .map(r -> toBriefDto(r, countByRole.getOrDefault(r.getId(), 0L)))
                 .toList();
@@ -84,10 +84,10 @@ public class RoleService {
                 .build();
     }
 
-    /** 取指定 role 元信息 + active grant 计数;权限项明细走分页 endpoint。 */
+    /** 取指定 role 元信息 + 当前授权独立用户数;权限项明细走分页 endpoint。 */
     public DataPermRoleDTO get(Long roleId) {
         DataPermRole role = requireRole(roleId);
-        long activeCount = userRoleGrantDao.selectActiveByRoleId(roleId).size();
+        long activeCount = userRoleGrantDao.countActiveByRoleId(roleId, LocalDateTime.now());
         return DataPermRoleDTO.builder()
                 .id(role.getId())
                 .name(role.getName())

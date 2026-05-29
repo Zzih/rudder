@@ -44,10 +44,11 @@ public interface DataPermUserRoleGrantDao {
     /** 已失效(expiration_time IS NOT NULL 且 <= now)的全部 role grants —— 「我的权限」历史折叠区用。 */
     List<DataPermUserRoleGrantDetailView> selectInactiveByUser(Long userId, LocalDateTime now);
 
-    List<DataPermUserRoleGrant> selectActiveByRoleId(Long roleId);
+    /** 单条 SQL 批量统计多个 role 在 asOf 时活跃的独立用户数(COUNT DISTINCT user_id),避免按 roleId 循环 SELECT。 */
+    java.util.Map<Long, Long> countActiveByRoleIds(List<Long> roleIds, LocalDateTime asOf);
 
-    /** 单条 SQL 批量统计多个 role 的活跃 grant 数,避免按 roleId 循环 SELECT。 */
-    java.util.Map<Long, Long> countActiveByRoleIds(List<Long> roleIds);
+    /** 单 role 在 asOf 时活跃的独立用户数。 */
+    long countActiveByRoleId(Long roleId, LocalDateTime asOf);
 
     List<DataPermUserRoleGrant> selectByApprovalId(Long approvalId);
 

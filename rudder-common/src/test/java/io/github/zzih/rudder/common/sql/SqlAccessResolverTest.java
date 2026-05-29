@@ -204,4 +204,119 @@ class SqlAccessResolverTest {
         assertThat(out.get(0).database()).isEqualTo("my schema");
         assertThat(out.get(0).table()).isEqualTo("my table");
     }
+
+    // ==================== 列粒度 ====================
+
+    @Test
+    void columns_singleTableSelect_attachToTable() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT id, name FROM users", SqlDialect.MYSQL);
+        assertThat(out).hasSize(1);
+        assertThat(lower(out.get(0).columns())).containsExactlyInAnyOrder("id", "name");
+    }
+
+    @Test
+    void columns_selectStar_emptyColumns() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT * FROM users", SqlDialect.MYSQL);
+        assertThat(out.get(0).columns()).isEmpty();
+    }
+
+    @Test
+    void columns_tableDotStar_emptyColumns() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT u.* FROM users u", SqlDialect.MYSQL);
+        assertThat(out.get(0).columns()).isEmpty();
+    }
+
+    @Test
+    void columns_qualifiedInJoin_routeByAlias() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT u.id, o.amount FROM users u JOIN orders o ON o.user_id = u.id",
+                SqlDialect.MYSQL);
+        TableAccess users = out.stream().filter(a -> a.table().equalsIgnoreCase("users")).findFirst().orElseThrow();
+        TableAccess orders = out.stream().filter(a -> a.table().equalsIgnoreCase("orders")).findFirst().orElseThrow();
+        // JOIN ON 列也归属:users.id + orders.user_id,加 SELECT-list u.id + o.amount
+        assertThat(lower(users.columns())).containsExactlyInAnyOrder("id");
+        assertThat(lower(orders.columns())).containsExactlyInAnyOrder("amount", "user_id");
+    }
+
+    @Test
+    void columns_unqualifiedInJoin_degradesToTableLevel() {
+        // 多表 + 未限定列 col → 无法归属,整 SELECT 列降级为空(表级)
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT col FROM users JOIN orders ON orders.user_id = users.id",
+                SqlDialect.MYSQL);
+        // users / orders 都降级为表级 columns=[]
+        for (TableAccess t : out) {
+            assertThat(t.columns()).isEmpty();
+        }
+    }
+
+    @Test
+    void columns_qualifiedByRealTableName_route() {
+        // 没 alias 时用真实表名作为隐式 alias
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT users.id, orders.amount FROM users JOIN orders ON orders.user_id = users.id",
+                SqlDialect.MYSQL);
+        TableAccess users = out.stream().filter(a -> a.table().equalsIgnoreCase("users")).findFirst().orElseThrow();
+        assertThat(lower(users.columns())).containsExactlyInAnyOrder("id");
+    }
+
+    @Test
+    void columns_whereSingleTable_attachToTable() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT id FROM users WHERE secret_col = 1", SqlDialect.MYSQL);
+        assertThat(lower(out.get(0).columns())).containsExactlyInAnyOrder("id", "secret_col");
+    }
+
+    @Test
+    void columns_insertWithColumnList_attachToTarget() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "INSERT INTO users(id, name) VALUES (1, 'a')", SqlDialect.MYSQL);
+        assertThat(lower(out.get(0).columns())).containsExactlyInAnyOrder("id", "name");
+        assertThat(out.get(0).action()).isEqualTo(TableAccess.Action.INSERT);
+    }
+
+    @Test
+    void columns_insertWithoutColumnList_empty() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "INSERT INTO users VALUES (1, 'a')", SqlDialect.MYSQL);
+        assertThat(out.get(0).columns()).isEmpty();
+    }
+
+    @Test
+    void columns_updateSetCols_attachToTarget() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "UPDATE users SET name = 'x', age = 18 WHERE id = 1", SqlDialect.MYSQL);
+        TableAccess upd = out.stream()
+                .filter(a -> a.action() == TableAccess.Action.UPDATE)
+                .findFirst().orElseThrow();
+        assertThat(lower(upd.columns())).containsExactlyInAnyOrder("name", "age");
+    }
+
+    @Test
+    void columns_selfJoin_mergeToSameTable() {
+        // self-join 同表名两 alias,列合并到同一 access entry
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT a.col1, b.col2 FROM t a JOIN t b ON a.id = b.id", SqlDialect.MYSQL);
+        // 同一 (db, t, READ) 合并为 1 条
+        assertThat(out).hasSize(1);
+        assertThat(lower(out.get(0).columns())).containsExactlyInAnyOrder("col1", "col2", "id");
+    }
+
+    @Test
+    void columns_subquery_innerScopeIndependent() {
+        // 子查询自己有 scope,外层 FROM 子查询 alias 列引用不归属到内部表
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "SELECT o.amount FROM (SELECT amount, user_id FROM orders) o",
+                SqlDialect.MYSQL);
+        TableAccess orders = out.stream().filter(a -> a.table().equalsIgnoreCase("orders")).findFirst().orElseThrow();
+        // 内部 SELECT 在 orders 上加 amount, user_id;外层 o.amount 找不到 alias(o 是子查询不是真表) → fail-open
+        assertThat(lower(orders.columns())).containsExactlyInAnyOrder("amount", "user_id");
+    }
+
+    private static List<String> lower(List<String> in) {
+        return in.stream().map(s -> s.toLowerCase()).toList();
+    }
 }

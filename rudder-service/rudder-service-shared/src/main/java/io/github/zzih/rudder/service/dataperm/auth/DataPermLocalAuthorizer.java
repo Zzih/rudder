@@ -162,22 +162,55 @@ public class DataPermLocalAuthorizer {
 
     private static boolean isAllowed(TableAccess intent, List<DataPermUserEffectiveSnapshot> grants) {
         String needAccess = actionToAccess(intent.action());
+        // 先收集 (table 匹配 + access 含) 的候选 grant 集合,再做列覆盖判定。
+        // 单 grant 不一定覆盖所有列,但多个 grant 合并可能覆盖 → 必须聚合判定而非任一返回。
+        List<DataPermUserEffectiveSnapshot> covering = new java.util.ArrayList<>();
         for (DataPermUserEffectiveSnapshot g : grants) {
-            if (!matchResource(intent, g)) {
-                continue;
-            }
-            if (containsAccess(g.getAccesses(), needAccess)) {
-                return true;
+            if (matchResource(intent, g) && containsAccess(g.getAccesses(), needAccess)) {
+                covering.add(g);
             }
         }
-        return false;
+        if (covering.isEmpty()) {
+            return false;
+        }
+        // intent.columns 空 → 表级访问 = 任一 grant 覆盖整表(grant.columnName 为 null 或 '*')
+        if (intent.columns() == null || intent.columns().isEmpty()) {
+            for (DataPermUserEffectiveSnapshot g : covering) {
+                if (isWholeTable(g.getColumnName())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        // intent.columns 非空 → 每个引用列必须被至少一个 grant 覆盖
+        for (String col : intent.columns()) {
+            boolean covered = false;
+            for (DataPermUserEffectiveSnapshot g : covering) {
+                if (isWholeTable(g.getColumnName()) || equalsIgnoreCase(g.getColumnName(), col)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean matchResource(TableAccess intent, DataPermUserEffectiveSnapshot grant) {
         return matchLevel(intent.catalog(), grant.getCatalogName())
                 && matchLevel(intent.database(), grant.getDatabaseName())
                 && matchLevel(intent.table(), grant.getTableName());
-        // column-level: intent.columns() 暂忽略,Local 鉴权先做到 table 层;column-level 由 Ranger 兜底。
+    }
+
+    /** grant.columnName 非具体值(null/空/"*")时视为整表覆盖,与 catalog/database 通配语义一致。 */
+    private static boolean isWholeTable(String grantColumn) {
+        return !isConcrete(grantColumn);
+    }
+
+    private static boolean equalsIgnoreCase(String a, String b) {
+        return a != null && a.equalsIgnoreCase(b);
     }
 
     /** grant 端 {@code "*"} = 通配;{@code null} 表示该 plugin 不适用此层(两层引擎无 catalog),intent 也应为 null。 */
@@ -219,6 +252,9 @@ public class DataPermLocalAuthorizer {
         String path = java.util.stream.Stream.of(intent.catalog(), intent.database(), intent.table())
                 .filter(s -> s != null && !s.isEmpty())
                 .collect(Collectors.joining("."));
-        return scope.getName() + "." + path + " " + actionToAccess(intent.action());
+        String cols = intent.columns() == null || intent.columns().isEmpty()
+                ? ""
+                : "[" + String.join(",", intent.columns()) + "]";
+        return scope.getName() + "." + path + cols + " " + actionToAccess(intent.action());
     }
 }

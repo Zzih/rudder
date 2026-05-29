@@ -54,11 +54,9 @@ public interface DataPermUserRoleGrantMapper extends BaseMapper<DataPermUserRole
     List<DataPermUserRoleGrantDetailView> queryInactiveByUser(@Param("userId") Long userId,
                                                               @Param("now") LocalDateTime now);
 
-    /** 查所有指定 role_id 的"未失效"grants(用于删包级联)。 */
-    List<DataPermUserRoleGrant> queryActiveByRoleId(@Param("roleId") Long roleId);
-
-    /** 批量统计:返回 [{roleId, cnt}] 行集合,DAO 转 Map<roleId, count>。 */
-    List<Map<String, Object>> queryActiveCountByRoleIds(@Param("roleIds") List<Long> roleIds);
+    /** 批量统计:返回 [{roleId, cnt}] 行集合,cnt=COUNT(DISTINCT user_id) 在 asOf 时活跃,DAO 转 Map<roleId, count>。 */
+    List<Map<String, Object>> queryActiveCountByRoleIds(@Param("roleIds") List<Long> roleIds,
+                                                        @Param("asOf") LocalDateTime asOf);
 
     /** 查 source approval 关联的全部 grants(用于按 approval 撤销)。 */
     List<DataPermUserRoleGrant> queryByApprovalId(@Param("approvalId") Long approvalId);
