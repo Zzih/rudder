@@ -163,9 +163,7 @@ class RoleServiceTest {
     @DisplayName("get: 详情含 activeGrantCount(权限项走分页 endpoint,不再随 role 返回)")
     void getDetail() {
         when(roleDao.selectById(7L)).thenReturn(role(7L, "BI"));
-        when(userRoleGrantDao.selectActiveByRoleId(7L)).thenReturn(List.of(
-                new io.github.zzih.rudder.dao.entity.DataPermUserRoleGrant(),
-                new io.github.zzih.rudder.dao.entity.DataPermUserRoleGrant()));
+        when(userRoleGrantDao.countActiveByRoleId(eq(7L), any())).thenReturn(2L);
 
         var dto = service.get(7L);
 

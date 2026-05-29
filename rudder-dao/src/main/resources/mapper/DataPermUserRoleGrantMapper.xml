@@ -66,17 +66,15 @@
         order by g.expiration_time desc
     </select>
 
-    <select id="queryActiveByRoleId" resultType="io.github.zzih.rudder.dao.entity.DataPermUserRoleGrant">
-        select <include refid="baseSql"/>
-        from t_r_data_perm_user_role_grant
-        where role_id = #{roleId}
-          and expiration_time is null
-    </select>
-
+    <!--
+      RoleManage 「当前授权数」: 按 role_id 维度统计仍在生效的独立用户数,与 user 视角 queryActiveByUser 的
+      活跃定义对齐(已生效 AND 未过期);同人多条 active grant 用 COUNT(DISTINCT) 去重,避免重复计数。
+    -->
     <select id="queryActiveCountByRoleIds" resultType="java.util.LinkedHashMap">
-        select role_id as roleId, count(*) as cnt
+        select role_id as roleId, count(distinct user_id) as cnt
         from t_r_data_perm_user_role_grant
-        where expiration_time is null
+        where effective_time &lt;= #{asOf}
+          and (expiration_time is null or expiration_time &gt; #{asOf})
           and role_id in
           <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
               #{rid}

@@ -79,21 +79,21 @@ public class DataPermUserRoleGrantDaoImpl implements DataPermUserRoleGrantDao {
     }
 
     @Override
-    public List<DataPermUserRoleGrant> selectActiveByRoleId(Long roleId) {
-        return mapper.queryActiveByRoleId(roleId);
-    }
-
-    @Override
-    public Map<Long, Long> countActiveByRoleIds(List<Long> roleIds) {
+    public Map<Long, Long> countActiveByRoleIds(List<Long> roleIds, LocalDateTime asOf) {
         if (roleIds == null || roleIds.isEmpty()) {
             return Collections.emptyMap();
         }
         Map<Long, Long> out = new HashMap<>();
-        for (Map<String, Object> row : mapper.queryActiveCountByRoleIds(roleIds)) {
+        for (Map<String, Object> row : mapper.queryActiveCountByRoleIds(roleIds, asOf)) {
             out.put(((Number) row.get("roleId")).longValue(),
                     ((Number) row.get("cnt")).longValue());
         }
         return out;
+    }
+
+    @Override
+    public long countActiveByRoleId(Long roleId, LocalDateTime asOf) {
+        return countActiveByRoleIds(List.of(roleId), asOf).getOrDefault(roleId, 0L);
     }
 
     @Override
