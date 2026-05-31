@@ -39,4 +39,7 @@ public class DataPermScopeDTO {
     private String rangerServiceName;
     private String description;
     private Boolean enabled;
+
+    /** 该域下的操作分组,随域一起暂存 + 保存(配置编辑用);精简读取(申请/选择器)路径为 null。 */
+    private List<DataPermScopeAccessGroupDTO> accessGroups;
 }

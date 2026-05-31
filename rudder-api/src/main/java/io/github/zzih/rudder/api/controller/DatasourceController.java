@@ -20,7 +20,7 @@ package io.github.zzih.rudder.api.controller;
 import io.github.zzih.rudder.api.request.DatasourceCreateRequest;
 import io.github.zzih.rudder.api.response.DatasourceResponse;
 import io.github.zzih.rudder.api.response.DatasourceTypeResponse;
-import io.github.zzih.rudder.api.response.DatasourceWorkspaceGrantResponse;
+import io.github.zzih.rudder.api.response.WorkspaceGrantResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
 import io.github.zzih.rudder.api.security.annotation.RequireViewer;
@@ -29,6 +29,7 @@ import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
+import io.github.zzih.rudder.common.enums.workspace.WorkspaceResourceType;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
@@ -37,11 +38,11 @@ import io.github.zzih.rudder.datasource.api.DatasourceTypeProviderRegistry;
 import io.github.zzih.rudder.metadata.api.model.ColumnMeta;
 import io.github.zzih.rudder.metadata.api.model.TableMeta;
 import io.github.zzih.rudder.metadata.api.model.TableSearchResult;
-import io.github.zzih.rudder.service.datasource.DatasourcePermissionService;
 import io.github.zzih.rudder.service.datasource.DatasourceService;
 import io.github.zzih.rudder.service.datasource.dto.DatasourceDTO;
 import io.github.zzih.rudder.service.datasource.model.DataSourceCredentials;
 import io.github.zzih.rudder.service.metadata.MetadataService;
+import io.github.zzih.rudder.service.permission.WorkspacePermissionService;
 import io.github.zzih.rudder.service.workspace.WorkspaceService;
 import io.github.zzih.rudder.service.workspace.dto.WorkspaceDTO;
 
@@ -69,7 +70,7 @@ public class DatasourceController {
 
     private final DatasourceService datasourceService;
     private final MetadataService metadataService;
-    private final DatasourcePermissionService permissionService;
+    private final WorkspacePermissionService permissionService;
     private final WorkspaceService workspaceService;
 
     @PostMapping
@@ -280,12 +281,13 @@ public class DatasourceController {
     /** 列出某数据源已授权的工作空间(返回 id + name 让前端直接显示)。 */
     @GetMapping("/{id}/workspaces")
     @RequireSuperAdmin
-    public Result<List<DatasourceWorkspaceGrantResponse>> listGrants(@PathVariable Long id) {
+    public Result<List<WorkspaceGrantResponse>> listGrants(@PathVariable Long id) {
         // 触发存在性校验
         datasourceService.getByIdDetail(id);
-        List<WorkspaceDTO> wss = workspaceService.listByIds(permissionService.listGrantedWorkspaceIds(id));
+        List<WorkspaceDTO> wss = workspaceService.listByIds(
+                permissionService.listGrantedWorkspaceIds(WorkspaceResourceType.DATASOURCE, id));
         return Result.ok(wss.stream()
-                .map(w -> new DatasourceWorkspaceGrantResponse(w.getId(), w.getName()))
+                .map(w -> new WorkspaceGrantResponse(w.getId(), w.getName()))
                 .toList());
     }
 
@@ -296,7 +298,7 @@ public class DatasourceController {
     public Result<Void> setGrants(@PathVariable Long id, @RequestBody List<Long> workspaceIds) {
         datasourceService.getByIdDetail(id);
         Set<Long> ids = workspaceIds == null ? new HashSet<>() : new HashSet<>(workspaceIds);
-        permissionService.setGrants(id, ids, UserContext.getUserId());
+        permissionService.setGrants(WorkspaceResourceType.DATASOURCE, id, ids, UserContext.getUserId());
         return Result.ok();
     }
 

@@ -41,8 +41,8 @@ public class MyGrantsSummaryDTO {
     @AllArgsConstructor
     public static class RoleCard {
 
-        private Long roleId;
-        private String roleName;
+        private Long bundleId;
+        private String bundleName;
         private Long grantId;
         private Long sourceApprovalId;
         private LocalDateTime effectiveTime;

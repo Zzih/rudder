@@ -17,6 +17,8 @@
 
 package io.github.zzih.rudder.service.dataperm.config;
 
+import io.github.zzih.rudder.common.sql.TableAccess;
+
 import java.util.List;
 
 /**
@@ -35,19 +37,23 @@ import java.util.List;
  */
 public enum PluginType {
 
+    // baseAccessTypes 只取「常用且能落到库表资源」的子集,均 ∈ 对应 Ranger servicedef.accessTypes;
+    // 刻意不收 grant/revoke/show/impersonate/node/operate/sysinfo/create resource 等系统级/管理类
+    // (它们不挂 catalog/db/table/column,选了也无法在本模型下正确物化)。
+
     /** Hive / Spark Thrift / Impala 共用,资源 db/table/column。 */
     HADOOP_SQL("hive",
-            List.of("select", "update", "create", "drop", "alter", "index", "lock", "all", "read", "write"),
+            List.of("select", "update", "create", "drop", "alter", "all"),
             List.of(ResourceLevel.DATABASE, ResourceLevel.TABLE, ResourceLevel.COLUMN)),
 
-    /** StarRocks 原生 servicedef,资源 catalog/database/table/column + top-level user/system 等。 */
+    /** StarRocks 原生 servicedef,资源 catalog/database/table/column。 */
     STARROCKS("starrocks",
-            List.of("select", "insert", "update", "delete", "create", "drop", "alter", "export", "refresh"),
+            List.of("select", "insert", "update", "delete", "drop", "alter", "export", "refresh"),
             List.of(ResourceLevel.CATALOG, ResourceLevel.DATABASE, ResourceLevel.TABLE, ResourceLevel.COLUMN)),
 
     /** Trino 原生 servicedef,资源 catalog/schema/table/column。 */
     TRINO("trino",
-            List.of("select", "insert", "delete", "update", "create", "drop", "alter", "use", "execute", "all"),
+            List.of("select", "insert", "delete", "create", "drop", "alter", "use", "all"),
             List.of(ResourceLevel.CATALOG, ResourceLevel.SCHEMA, ResourceLevel.TABLE, ResourceLevel.COLUMN)),
 
     // 以下为占位类型:Rudder 尚未实装对应 adapter / base spec。启用前须补全 baseAccessTypes 与 baseHierarchy,
@@ -77,6 +83,41 @@ public enum PluginType {
 
     public List<ResourceLevel> baseHierarchy() {
         return baseHierarchy;
+    }
+
+    /**
+     * 逻辑 SQL 动作 → 该 plugin 在 Ranger 端的 access 名(本地鉴权用)。返回 null = 该 plugin 无法表达此动作。
+     * 各 plugin access 名不一致:Hive 写操作(INSERT/UPDATE/DELETE)统一落 {@code update};Trino 无 {@code update}。
+     */
+    public String accessFor(TableAccess.Action action) {
+        return switch (this) {
+            case HADOOP_SQL -> switch (action) {
+                case READ -> "select";
+                case INSERT, UPDATE, DELETE -> "update";
+                case CREATE -> "create";
+                case DROP -> "drop";
+                case ALTER -> "alter";
+            };
+            case STARROCKS -> switch (action) {
+                case READ -> "select";
+                case INSERT -> "insert";
+                case UPDATE -> "update";
+                case DELETE -> "delete";
+                case DROP -> "drop";
+                case ALTER -> "alter";
+                case CREATE -> null; // StarRocks 无裸 create(细分为 create table/database/...),DDL 当前不解析
+            };
+            case TRINO -> switch (action) {
+                case READ -> "select";
+                case INSERT -> "insert";
+                case DELETE -> "delete";
+                case CREATE -> "create";
+                case DROP -> "drop";
+                case ALTER -> "alter";
+                case UPDATE -> null; // Trino servicedef 无 update access
+            };
+            default -> null;
+        };
     }
 
     /** null / 未知名返 null;调用方按 dao entity 端 String 列转 enum 用,允许 DB 端 schema drift 时降级。 */

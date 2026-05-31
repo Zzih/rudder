@@ -1,0 +1,41 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermBundleMapper">
+
+    <sql id="baseSql">
+        id, name, description,
+        created_by, created_at, updated_by, updated_at
+    </sql>
+
+    <select id="queryOneByName" resultType="io.github.zzih.rudder.dao.entity.DataPermBundle">
+        select <include refid="baseSql"/>
+        from t_r_data_perm_bundle
+        where name = #{name}
+        limit 1
+    </select>
+
+    <select id="queryPage" resultType="io.github.zzih.rudder.dao.entity.DataPermBundle">
+        select <include refid="baseSql"/>
+        from t_r_data_perm_bundle
+        <where>
+            <if test="keyword != null and keyword != ''">
+                and (name like concat('%', #{keyword}, '%')
+                     or description like concat('%', #{keyword}, '%'))
+            </if>
+        </where>
+        order by id desc
+    </select>
+
+    <select id="countByName" resultType="long">
+        select count(*)
+        from t_r_data_perm_bundle
+        where name = #{name}
+    </select>
+
+    <select id="countByNameExcludeId" resultType="long">
+        select count(*)
+        from t_r_data_perm_bundle
+        where name = #{name}
+          and id != #{excludeId}
+    </select>
+
+</mapper>

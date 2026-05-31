@@ -33,7 +33,7 @@ import io.github.zzih.rudder.service.dataperm.client.ranger.RangerPolicyResource
 import io.github.zzih.rudder.service.dataperm.client.ranger.RangerServiceDef;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermConfigDTO;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermPermissionItemDTO;
 
 import java.util.List;
 import java.util.Map;
@@ -139,7 +139,7 @@ class RangerResourceAdapterTest {
 
     @Test
     void hadoopSql_explicitFields_writesDatabaseTableColumn() {
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .databaseName("ods").tableName("orders").columnName("email")
                 .accesses(List.of("select")).build();
 
@@ -155,7 +155,7 @@ class RangerResourceAdapterTest {
 
     @Test
     void hadoopSql_nullColumn_writesStarAtColumn() {
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .databaseName("ods").tableName("orders").columnName(null)
                 .accesses(List.of("select")).build();
 
@@ -165,7 +165,7 @@ class RangerResourceAdapterTest {
 
     @Test
     void hadoopSql_catalogIgnored() {
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .catalogName("hive_catalog_should_be_ignored")
                 .databaseName("ods").tableName("orders").columnName("*")
                 .build();
@@ -198,7 +198,7 @@ class RangerResourceAdapterTest {
 
     @Test
     void trino_writesCatalogSchemaTableColumn() {
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .catalogName("wh").databaseName("public").tableName("t1").columnName("*")
                 .build();
 
@@ -212,7 +212,7 @@ class RangerResourceAdapterTest {
 
     @Test
     void trino_nullCatalog_writesStar() {
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .databaseName("public").tableName("t1").columnName("c").build();
 
         Map<String, RangerPolicyResource> resources = trino().toRangerResource(item);
@@ -230,7 +230,7 @@ class RangerResourceAdapterTest {
 
     @Test
     void starrocks_writesCatalogDatabaseTableColumn() {
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .catalogName("default").databaseName("mart").tableName("*").columnName("*")
                 .build();
 

@@ -1,0 +1,75 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermUserDirectGrantResourceMapper">
+
+    <select id="queryByStatementIds" resultType="io.github.zzih.rudder.dao.entity.DataPermUserDirectGrantResource">
+        select *
+        from t_r_data_perm_user_direct_grant_resource
+        where statement_id in
+        <foreach collection="statementIds" item="bid" open="(" separator="," close=")">#{bid}</foreach>
+    </select>
+
+    <delete id="deleteByStatementId">
+        delete from t_r_data_perm_user_direct_grant_resource where statement_id = #{statementId}
+    </delete>
+
+    <select id="queryActiveViewsByUserIds"
+            resultType="io.github.zzih.rudder.dao.entity.view.DataPermUserDirectGrantResourceView">
+        select r.id, r.statement_id,
+               r.catalog_names, r.database_names, r.table_names, r.column_names,
+               b.user_id, b.source_approval_id, b.scope_code, b.group_ids,
+               b.effective_time, b.expiration_time, b.end_reason,
+               sc.name              as scope_name,
+               sc.plugin_type       as plugin_type,
+               sc.ranger_service_name as ranger_service_name,
+               sc.enabled           as scope_enabled
+        from t_r_data_perm_user_direct_grant_resource r
+        join t_r_data_perm_user_direct_grant b on b.id = r.statement_id
+        left join t_r_data_perm_scope sc on sc.code = b.scope_code
+        where b.user_id in
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+          and b.effective_time &lt;= #{asOf}
+          and (b.expiration_time is null or b.expiration_time &gt; #{asOf})
+        order by b.id asc, r.id asc
+    </select>
+
+    <select id="queryPageActiveFlattenedByUser" resultType="io.github.zzih.rudder.dao.projection.GrantItemRow">
+        select b.scope_code              as scopeCode,
+               sc.name                   as scopeName,
+               b.group_ids               as groupIds,
+               c.v                       as catalogName,
+               d.v                       as databaseName,
+               t.v                       as tableName,
+               col.v                     as columnName,
+               b.effective_time          as effectiveTime,
+               b.expiration_time         as expirationTime
+        from t_r_data_perm_user_direct_grant_resource r
+        join t_r_data_perm_user_direct_grant b on b.id = r.statement_id
+        left join t_r_data_perm_scope sc on sc.code = b.scope_code
+        join json_table(if(json_length(r.catalog_names) = 0, cast('[null]' as json), r.catalog_names),
+             '$[*]' columns(v varchar(512) path '$')) c
+        join json_table(if(json_length(r.database_names) = 0, cast('[null]' as json), r.database_names),
+             '$[*]' columns(v varchar(512) path '$')) d
+        join json_table(if(json_length(r.table_names) = 0, cast('[null]' as json), r.table_names),
+             '$[*]' columns(v varchar(512) path '$')) t
+        join json_table(if(json_length(r.column_names) = 0, cast('[null]' as json), r.column_names),
+             '$[*]' columns(v varchar(512) path '$')) col
+        where b.user_id = #{userId}
+          and b.effective_time &lt;= #{asOf}
+          and (b.expiration_time is null or b.expiration_time &gt; #{asOf})
+        order by b.id asc, r.id asc, c.v asc, d.v asc, t.v asc, col.v asc
+    </select>
+
+    <select id="sumFlattenedActiveByUser" resultType="long">
+        select coalesce(sum(
+                   greatest(json_length(r.catalog_names), 1) *
+                   greatest(json_length(r.database_names), 1) *
+                   greatest(json_length(r.table_names), 1) *
+                   greatest(json_length(r.column_names), 1)), 0)
+        from t_r_data_perm_user_direct_grant_resource r
+        join t_r_data_perm_user_direct_grant b on b.id = r.statement_id
+        where b.user_id = #{userId}
+          and b.effective_time &lt;= #{asOf}
+          and (b.expiration_time is null or b.expiration_time &gt; #{asOf})
+    </select>
+
+</mapper>

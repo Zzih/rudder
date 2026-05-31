@@ -10,10 +10,13 @@ import {
   testDataPermConnection,
   triggerDataPermReconcile,
   getDataPermGuide,
+  listDataPermPluginTypes,
   DEFAULT_DATA_PERM_CONFIG,
   type DataPermConfig,
   type PluginType,
   type DataPermScope,
+  type DataPermAdapter,
+  type DataPermScopeAccessGroup,
   PLUGIN_TYPES,
 } from '@/api/data-perm'
 import { listDatasources } from '@/api/datasource'
@@ -46,11 +49,72 @@ const svcDialog = reactive({
     rangerServiceName: '',
     description: '',
     enabled: true,
+    accessGroups: [] as DataPermScopeAccessGroup[],
   },
 })
 
 function datasourceName(id: number): string {
   return datasources.value.find(d => d.id === id)?.name ?? `#${id}`
+}
+
+// pluginType → adapter,操作分组编辑时列可选裸操作闭集。
+const adaptersByPluginType = ref<Record<string, DataPermAdapter>>({})
+
+// 操作分组随权限域一起暂存:在 svcDialog.draft.accessGroups 内存编辑,点页面「保存」时随配置一次落库。
+// index = -1 表示新增,否则为 draft.accessGroups 中的位置。
+const groupState = reactive({
+  buffer: null as null | { index: number; name: string; accesses: string[]; description: string },
+})
+
+const groupAccessOptions = computed<string[]>(() =>
+  adaptersByPluginType.value[svcDialog.draft.pluginType]?.accessTypes ?? [])
+
+function addGroupDraft() {
+  groupState.buffer = { index: -1, name: '', accesses: [], description: '' }
+}
+function editGroup(idx: number) {
+  const g = svcDialog.draft.accessGroups[idx]
+  groupState.buffer = { index: idx, name: g.name, accesses: [...(g.accesses ?? [])], description: g.description ?? '' }
+}
+function cancelGroupEdit() {
+  groupState.buffer = null
+}
+
+function saveGroup() {
+  const b = groupState.buffer
+  if (!b) return
+  if (!b.name.trim()) {
+    ElMessage.error(t('dataPermConfig.groupNameRequired'))
+    return
+  }
+  if (!b.accesses.length) {
+    ElMessage.error(t('dataPermConfig.groupAccessesRequired'))
+    return
+  }
+  const name = b.name.trim()
+  const dup = svcDialog.draft.accessGroups.some(
+    (g, i) => g.name.trim().toLowerCase() === name.toLowerCase() && i !== b.index)
+  if (dup) {
+    ElMessage.error(t('dataPermConfig.groupNameDuplicate'))
+    return
+  }
+  const existing = b.index >= 0 ? svcDialog.draft.accessGroups[b.index] : undefined
+  const next: DataPermScopeAccessGroup = {
+    id: existing?.id,
+    name,
+    accesses: [...b.accesses],
+    description: b.description.trim() || undefined,
+  }
+  if (b.index === -1) {
+    svcDialog.draft.accessGroups.push(next)
+  } else {
+    svcDialog.draft.accessGroups.splice(b.index, 1, next)
+  }
+  groupState.buffer = null
+}
+
+function removeGroup(idx: number) {
+  svcDialog.draft.accessGroups.splice(idx, 1)
 }
 
 function openAddService() {
@@ -64,7 +128,9 @@ function openAddService() {
     rangerServiceName: '',
     description: '',
     enabled: true,
+    accessGroups: [],
   }
+  groupState.buffer = null
   svcDialog.visible = true
 }
 
@@ -80,7 +146,9 @@ function openEditService(idx: number) {
     rangerServiceName: s.rangerServiceName ?? '',
     description: s.description ?? '',
     enabled: s.enabled,
+    accessGroups: (s.accessGroups ?? []).map(g => ({ ...g, accesses: [...(g.accesses ?? [])] })),
   }
+  groupState.buffer = null
   svcDialog.visible = true
 }
 
@@ -123,6 +191,7 @@ function commitServiceDialog() {
     rangerServiceName: d.rangerServiceName?.trim() || undefined,
     description: d.description?.trim() || undefined,
     enabled: d.enabled,
+    accessGroups: d.accessGroups.map(g => ({ ...g, accesses: [...(g.accesses ?? [])] })),
   }
   if (svcDialog.editingIndex === -1) {
     config.value.scopes.push(next)
@@ -150,10 +219,11 @@ const hasConnection = computed(() =>
 async function load() {
   loading.value = true
   try {
-    const [cfgRes, dsRes] = await Promise.all([
+    const [cfgRes, dsRes, , adaptersRes] = await Promise.all([
       getDataPermConfig(),
       listDatasources(),
       taskTypesStore.ensureLoaded(),
+      listDataPermPluginTypes(),
     ]) as any[]
     config.value = {
       ...DEFAULT_DATA_PERM_CONFIG,
@@ -162,6 +232,8 @@ async function load() {
       scopes: (cfgRes?.data?.scopes as DataPermScope[]) ?? [],
     }
     datasources.value = (dsRes?.data as any[]) ?? []
+    const adapters = (adaptersRes?.data as DataPermAdapter[]) ?? []
+    adaptersByPluginType.value = Object.fromEntries(adapters.map(a => [a.pluginType, a]))
     passwordTouched.value = false
     originalSnapshot.value = JSON.stringify(config.value)
   } catch {
@@ -496,56 +568,122 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
       </el-button>
     </div>
 
-    <!-- Service 编辑 Dialog -->
+    <!-- 权限域编辑 Dialog -->
     <el-dialog v-model="svcDialog.visible"
       :title="svcDialog.editingIndex === -1
         ? t('dataPermConfig.svcAdd') : t('dataPermConfig.svcEdit')"
-      width="540" :close-on-click-modal="false" destroy-on-close>
-      <el-form label-position="top">
-        <el-form-item :label="t('dataPermConfig.svcDialogName')" required>
-          <el-input v-model="svcDialog.draft.name"
-            :placeholder="t('dataPermConfig.svcDialogNamePlaceholder')" maxlength="128" />
-          <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogNameHint') }}</div>
-        </el-form-item>
-        <el-form-item :label="t('dataPermConfig.svcDialogPluginType')" required>
-          <el-select v-model="svcDialog.draft.pluginType" style="width: 100%">
-            <el-option v-for="p in PLUGIN_TYPES" :key="p" :label="p" :value="p" />
-          </el-select>
-          <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogPluginTypeHint') }}</div>
-        </el-form-item>
-        <el-form-item :label="t('dataPermConfig.svcDialogMetadata')" required>
-          <el-select v-model="svcDialog.draft.metadataDatasourceId" filterable style="width: 100%">
-            <el-option v-for="d in datasources" :key="d.id"
-              :label="`${d.name} (${d.datasourceType})`" :value="d.id" />
-          </el-select>
-          <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogMetadataHint') }}</div>
-        </el-form-item>
-        <el-form-item :label="t('dataPermConfig.svcDialogManagedTaskTypes')">
-          <el-select v-model="svcDialog.draft.managedTaskTypes" multiple filterable
-            collapse-tags collapse-tags-tooltip style="width: 100%">
-            <el-option v-for="tt in taskTypesStore.list" :key="tt.value"
-              :label="`${tt.label} (${tt.value})`" :value="tt.value" />
-          </el-select>
-          <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogManagedTaskTypesHint') }}</div>
-        </el-form-item>
-        <el-form-item v-if="config.rangerModeEnabled"
-          :label="t('dataPermConfig.svcDialogRangerServiceName')" required>
-          <el-input v-model="svcDialog.draft.rangerServiceName"
-            :placeholder="t('dataPermConfig.svcDialogRangerServiceNamePlaceholder')" />
-          <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogRangerServiceNameHint') }}</div>
-        </el-form-item>
-        <el-form-item :label="t('dataPermConfig.svcDialogDescription')">
-          <el-input v-model="svcDialog.draft.description" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item>
-          <div class="dp-cfg__inline-toggle">
-            <el-switch v-model="svcDialog.draft.enabled" />
-            <div class="dp-cfg__inline-text">
-              <div class="dp-cfg__inline-label">{{ t('dataPermConfig.svcDialogEnabled') }}</div>
-              <div class="dp-cfg__inline-desc">{{ t('dataPermConfig.svcDialogEnabledHint') }}</div>
+      width="720" :close-on-click-modal="false" destroy-on-close
+      class="svc-dialog">
+      <el-form label-position="top" class="svc-form">
+        <!-- 基本信息 -->
+        <div class="svc-sect">
+          <span class="svc-sect__title">{{ t('dataPermConfig.svcSectionBasic') }}</span>
+        </div>
+        <div class="svc-grid">
+          <el-form-item class="svc-grid__full" :label="t('dataPermConfig.svcDialogName')" required>
+            <el-input v-model="svcDialog.draft.name"
+              :placeholder="t('dataPermConfig.svcDialogNamePlaceholder')" maxlength="128" />
+            <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogNameHint') }}</div>
+          </el-form-item>
+          <el-form-item :label="t('dataPermConfig.svcDialogPluginType')" required>
+            <el-select v-model="svcDialog.draft.pluginType" style="width: 100%">
+              <el-option v-for="p in PLUGIN_TYPES" :key="p" :label="p" :value="p" />
+            </el-select>
+            <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogPluginTypeHint') }}</div>
+          </el-form-item>
+          <el-form-item :label="t('dataPermConfig.svcDialogMetadata')" required>
+            <el-select v-model="svcDialog.draft.metadataDatasourceId" filterable style="width: 100%">
+              <el-option v-for="d in datasources" :key="d.id"
+                :label="`${d.name} (${d.datasourceType})`" :value="d.id" />
+            </el-select>
+            <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogMetadataHint') }}</div>
+          </el-form-item>
+          <el-form-item :label="t('dataPermConfig.svcDialogManagedTaskTypes')">
+            <el-select v-model="svcDialog.draft.managedTaskTypes" multiple filterable
+              collapse-tags collapse-tags-tooltip style="width: 100%">
+              <el-option v-for="tt in taskTypesStore.list" :key="tt.value"
+                :label="`${tt.label} (${tt.value})`" :value="tt.value" />
+            </el-select>
+            <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogManagedTaskTypesHint') }}</div>
+          </el-form-item>
+          <el-form-item v-if="config.rangerModeEnabled"
+            :label="t('dataPermConfig.svcDialogRangerServiceName')" required>
+            <el-input v-model="svcDialog.draft.rangerServiceName"
+              :placeholder="t('dataPermConfig.svcDialogRangerServiceNamePlaceholder')" />
+            <div class="dp-cfg__hint">{{ t('dataPermConfig.svcDialogRangerServiceNameHint') }}</div>
+          </el-form-item>
+          <el-form-item class="svc-grid__full" :label="t('dataPermConfig.svcDialogDescription')">
+            <el-input v-model="svcDialog.draft.description" type="textarea" :rows="2" />
+          </el-form-item>
+        </div>
+
+        <label class="svc-enabled">
+          <el-switch v-model="svcDialog.draft.enabled" />
+          <span class="svc-enabled__text">
+            <span class="svc-enabled__label">{{ t('dataPermConfig.svcDialogEnabled') }}</span>
+            <span class="svc-enabled__hint">{{ t('dataPermConfig.svcDialogEnabledHint') }}</span>
+          </span>
+        </label>
+
+        <!-- 操作分组(挂在该域下,随权限域一起保存) -->
+        <div class="svc-sect svc-sect--mt">
+          <span class="svc-sect__title">{{ t('dataPermConfig.groupSection') }}</span>
+          <span class="svc-sect__desc">{{ t('dataPermConfig.groupDialogDesc') }}</span>
+          <el-button class="svc-sect__action" size="small" :icon="Plus"
+            :disabled="groupState.buffer !== null || groupAccessOptions.length === 0"
+            @click="addGroupDraft">
+            {{ t('dataPermConfig.groupAdd') }}
+          </el-button>
+        </div>
+
+        <div class="dp-grp">
+          <div v-if="groupState.buffer" class="dp-grp__editor">
+            <div class="dp-grp__editor-grid">
+              <el-form-item class="dp-grp__editor-name" :label="t('dataPermConfig.groupName')" required>
+                <el-input v-model="groupState.buffer.name" maxlength="128"
+                  :placeholder="t('dataPermConfig.groupNamePlaceholder')" />
+              </el-form-item>
+              <el-form-item :label="t('dataPermConfig.groupAccesses')" required>
+                <el-select v-model="groupState.buffer.accesses" multiple filterable
+                  style="width: 100%" :placeholder="t('dataPermConfig.groupAccessesPlaceholder')">
+                  <el-option v-for="a in groupAccessOptions" :key="a" :label="a" :value="a" />
+                </el-select>
+              </el-form-item>
+            </div>
+            <el-form-item :label="t('dataPermConfig.svcDialogDescription')">
+              <el-input v-model="groupState.buffer.description" maxlength="512"
+                :placeholder="t('dataPermConfig.groupDescPlaceholder')" />
+            </el-form-item>
+            <div class="dp-grp__editor-actions">
+              <el-button size="small" @click="cancelGroupEdit">{{ t('common.cancel') }}</el-button>
+              <el-button size="small" type="primary" @click="saveGroup">{{ t('common.confirm') }}</el-button>
             </div>
           </div>
-        </el-form-item>
+
+          <ul v-if="svcDialog.draft.accessGroups.length" class="dp-grp__list">
+            <li v-for="(g, gi) in svcDialog.draft.accessGroups" :key="gi"
+              class="dp-grp__row" :class="{ 'is-editing': groupState.buffer?.index === gi }">
+              <div class="dp-grp__row-main">
+                <div class="dp-grp__row-top">
+                  <code class="dp-grp__name">{{ g.name }}</code>
+                  <span v-if="g.description" class="dp-grp__row-desc">{{ g.description }}</span>
+                </div>
+                <div class="dp-grp__accesses">
+                  <span v-for="a in g.accesses ?? []" :key="a" class="dp-grp__access">{{ a }}</span>
+                </div>
+              </div>
+              <div class="dp-grp__row-actions">
+                <el-button text size="small" type="primary" :icon="Edit"
+                  :disabled="groupState.buffer !== null" @click="editGroup(gi)" />
+                <el-button text size="small" type="danger" :icon="Delete"
+                  :disabled="groupState.buffer !== null" @click="removeGroup(gi)" />
+              </div>
+            </li>
+          </ul>
+          <div v-else-if="!groupState.buffer" class="dp-grp__empty">
+            {{ t('dataPermConfig.groupEmpty') }}
+          </div>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="svcDialog.visible = false">{{ t('common.cancel') }}</el-button>
@@ -982,4 +1120,158 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
   margin-right: 4px;
   font-size: 14px;
 }
+
+/* ============ 权限域编辑 Dialog ============ */
+.svc-dialog :deep(.el-dialog__body) { padding-top: var(--r-space-2); }
+.svc-form :deep(.el-form-item) { margin-bottom: var(--r-space-3); }
+.svc-form :deep(.el-form-item__label) { padding-bottom: 2px; line-height: 1.4; }
+
+.svc-sect {
+  display: flex;
+  align-items: baseline;
+  gap: var(--r-space-2);
+  padding-bottom: var(--r-space-2);
+  margin-bottom: var(--r-space-3);
+  border-bottom: 1px solid var(--r-border-light);
+}
+.svc-sect--mt { margin-top: var(--r-space-4); }
+.svc-sect__title {
+  font-size: var(--r-font-sm);
+  font-weight: var(--r-weight-semibold);
+  color: var(--r-text-primary);
+  letter-spacing: -0.005em;
+  flex-shrink: 0;
+}
+.svc-sect__desc {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--r-font-xs);
+  color: var(--r-text-muted);
+  line-height: var(--r-leading-snug);
+}
+.svc-sect__action { flex-shrink: 0; }
+
+.svc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--r-space-4);
+}
+.svc-grid__full { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .svc-grid { grid-template-columns: 1fr; }
+}
+
+.svc-enabled {
+  display: flex;
+  align-items: center;
+  gap: var(--r-space-3);
+  padding: var(--r-space-3);
+  margin-top: var(--r-space-1);
+  background: var(--r-bg-panel);
+  border: 1px solid var(--r-border-light);
+  border-radius: var(--r-radius-md);
+  cursor: pointer;
+}
+.svc-enabled__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.svc-enabled__label {
+  font-size: var(--r-font-sm);
+  font-weight: var(--r-weight-medium);
+  color: var(--r-text-primary);
+}
+.svc-enabled__hint {
+  font-size: var(--r-font-xs);
+  color: var(--r-text-tertiary);
+  line-height: var(--r-leading-snug);
+}
+
+/* ============ 操作分组面板 ============ */
+.dp-grp__editor {
+  padding: var(--r-space-3) var(--r-space-4) var(--r-space-2);
+  margin-bottom: var(--r-space-2);
+  background: var(--r-bg-panel);
+  border: 1px solid var(--r-accent-border);
+  border-radius: var(--r-radius-md);
+}
+.dp-grp__editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0 var(--r-space-4);
+}
+.dp-grp__editor :deep(.el-form-item) { margin-bottom: var(--r-space-2); }
+@media (max-width: 640px) {
+  .dp-grp__editor-grid { grid-template-columns: 1fr; }
+}
+.dp-grp__editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--r-space-2);
+}
+.dp-grp__empty {
+  padding: var(--r-space-5) var(--r-space-3);
+  text-align: center;
+  color: var(--r-text-muted);
+  font-size: var(--r-font-sm);
+  background: var(--r-bg-panel);
+  border: 1px dashed var(--r-border-light);
+  border-radius: var(--r-radius-md);
+}
+.dp-grp__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--r-space-2);
+}
+.dp-grp__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--r-space-3);
+  padding: var(--r-space-3) var(--r-space-4);
+  background: var(--r-bg-panel);
+  border: 1px solid var(--r-border-light);
+  border-radius: var(--r-radius-md);
+  transition: border-color 0.12s, opacity 0.12s;
+}
+.dp-grp__row.is-editing {
+  border-color: var(--r-accent-border);
+  opacity: 0.6;
+}
+.dp-grp__row-main { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.dp-grp__row-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--r-space-2);
+  min-width: 0;
+}
+.dp-grp__name {
+  font-family: var(--r-font-mono);
+  font-size: var(--r-font-sm);
+  font-weight: var(--r-weight-semibold);
+  color: var(--r-text-primary);
+  flex-shrink: 0;
+}
+.dp-grp__row-desc {
+  font-size: var(--r-font-xs);
+  color: var(--r-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dp-grp__accesses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dp-grp__access {
+  font-family: var(--r-font-mono);
+  font-size: var(--r-font-xs);
+  color: var(--r-text-tertiary);
+  background: var(--r-bg-card);
+  border: 1px solid var(--r-border-light);
+  border-radius: var(--r-radius-sm);
+  padding: 1px 8px;
+}
+.dp-grp__row-actions { display: inline-flex; gap: 2px; flex-shrink: 0; }
 </style>

@@ -48,4 +48,8 @@ public class DataPermScopeRequest {
     private String description;
 
     private boolean enabled = true;
+
+    /** 该域下的操作分组,随域一起暂存 + 保存。 */
+    @jakarta.validation.Valid
+    private List<DataPermScopeAccessGroupRequest> accessGroups;
 }

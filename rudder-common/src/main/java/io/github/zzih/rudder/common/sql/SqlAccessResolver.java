@@ -66,8 +66,9 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>CTE 名(WITH 内定义的临时表)从输出剥除,避免误把临时表当真实表去鉴权。
  *
- * <p>DDL (CREATE/DROP/ALTER) Calcite 默认 parser 不支持,parse 阶段直接抛 → 走 fail-open;
- * 这类语句的鉴权交由下游 DB 引擎或 Ranger 兜底,本地不拦。
+ * <p>DDL (CREATE/DROP/ALTER ...) 本地有意不鉴权:resolveStmt 只处理 DML/查询节点,不产出 DDL intent
+ * (babel 仅能解析部分 DDL 如 CREATE TABLE,DROP/ALTER 等直接 parse 失败),两种情况都落 fail-open。
+ * 作为低成本实现,DDL 的管控交由下游 DB 引擎或 Ranger 兜底。
  *
  * <p>解析失败统一 fail-open(返当前已收集结果),调用方按"未追溯到"处理。
  * 多语句脚本按 {@code ;} 拆分,逐条独立解析,单条失败不影响其他。

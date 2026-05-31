@@ -21,17 +21,21 @@ import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.common.utils.naming.CodeGenerateUtils;
+import io.github.zzih.rudder.dao.dao.DataPermBundleStatementDao;
 import io.github.zzih.rudder.dao.dao.DataPermPlatformConfigDao;
-import io.github.zzih.rudder.dao.dao.DataPermRolePermissionDao;
+import io.github.zzih.rudder.dao.dao.DataPermScopeAccessGroupDao;
 import io.github.zzih.rudder.dao.dao.DataPermScopeDao;
 import io.github.zzih.rudder.dao.dao.DataPermUserDirectGrantDao;
 import io.github.zzih.rudder.dao.dao.DatasourceDao;
 import io.github.zzih.rudder.dao.entity.DataPermPlatformConfig;
 import io.github.zzih.rudder.dao.entity.DataPermScope;
+import io.github.zzih.rudder.dao.entity.DataPermScopeAccessGroup;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermConfigDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeAccessGroupDTO;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
+import io.github.zzih.rudder.service.dataperm.service.DataPermScopeAccessGroupService;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
 import io.github.zzih.rudder.task.api.task.enums.TaskType;
 
@@ -39,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -65,8 +70,9 @@ public class DataPermConfigService {
     private final DataPermPlatformConfigDao dao;
     private final DataPermScopeDao scopeDao;
     private final DatasourceDao datasourceDao;
-    private final DataPermRolePermissionDao rolePermissionDao;
+    private final DataPermBundleStatementDao bundleStatementDao;
     private final DataPermUserDirectGrantDao directGrantDao;
+    private final DataPermScopeAccessGroupDao accessGroupDao;
 
     public DataPermConfigDTO active() {
         return cache.getOrLoad(GlobalCacheKey.DATA_PERM, this::build);
@@ -82,6 +88,18 @@ public class DataPermConfigService {
 
     public List<DataPermScopeDTO> listScopes() {
         return scopeDao.selectAll().stream().map(DataPermConfigService::toDto).toList();
+    }
+
+    /** 配置编辑用:每个 scope 带上其操作分组(含 accesses)。一次全量查分组,内存按 scopeCode 分组避免 N+1。 */
+    public List<DataPermScopeDTO> listScopesWithGroups() {
+        Map<Long, List<DataPermScopeAccessGroupDTO>> groupsByScope = accessGroupDao.selectAll().stream()
+                .map(DataPermScopeAccessGroupService::toDto)
+                .collect(Collectors.groupingBy(DataPermScopeAccessGroupDTO::getScopeCode));
+        return scopeDao.selectAll().stream().map(row -> {
+            DataPermScopeDTO dto = toDto(row);
+            dto.setAccessGroups(groupsByScope.getOrDefault(row.getCode(), List.of()));
+            return dto;
+        }).toList();
     }
 
     public Optional<DataPermScopeDTO> findScope(Long code) {
@@ -143,6 +161,7 @@ public class DataPermConfigService {
         for (DataPermScope old : existing.values()) {
             if (!incomingCodes.contains(old.getCode())) {
                 requireNotInUse(old.getCode(), old.getName());
+                accessGroupDao.deleteByScopeCode(old.getCode());
                 scopeDao.deleteByCode(old.getCode());
             }
         }
@@ -156,6 +175,66 @@ public class DataPermConfigService {
                 scopeDao.insert(row);
             } else {
                 scopeDao.updateById(row);
+            }
+            persistGroups(dto.getCode(), dto.getAccessGroups());
+        }
+    }
+
+    /**
+     * 全量替换某 scope 下的操作分组。incoming 为 null 表示不动;非 null 时:有 id 的更新、无 id 的新增、
+     * 缺席的删除(仍被权限项 / 授权引用则抛 {@code ACCESS_GROUP_IN_USE})。
+     */
+    private void persistGroups(Long scopeCode, List<DataPermScopeAccessGroupDTO> incoming) {
+        if (incoming == null) {
+            return;
+        }
+        Set<String> seenNames = new HashSet<>();
+        for (DataPermScopeAccessGroupDTO g : incoming) {
+            if (g.getName() == null || g.getName().isBlank()) {
+                throw new BizException(DataPermErrorCode.APPLICATION_INVALID, "accessGroup.name required");
+            }
+            if (g.getAccesses() == null || g.getAccesses().isEmpty()) {
+                throw new BizException(DataPermErrorCode.APPLICATION_INVALID, "accessGroup.accesses required");
+            }
+            if (!seenNames.add(g.getName().trim().toLowerCase())) {
+                throw new BizException(DataPermErrorCode.ACCESS_GROUP_NAME_DUPLICATE, g.getName());
+            }
+        }
+        Set<Long> existingIds = accessGroupDao.selectByScopeCode(scopeCode).stream()
+                .map(DataPermScopeAccessGroup::getId)
+                .collect(Collectors.toSet());
+        // 带 id 的必须是本 scope 现有分组,否则是越权改归属(把别的 scope 的分组挪过来)。
+        for (DataPermScopeAccessGroupDTO g : incoming) {
+            if (g.getId() != null && !existingIds.contains(g.getId())) {
+                throw new BizException(DataPermErrorCode.ACCESS_GROUP_SCOPE_MISMATCH, g.getId());
+            }
+        }
+        Set<Long> incomingIds = incoming.stream()
+                .map(DataPermScopeAccessGroupDTO::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        for (Long oldId : existingIds) {
+            if (!incomingIds.contains(oldId)) {
+                long refs = bundleStatementDao.countByGroupId(oldId)
+                        + directGrantDao.countByGroupId(oldId);
+                if (refs > 0) {
+                    throw new BizException(DataPermErrorCode.ACCESS_GROUP_IN_USE, refs);
+                }
+                accessGroupDao.deleteById(oldId);
+            }
+        }
+        for (DataPermScopeAccessGroupDTO g : incoming) {
+            DataPermScopeAccessGroup row = new DataPermScopeAccessGroup();
+            row.setScopeCode(scopeCode);
+            row.setName(g.getName().trim());
+            row.setAccesses(JsonUtils.toJson(g.getAccesses()));
+            row.setDescription(g.getDescription());
+            if (g.getId() == null) {
+                accessGroupDao.insert(row);
+            } else {
+                row.setId(g.getId());
+                // 显式 update 而非 updateById:后者跳过 null 字段,清空 description 会落不进库。
+                accessGroupDao.update(row);
             }
         }
     }
@@ -230,6 +309,7 @@ public class DataPermConfigService {
             normalized.setRangerServiceName(s.getRangerServiceName());
             normalized.setDescription(s.getDescription());
             normalized.setEnabled(s.getEnabled() == null ? Boolean.TRUE : s.getEnabled());
+            normalized.setAccessGroups(s.getAccessGroups());
             result.add(normalized);
         }
         return result;
@@ -239,7 +319,7 @@ public class DataPermConfigService {
         if (code == null) {
             return;
         }
-        if (rolePermissionDao.countByScopeCode(code) > 0
+        if (bundleStatementDao.countByScopeCode(code) > 0
                 || directGrantDao.countByScopeCode(code) > 0) {
             throw new BizException(DataPermErrorCode.RANGER_SERVICE_IN_USE, name);
         }

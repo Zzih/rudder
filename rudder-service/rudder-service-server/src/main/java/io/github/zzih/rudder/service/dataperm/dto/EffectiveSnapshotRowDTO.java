@@ -52,7 +52,7 @@ public class EffectiveSnapshotRowDTO {
 
         /** {@code ROLE} 或 {@code DIRECT}。 */
         private String kind;
-        /** kind=ROLE 时为 role_id;kind=DIRECT 时为 direct grant id。 */
+        /** kind=ROLE 时为 bundle_id;kind=DIRECT 时为 direct grant id。 */
         private Long id;
         /** kind=ROLE 时填权限包名;kind=DIRECT 时 null。出口处填,JSON 反序列化阶段不填。 */
         private String name;

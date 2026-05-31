@@ -29,9 +29,9 @@ public class UserGrantViewResponse {
     /** "ROLE" 或 "DIRECT". */
     private String kind;
 
-    private Long roleId;
+    private Long bundleId;
 
-    private String roleName;
+    private String bundleName;
 
     private Long sourceApprovalId;
 
@@ -43,5 +43,5 @@ public class UserGrantViewResponse {
 
     private String endReason;
 
-    private List<DataPermRolePermissionItemResponse> permissions;
+    private List<DataPermPermissionItemResponse> permissions;
 }

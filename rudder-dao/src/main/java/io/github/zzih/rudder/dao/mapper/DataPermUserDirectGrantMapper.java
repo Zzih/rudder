@@ -18,8 +18,6 @@
 package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant;
-import io.github.zzih.rudder.dao.entity.view.DataPermUserDirectGrantDetailView;
-import io.github.zzih.rudder.dao.projection.UserDirectGrantOverviewRow;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,32 +26,17 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 @Mapper
 public interface DataPermUserDirectGrantMapper extends BaseMapper<DataPermUserDirectGrant> {
 
-    /** 查 user 在某时间点处于"有效"状态的所有 direct grants;LEFT JOIN scope 出 scopeName。 */
-    List<DataPermUserDirectGrantDetailView> queryActiveByUser(@Param("userId") Long userId,
-                                                              @Param("asOf") LocalDateTime asOf);
-
-    /** 批量版本,reconciler 一次拉全部 active user 的 direct grants;LEFT JOIN scope 出 scope 元数据。 */
-    List<DataPermUserDirectGrantDetailView> queryActiveByUserIds(@Param("userIds") java.util.Collection<Long> userIds,
-                                                                 @Param("asOf") LocalDateTime asOf);
-
-    /** "我的权限" Direct 概览:min(effective)、合并 expiration、count(*) 1 行返回(无数据时返 null)。 */
-    UserDirectGrantOverviewRow queryActiveOverviewByUser(@Param("userId") Long userId,
-                                                         @Param("asOf") LocalDateTime asOf);
-
-    /** Direct 卡片展开后翻页拉行;LEFT JOIN scope 直出 scopeName。 */
-    IPage<DataPermUserDirectGrantDetailView> pageActiveByUser(IPage<DataPermUserDirectGrantDetailView> page,
-                                                              @Param("userId") Long userId,
-                                                              @Param("asOf") LocalDateTime asOf);
-
-    List<DataPermUserDirectGrantDetailView> queryInactiveByUser(@Param("userId") Long userId,
-                                                                @Param("now") LocalDateTime now);
+    List<DataPermUserDirectGrant> queryActiveByUser(@Param("userId") Long userId,
+                                                    @Param("asOf") LocalDateTime asOf);
 
     List<DataPermUserDirectGrant> queryByApprovalId(@Param("approvalId") Long approvalId);
+
+    List<DataPermUserDirectGrant> queryInactiveByUser(@Param("userId") Long userId,
+                                                      @Param("now") LocalDateTime now);
 
     int expireIfActive(@Param("id") Long id,
                        @Param("now") LocalDateTime now,
@@ -64,4 +47,7 @@ public interface DataPermUserDirectGrantMapper extends BaseMapper<DataPermUserDi
     List<Long> queryDistinctActiveUserIds(@Param("asOf") LocalDateTime asOf);
 
     long countByScopeCode(@Param("scopeCode") Long scopeCode);
+
+    /** 引用某操作分组的 active direct 块数(删分组前校验)。 */
+    long countByGroupId(@Param("groupId") Long groupId);
 }

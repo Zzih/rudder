@@ -22,7 +22,7 @@ package io.github.zzih.rudder.service.dataperm.reconciler;
  * {@code t_r_data_perm_user_effective_snapshot.source_kinds}。
  *
  * @param kind 来源类型枚举,JSON 序列化为 {@code "ROLE"} / {@code "DIRECT"} 字面量
- * @param id   role_id 或 user_direct_grant.id
+ * @param id   bundle_id 或 user_direct_grant.id
  */
 public record PermSource(Kind kind, Long id) {
 
@@ -30,8 +30,8 @@ public record PermSource(Kind kind, Long id) {
         ROLE, DIRECT
     }
 
-    public static PermSource role(Long roleId) {
-        return new PermSource(Kind.ROLE, roleId);
+    public static PermSource role(Long bundleId) {
+        return new PermSource(Kind.ROLE, bundleId);
     }
 
     public static PermSource direct(Long grantId) {

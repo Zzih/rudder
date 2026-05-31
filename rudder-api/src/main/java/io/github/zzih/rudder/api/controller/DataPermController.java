@@ -18,12 +18,16 @@
 package io.github.zzih.rudder.api.controller;
 
 import io.github.zzih.rudder.api.request.dataperm.DataPermApplyRequest;
-import io.github.zzih.rudder.api.request.dataperm.DataPermRolePermissionItemRequest;
-import io.github.zzih.rudder.api.request.dataperm.DataPermRoleSaveRequest;
+import io.github.zzih.rudder.api.request.dataperm.DataPermBundleSaveRequest;
+import io.github.zzih.rudder.api.request.dataperm.DataPermStatementRequest;
 import io.github.zzih.rudder.api.request.dataperm.GrantRevokeRequest;
 import io.github.zzih.rudder.api.response.UserSimpleResponse;
-import io.github.zzih.rudder.api.response.dataperm.DataPermRolePermissionItemResponse;
-import io.github.zzih.rudder.api.response.dataperm.DataPermRoleResponse;
+import io.github.zzih.rudder.api.response.WorkspaceGrantResponse;
+import io.github.zzih.rudder.api.response.dataperm.AggregatedGrantResponse;
+import io.github.zzih.rudder.api.response.dataperm.AggregatedUserGrantsResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermBundleResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermPermissionItemResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermStatementResponse;
 import io.github.zzih.rudder.api.response.dataperm.EffectiveSnapshotRowResponse;
 import io.github.zzih.rudder.api.response.dataperm.MyGrantsSummaryResponse;
 import io.github.zzih.rudder.api.response.dataperm.UserGrantViewResponse;
@@ -34,24 +38,35 @@ import io.github.zzih.rudder.common.audit.AuditLog;
 import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.context.UserContext;
+import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
 import io.github.zzih.rudder.common.enums.error.WorkspaceErrorCode;
+import io.github.zzih.rudder.common.enums.workspace.WorkspaceResourceType;
 import io.github.zzih.rudder.common.exception.AuthException;
+import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
-import io.github.zzih.rudder.service.dataperm.config.PluginType;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermStatementDTO;
+import io.github.zzih.rudder.service.dataperm.dto.UserGrantsDTO;
+import io.github.zzih.rudder.service.dataperm.service.BundleService;
+import io.github.zzih.rudder.service.dataperm.service.BundleStatementService;
 import io.github.zzih.rudder.service.dataperm.service.DataPermApplyService;
 import io.github.zzih.rudder.service.dataperm.service.GrantService;
-import io.github.zzih.rudder.service.dataperm.service.RolePermissionService;
-import io.github.zzih.rudder.service.dataperm.service.RoleService;
+import io.github.zzih.rudder.service.permission.WorkspacePermissionService;
 import io.github.zzih.rudder.service.workspace.MemberService;
 import io.github.zzih.rudder.service.workspace.UserService;
+import io.github.zzih.rudder.service.workspace.WorkspaceService;
 import io.github.zzih.rudder.service.workspace.dto.UserDTO;
+import io.github.zzih.rudder.service.workspace.dto.WorkspaceDTO;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -65,6 +80,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -90,11 +107,13 @@ public class DataPermController {
 
     private final DataPermApplyService applyService;
     private final GrantService grantService;
-    private final RoleService roleService;
-    private final RolePermissionService rolePermissionService;
+    private final BundleService bundleService;
+    private final BundleStatementService bundleStatementService;
     private final DataPermConfigService dataPermConfigService;
     private final UserService userService;
     private final MemberService memberService;
+    private final WorkspaceService workspaceService;
+    private final WorkspacePermissionService workspacePermissionService;
 
     /** enabled=false 时所有业务端点返 503,避免在功能关停时静默落数据。 */
     private void requireEnabled() {
@@ -111,8 +130,8 @@ public class DataPermController {
     public Result<Long> submitApplication(@Valid @RequestBody DataPermApplyRequest request) {
         requireEnabled();
         Long approvalId = applyService.submit(
-                request.getRoleIds() == null ? List.of() : request.getRoleIds(),
-                BeanConvertUtils.convertList(request.getDirectItems(), DataPermRolePermissionItemDTO.class),
+                request.getBundleIds() == null ? List.of() : request.getBundleIds(),
+                BeanConvertUtils.convertListViaJson(request.getDirectGrants(), DataPermStatementDTO.class),
                 request.getExpireAt(),
                 request.getReason());
         return Result.ok(approvalId);
@@ -127,29 +146,28 @@ public class DataPermController {
                 grantService.summary(userId), MyGrantsSummaryResponse.class));
     }
 
-    /** 用户必须当前持有该 role,否则 404。 */
-    @GetMapping("/my-grants/roles/{roleId}/permissions")
+    /** 用户必须当前持有该 role,否则 404。以资源行为单位分页该 role 的库表行。 */
+    @GetMapping("/my-grants/bundles/{bundleId}/permissions")
     @RequireLoggedIn
-    public PageResult<DataPermRolePermissionItemResponse> myGrantsRolePermissions(
-                                                                                  @PathVariable Long roleId,
-                                                                                  @RequestParam(defaultValue = "1") int pageNum,
-                                                                                  @RequestParam(defaultValue = "20") int pageSize) {
+    public PageResult<DataPermPermissionItemResponse> myGrantsRolePermissions(
+                                                                              @PathVariable Long bundleId,
+                                                                              @RequestParam(defaultValue = "1") int pageNum,
+                                                                              @RequestParam(defaultValue = "20") int pageSize) {
         requireEnabled();
         Long userId = UserContext.requireUserId();
-        return PageResult.of(
-                grantService.pagePermissionsForUserRole(userId, roleId, pageNum, pageSize),
-                dto -> BeanConvertUtils.convertViaJson(dto, DataPermRolePermissionItemResponse.class));
+        return PageResult.of(grantService.pageGrantItems(userId, bundleId, pageNum, pageSize),
+                dto -> BeanConvertUtils.convertViaJson(dto, DataPermPermissionItemResponse.class));
     }
 
     @GetMapping("/my-grants/direct/permissions")
     @RequireLoggedIn
-    public PageResult<DataPermRolePermissionItemResponse> myGrantsDirectPermissions(
-                                                                                    @RequestParam(defaultValue = "1") int pageNum,
-                                                                                    @RequestParam(defaultValue = "20") int pageSize) {
+    public PageResult<DataPermPermissionItemResponse> myGrantsDirectPermissions(
+                                                                                @RequestParam(defaultValue = "1") int pageNum,
+                                                                                @RequestParam(defaultValue = "20") int pageSize) {
         requireEnabled();
         Long userId = UserContext.requireUserId();
-        return PageResult.of(grantService.pageDirectPermissions(userId, pageNum, pageSize),
-                DataPermRolePermissionItemResponse.class);
+        return PageResult.of(grantService.pageGrantItems(userId, null, pageNum, pageSize),
+                dto -> BeanConvertUtils.convertViaJson(dto, DataPermPermissionItemResponse.class));
     }
 
     @GetMapping("/my-grants/history")
@@ -163,102 +181,134 @@ public class DataPermController {
 
     // ==================== 资源包(role)管理 ====================
 
-    @GetMapping("/roles")
+    @GetMapping("/bundles")
     @RequireLoggedIn
-    public Result<List<DataPermRoleResponse>> listRoles() {
+    public Result<List<DataPermBundleResponse>> listBundles() {
         requireEnabled();
         return Result.ok(BeanConvertUtils.convertListViaJson(
-                roleService.listAll(), DataPermRoleResponse.class));
+                bundleService.listVisibleToWorkspace(UserContext.getWorkspaceId()), DataPermBundleResponse.class));
     }
 
-    @GetMapping("/roles/page")
+    @GetMapping("/bundles/page")
     @RequireSuperAdmin
-    public PageResult<DataPermRoleResponse> pageRoles(
-                                                      @RequestParam(required = false) String keyword,
-                                                      @RequestParam(defaultValue = "1") int pageNum,
-                                                      @RequestParam(defaultValue = "20") int pageSize) {
+    public PageResult<DataPermBundleResponse> pageBundles(
+                                                          @RequestParam(required = false) String keyword,
+                                                          @RequestParam(defaultValue = "1") int pageNum,
+                                                          @RequestParam(defaultValue = "20") int pageSize) {
         requireEnabled();
-        return PageResult.of(roleService.listPage(keyword, pageNum, pageSize),
-                dto -> BeanConvertUtils.convertViaJson(dto, DataPermRoleResponse.class));
+        return PageResult.of(bundleService.listPage(keyword, pageNum, pageSize),
+                dto -> BeanConvertUtils.convertViaJson(dto, DataPermBundleResponse.class));
     }
 
-    @GetMapping("/roles/{id}")
+    @GetMapping("/bundles/{id}")
     @RequireSuperAdmin
-    public Result<DataPermRoleResponse> getRole(@PathVariable Long id) {
+    public Result<DataPermBundleResponse> getRole(@PathVariable Long id) {
         requireEnabled();
-        return Result.ok(BeanConvertUtils.convertViaJson(roleService.get(id), DataPermRoleResponse.class));
+        return Result.ok(BeanConvertUtils.convertViaJson(bundleService.get(id), DataPermBundleResponse.class));
     }
 
-    @PostMapping("/roles")
+    /** 列出某资源包已授权(可见)的工作空间(id + name)。 */
+    @GetMapping("/bundles/{id}/workspaces")
+    @RequireSuperAdmin
+    public Result<List<WorkspaceGrantResponse>> listBundleWorkspaces(@PathVariable Long id) {
+        requireEnabled();
+        bundleService.get(id);
+        List<WorkspaceDTO> wss = workspaceService.listByIds(
+                workspacePermissionService.listGrantedWorkspaceIds(WorkspaceResourceType.DATA_PERM_BUNDLE, id));
+        return Result.ok(wss.stream()
+                .map(w -> new WorkspaceGrantResponse(w.getId(), w.getName()))
+                .toList());
+    }
+
+    /** 用 workspaceIds 全量覆盖资源包的可见工作空间集合(幂等)。 */
+    @PutMapping("/bundles/{id}/workspaces")
+    @RequireSuperAdmin
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.UPDATE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "更新权限包工作空间可见性")
+    public Result<Void> setBundleWorkspaces(@PathVariable Long id, @RequestBody List<Long> workspaceIds) {
+        requireEnabled();
+        bundleService.get(id);
+        Set<Long> ids = workspaceIds == null ? new HashSet<>() : new HashSet<>(workspaceIds);
+        workspacePermissionService.setGrants(WorkspaceResourceType.DATA_PERM_BUNDLE, id, ids, UserContext.getUserId());
+        return Result.ok();
+    }
+
+    @PostMapping("/bundles")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.CREATE, resourceType = AuditResourceType.DATA_PERM_ROLE, description = "创建数据资源包")
-    public Result<Long> createRole(@Valid @RequestBody DataPermRoleSaveRequest request) {
+    public Result<Long> createRole(@Valid @RequestBody DataPermBundleSaveRequest request) {
         requireEnabled();
-        return Result.ok(roleService.create(request.getName(), request.getDescription()));
+        return Result.ok(bundleService.create(request.getName(), request.getDescription()));
     }
 
-    @PutMapping("/roles/{id}")
+    @PutMapping("/bundles/{id}")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.UPDATE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "更新数据资源包元信息")
     public Result<Void> updateRoleMeta(@PathVariable Long id,
-                                       @Valid @RequestBody DataPermRoleSaveRequest request) {
+                                       @Valid @RequestBody DataPermBundleSaveRequest request) {
         requireEnabled();
-        roleService.updateMeta(id, request.getName(), request.getDescription());
+        bundleService.updateMeta(id, request.getName(), request.getDescription());
         return Result.ok();
     }
 
-    // -------- 权限项行级 CRUD --------
+    // -------- 权限包内「作用域块」CRUD --------
 
-    @GetMapping("/roles/{id}/permissions/page")
-    @RequireSuperAdmin
-    public PageResult<DataPermRolePermissionItemResponse> pageRolePermissions(
-                                                                              @PathVariable Long id,
-                                                                              @RequestParam(required = false) String keyword,
-                                                                              @RequestParam(required = false) PluginType pluginType,
-                                                                              @RequestParam(defaultValue = "1") int pageNum,
-                                                                              @RequestParam(defaultValue = "20") int pageSize) {
+    // 只读:既给 SuperAdmin 编辑权限包用,也给申请人在申请弹窗预览包内权限项用(块定义是元数据,非数据本身)。
+    // 后端分页 + keyword 后端搜索(作用域名 / 分组名 / 库表路径)。
+    @GetMapping("/bundles/{id}/statements")
+    @RequireLoggedIn
+    public PageResult<DataPermStatementResponse> listBundleStatements(
+                                                                      @PathVariable Long id,
+                                                                      @RequestParam(required = false) String keyword,
+                                                                      @RequestParam(defaultValue = "1") int pageNum,
+                                                                      @RequestParam(defaultValue = "10") int pageSize) {
         requireEnabled();
-        return PageResult.of(rolePermissionService.page(id, keyword, pluginType, pageNum, pageSize),
-                dto -> BeanConvertUtils.convertViaJson(dto, DataPermRolePermissionItemResponse.class));
+        // 申请人只能预览当前工作空间可见的包;SuperAdmin 走包管理需查看全部,放行。不可见按 NOT_FOUND 不泄露存在性。
+        if (!UserContext.isSuperAdmin()
+                && !workspacePermissionService.hasPermission(
+                        WorkspaceResourceType.DATA_PERM_BUNDLE, id, UserContext.getWorkspaceId())) {
+            throw new NotFoundException(DataPermErrorCode.ROLE_NOT_FOUND, id);
+        }
+        return PageResult.of(bundleStatementService.pageStatements(id, keyword, pageNum, pageSize),
+                dto -> BeanConvertUtils.convertViaJson(dto, DataPermStatementResponse.class));
     }
 
-    @PostMapping("/roles/{id}/permissions")
+    @PostMapping("/bundles/{id}/statements")
     @RequireSuperAdmin
-    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.CREATE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "新增资源包权限项")
-    public Result<Long> addRolePermission(@PathVariable Long id,
-                                          @Valid @RequestBody DataPermRolePermissionItemRequest request) {
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.CREATE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "新增资源包作用域块")
+    public Result<Long> addBundleStatement(@PathVariable Long id,
+                                           @Valid @RequestBody DataPermStatementRequest request) {
         requireEnabled();
-        return Result.ok(rolePermissionService.add(id,
-                BeanConvertUtils.convert(request, DataPermRolePermissionItemDTO.class)));
+        return Result.ok(bundleStatementService.addStatement(id,
+                BeanConvertUtils.convertViaJson(request, DataPermStatementDTO.class)));
     }
 
-    @PutMapping("/roles/{id}/permissions/{permId}")
+    @PutMapping("/bundles/{id}/statements/{statementId}")
     @RequireSuperAdmin
-    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.UPDATE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "更新资源包权限项")
-    public Result<Void> updateRolePermission(@PathVariable Long id,
-                                             @PathVariable Long permId,
-                                             @Valid @RequestBody DataPermRolePermissionItemRequest request) {
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.UPDATE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "更新资源包作用域块")
+    public Result<Void> updateBundleStatement(@PathVariable Long id,
+                                              @PathVariable Long statementId,
+                                              @Valid @RequestBody DataPermStatementRequest request) {
         requireEnabled();
-        rolePermissionService.update(id, permId,
-                BeanConvertUtils.convert(request, DataPermRolePermissionItemDTO.class));
+        bundleStatementService.updateStatement(id, statementId,
+                BeanConvertUtils.convertViaJson(request, DataPermStatementDTO.class));
         return Result.ok();
     }
 
-    @DeleteMapping("/roles/{id}/permissions/{permId}")
+    @DeleteMapping("/bundles/{id}/statements/{statementId}")
     @RequireSuperAdmin
-    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.DELETE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "删除资源包权限项")
-    public Result<Void> deleteRolePermission(@PathVariable Long id, @PathVariable Long permId) {
+    @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.DELETE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "删除资源包作用域块")
+    public Result<Void> deleteBundleStatement(@PathVariable Long id, @PathVariable Long statementId) {
         requireEnabled();
-        rolePermissionService.delete(id, permId);
+        bundleStatementService.deleteStatement(id, statementId);
         return Result.ok();
     }
 
-    @DeleteMapping("/roles/{id}")
+    @DeleteMapping("/bundles/{id}")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.DELETE, resourceType = AuditResourceType.DATA_PERM_ROLE, resourceCode = "#id", description = "删除数据资源包(级联失效引用 grants)")
     public Result<Integer> deleteRole(@PathVariable Long id) {
         requireEnabled();
-        return Result.ok(roleService.delete(id));
+        return Result.ok(bundleService.delete(id));
     }
 
     // ==================== 数据权限总览(全员可见,按 workspace 限定) ====================
@@ -296,6 +346,50 @@ public class DataPermController {
                 grantService.listActiveByUserAt(userId, t), UserGrantViewResponse.class));
     }
 
+    /** 「按用户」聚合视图:分页列出用户当前持有的权限包 + 直接授权(含权限项明细)。workspace 范围同明细快照。 */
+    @GetMapping("/admin/grants/aggregated")
+    @RequireLoggedIn
+    public PageResult<AggregatedUserGrantsResponse> pageAggregatedGrants(
+                                                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime asOf,
+                                                                         @RequestParam(defaultValue = "1") int pageNum,
+                                                                         @RequestParam(defaultValue = "20") int pageSize) {
+        requireEnabled();
+        Long ws = UserContext.getWorkspaceIdOrNull();
+        Collection<Long> restrict = ws == null ? null : memberService.listUserIdsByWorkspace(ws);
+        LocalDateTime t = asOf == null ? LocalDateTime.now() : asOf;
+        IPage<UserGrantsDTO> page = grantService.pageActiveGrantsByUser(restrict, t, pageNum, pageSize);
+        Map<Long, String> nameById = userService.listByIds(
+                page.getRecords().stream().map(UserGrantsDTO::getUserId).toList()).stream()
+                .collect(Collectors.toMap(UserDTO::getId, UserDTO::getUsername));
+        return PageResult.of(page, dto -> {
+            AggregatedUserGrantsResponse r = new AggregatedUserGrantsResponse();
+            r.setUserId(dto.getUserId());
+            r.setUsername(nameById.getOrDefault(dto.getUserId(), "user#" + dto.getUserId()));
+            r.setGrants(BeanConvertUtils.convertListViaJson(dto.getGrants(), AggregatedGrantResponse.class));
+            return r;
+        });
+    }
+
+    /**
+     * 聚合视图展开某权限包 / 直接授权时,分页拉取其权限项(当前态)。
+     * {@code bundleId} 非空 = 该权限包;为空 = 该用户全部直接授权。workspace 范围同明细快照。
+     */
+    @GetMapping("/admin/grants/items")
+    @RequireLoggedIn
+    public PageResult<DataPermPermissionItemResponse> pageGrantItems(
+                                                                     @RequestParam Long userId,
+                                                                     @RequestParam(required = false) Long bundleId,
+                                                                     @RequestParam(defaultValue = "1") int pageNum,
+                                                                     @RequestParam(defaultValue = "20") int pageSize) {
+        requireEnabled();
+        Long ws = UserContext.getWorkspaceIdOrNull();
+        if (ws != null && !memberService.isMember(ws, userId)) {
+            throw new AuthException(WorkspaceErrorCode.NOT_WORKSPACE_MEMBER, userId);
+        }
+        return PageResult.of(grantService.pageGrantItems(userId, bundleId, pageNum, pageSize),
+                dto -> BeanConvertUtils.convertViaJson(dto, DataPermPermissionItemResponse.class));
+    }
+
     @GetMapping("/admin/users/search")
     @RequireLoggedIn
     public Result<List<UserSimpleResponse>> searchUsers(@RequestParam(required = false) String keyword) {
@@ -317,13 +411,13 @@ public class DataPermController {
                 .toList());
     }
 
-    @PostMapping("/admin/grants/role/{id}/revoke")
+    @PostMapping("/admin/grants/bundle/{id}/revoke")
     @RequireSuperAdmin
     @AuditLog(module = AuditModule.DATA_PERM, action = AuditAction.DELETE, resourceType = AuditResourceType.DATA_PERM_GRANT, resourceCode = "#id", description = "撤销 role grant")
-    public Result<Boolean> revokeRoleGrant(@PathVariable Long id,
-                                           @RequestBody(required = false) GrantRevokeRequest body) {
+    public Result<Boolean> revokeBundleGrant(@PathVariable Long id,
+                                             @RequestBody(required = false) GrantRevokeRequest body) {
         requireEnabled();
-        boolean changed = grantService.revokeRoleGrant(
+        boolean changed = grantService.revokeBundleGrant(
                 id, UserContext.requireUserId(),
                 body != null ? body.getNote() : null);
         return Result.ok(changed);

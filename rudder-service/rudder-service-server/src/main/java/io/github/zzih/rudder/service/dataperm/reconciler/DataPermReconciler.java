@@ -20,16 +20,16 @@ package io.github.zzih.rudder.service.dataperm.reconciler;
 import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.DataPermRolePermissionDao;
+import io.github.zzih.rudder.dao.dao.DataPermBundleStatementDao;
+import io.github.zzih.rudder.dao.dao.DataPermUserBundleGrantDao;
 import io.github.zzih.rudder.dao.dao.DataPermUserDirectGrantDao;
 import io.github.zzih.rudder.dao.dao.DataPermUserEffectiveSnapshotDao;
-import io.github.zzih.rudder.dao.dao.DataPermUserRoleGrantDao;
 import io.github.zzih.rudder.dao.dao.UserDao;
+import io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant;
 import io.github.zzih.rudder.dao.entity.DataPermUserEffectiveSnapshot;
-import io.github.zzih.rudder.dao.entity.DataPermUserRoleGrant;
 import io.github.zzih.rudder.dao.entity.User;
-import io.github.zzih.rudder.dao.entity.view.DataPermRolePermissionDetailView;
-import io.github.zzih.rudder.dao.entity.view.DataPermUserDirectGrantDetailView;
+import io.github.zzih.rudder.dao.entity.view.DataPermBundleStatementResourceView;
+import io.github.zzih.rudder.dao.entity.view.DataPermUserDirectGrantResourceView;
 import io.github.zzih.rudder.service.coordination.TransactionAfterCommit;
 import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduledTask;
 import io.github.zzih.rudder.service.coordination.scheduling.ClusterScheduler;
@@ -44,8 +44,10 @@ import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.config.PluginType;
 import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermConfigDTO;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermPermissionItemDTO;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
+import io.github.zzih.rudder.service.dataperm.service.DataPermScopeAccessGroupService;
+import io.github.zzih.rudder.service.dataperm.service.DataPermStatementSupport;
 import io.github.zzih.rudder.service.notification.NotificationService;
 
 import java.time.Duration;
@@ -96,9 +98,10 @@ public class DataPermReconciler {
     private final RangerAdapterRegistry adapterRegistry;
     private final NotificationService notificationService;
 
-    private final DataPermUserRoleGrantDao roleGrantDao;
+    private final DataPermUserBundleGrantDao bundleGrantDao;
     private final DataPermUserDirectGrantDao directGrantDao;
-    private final DataPermRolePermissionDao rolePermissionDao;
+    private final DataPermBundleStatementDao bundleStatementDao;
+    private final DataPermScopeAccessGroupService accessGroupService;
     private final DataPermUserEffectiveSnapshotDao userEffectiveSnapshotDao;
     private final UserDao userDao;
 
@@ -165,7 +168,7 @@ public class DataPermReconciler {
         LocalDateTime now = LocalDateTime.now();
 
         Set<Long> activeGrantUserIds = new TreeSet<>();
-        activeGrantUserIds.addAll(roleGrantDao.selectDistinctActiveUserIds(now));
+        activeGrantUserIds.addAll(bundleGrantDao.selectDistinctActiveUserIds(now));
         activeGrantUserIds.addAll(directGrantDao.selectDistinctActiveUserIds(now));
 
         // 撤光全部 grant 的 user 也要纳入本轮:snapshot 表里仍有非 sentinel 版本时必须写 sentinel 让 Local 鉴权立即生效。
@@ -185,29 +188,40 @@ public class DataPermReconciler {
             return new ReconcileStats(0, 0, 0, 0, 0, 0, true, null);
         }
 
-        Map<Long, List<DataPermUserRoleGrant>> roleGrantsByUser = new HashMap<>();
-        Set<Long> referencedRoleIds = new HashSet<>();
-        for (DataPermUserRoleGrant g : roleGrantDao.selectActiveByUserIds(userById.keySet(), now)) {
-            roleGrantsByUser.computeIfAbsent(g.getUserId(), k -> new ArrayList<>()).add(g);
-            referencedRoleIds.add(g.getRoleId());
+        Map<Long, List<DataPermUserBundleGrant>> bundleGrantsByUser = new HashMap<>();
+        Set<Long> referencedBundleIds = new HashSet<>();
+        for (DataPermUserBundleGrant g : bundleGrantDao.selectActiveByUserIds(userById.keySet(), now)) {
+            bundleGrantsByUser.computeIfAbsent(g.getUserId(), k -> new ArrayList<>()).add(g);
+            referencedBundleIds.add(g.getBundleId());
         }
-        Map<Long, List<DataPermRolePermissionDetailView>> rolePermCache = new HashMap<>();
-        for (Long roleId : referencedRoleIds) {
-            rolePermCache.put(roleId, rolePermissionDao.selectByRoleId(roleId));
+        Map<Long, List<DataPermBundleStatementResourceView>> bundleStatementCache = new HashMap<>();
+        for (DataPermBundleStatementResourceView v : bundleStatementDao
+                .selectResourceViewsByBundleIds(referencedBundleIds)) {
+            bundleStatementCache.computeIfAbsent(v.getBundleId(), k -> new ArrayList<>()).add(v);
         }
-        Map<Long, List<DataPermUserDirectGrantDetailView>> directGrantsByUser = new HashMap<>();
-        for (DataPermUserDirectGrantDetailView g : directGrantDao.selectActiveByUserIds(userById.keySet(), now)) {
-            directGrantsByUser.computeIfAbsent(g.getUserId(), k -> new ArrayList<>()).add(g);
+        Map<Long, List<DataPermUserDirectGrantResourceView>> directGrantsByUser = new HashMap<>();
+        for (DataPermUserDirectGrantResourceView v : directGrantDao
+                .selectActiveResourceViewsByUserIds(userById.keySet(), now)) {
+            directGrantsByUser.computeIfAbsent(v.getUserId(), k -> new ArrayList<>()).add(v);
         }
+
+        // 操作分组展开:grant 存 group id,desired 物化成裸 access。分组总数小,单轮一次性加载。
+        Map<Long, List<String>> accessesByGroupId = accessGroupService.allAccessesByGroupId();
+
+        // role 块展开按 bundleId 预算一次,跨持有同一 role 的所有用户复用。
+        Map<Long, RoleExpansion> roleExpansions = new HashMap<>();
+        bundleStatementCache
+                .forEach((bundleId, views) -> roleExpansions.put(bundleId, expandRole(views, accessesByGroupId)));
 
         Map<Long, List<DesiredPolicy>> desiredByUser = new HashMap<>();
         for (User user : userById.values()) {
             List<DesiredPolicy> desired;
             try {
                 desired = computeDesired(user,
-                        roleGrantsByUser.getOrDefault(user.getId(), List.of()),
+                        bundleGrantsByUser.getOrDefault(user.getId(), List.of()),
                         directGrantsByUser.getOrDefault(user.getId(), List.of()),
-                        rolePermCache);
+                        roleExpansions,
+                        accessesByGroupId);
             } catch (Exception e) {
                 log.error("computeDesired failed for user={}: {}", user.getId(), e.toString(), e);
                 desired = List.of();
@@ -332,35 +346,41 @@ public class DataPermReconciler {
     // ---------- desired ----------
 
     private List<DesiredPolicy> computeDesired(User user,
-                                               List<DataPermUserRoleGrant> roleGrants,
-                                               List<DataPermUserDirectGrantDetailView> directGrants,
-                                               Map<Long, List<DataPermRolePermissionDetailView>> rolePermCache) {
+                                               List<DataPermUserBundleGrant> bundleGrants,
+                                               List<DataPermUserDirectGrantResourceView> directViews,
+                                               Map<Long, RoleExpansion> roleExpansions,
+                                               Map<Long, List<String>> accessesByGroupId) {
         Long userId = user.getId();
         Map<ItemKey, Set<String>> accessesByKey = new LinkedHashMap<>();
         Map<ItemKey, LinkedHashSet<PermSource>> sourcesByKey = new LinkedHashMap<>();
-        // 从 grant view 字段收集 scope 引用元数据 (LEFT JOIN scope 出来的列),取代之前的 serviceByCode Map。
-        // 同一 scopeCode 在多行间字段相同(均 JOIN 自同一 scope row),首次见到即填。
+        // scope 元数据从 grant 视图的 JOIN 列收集;同一 scopeCode 跨多行字段一致,首次见到即填。
         Map<Long, ScopeRef> scopeByCode = new HashMap<>();
 
-        for (DataPermUserRoleGrant g : roleGrants) {
-            PermSource src = PermSource.role(g.getRoleId());
-            for (DataPermRolePermissionDetailView p : rolePermCache.getOrDefault(g.getRoleId(), List.of())) {
-                ItemKey k = new ItemKey(p.getScopeCode(), p.getCatalogName(),
-                        p.getDatabaseName(), p.getTableName(), p.getColumnName());
-                if (addToMap(accessesByKey, k, p.getAccesses())) {
-                    sourcesByKey.computeIfAbsent(k, x -> new LinkedHashSet<>()).add(src);
-                }
-                scopeByCode.putIfAbsent(p.getScopeCode(), ScopeRef.from(p));
+        // role 块展开与 user 无关,复用本轮按 bundleId 预算好的结果(避免 users × rows 次重复 JSON 解析)。
+        for (DataPermUserBundleGrant g : bundleGrants) {
+            RoleExpansion exp = roleExpansions.get(g.getBundleId());
+            if (exp == null) {
+                continue;
             }
+            PermSource src = PermSource.role(g.getBundleId());
+            for (Map.Entry<ItemKey, Set<String>> en : exp.keyAccesses().entrySet()) {
+                accessesByKey.computeIfAbsent(en.getKey(), x -> new HashSet<>()).addAll(en.getValue());
+                sourcesByKey.computeIfAbsent(en.getKey(), x -> new LinkedHashSet<>()).add(src);
+            }
+            exp.scopeByCode().forEach(scopeByCode::putIfAbsent);
         }
 
-        for (DataPermUserDirectGrantDetailView g : directGrants) {
-            ItemKey k = new ItemKey(g.getScopeCode(), g.getCatalogName(),
-                    g.getDatabaseName(), g.getTableName(), g.getColumnName());
-            if (addToMap(accessesByKey, k, g.getAccesses())) {
-                sourcesByKey.computeIfAbsent(k, x -> new LinkedHashSet<>()).add(PermSource.direct(g.getId()));
+        for (DataPermUserDirectGrantResourceView v : directViews) {
+            PermSource src = PermSource.direct(v.getStatementId());
+            Set<String> accesses = resolveGroupAccesses(v.getGroupIds(), accessesByGroupId);
+            if (!accesses.isEmpty()) {
+                for (ItemKey k : expandKeys(v.getScopeCode(), v.getPluginType(),
+                        v.getCatalogNames(), v.getDatabaseNames(), v.getTableNames(), v.getColumnNames())) {
+                    accessesByKey.computeIfAbsent(k, x -> new HashSet<>()).addAll(accesses);
+                    sourcesByKey.computeIfAbsent(k, x -> new LinkedHashSet<>()).add(src);
+                }
             }
-            scopeByCode.putIfAbsent(g.getScopeCode(), ScopeRef.from(g));
+            scopeByCode.putIfAbsent(v.getScopeCode(), ScopeRef.from(v));
         }
 
         // 不同 ItemKey (null vs "*") 归一后可能生成同一 policyName,按 (service, name) 二次合并避免后写覆盖。
@@ -368,8 +388,9 @@ public class DataPermReconciler {
         for (Map.Entry<ItemKey, Set<String>> e : accessesByKey.entrySet()) {
             ItemKey key = e.getKey();
             ScopeRef svc = scopeByCode.get(key.scopeCode());
-            if (svc == null || !svc.enabled() || svc.name() == null || svc.name().isBlank()) {
-                log.debug("Skip desired item: serviceCode={} (deleted / disabled / blank name)",
+            if (svc == null || !svc.enabled()
+                    || svc.rangerServiceName() == null || svc.rangerServiceName().isBlank()) {
+                log.debug("Skip desired item: serviceCode={} (deleted / disabled / blank ranger service name)",
                         key.scopeCode());
                 continue;
             }
@@ -389,7 +410,8 @@ public class DataPermReconciler {
             }
             List<String> resourcePath = buildResourcePath(adapter.resourceHierarchy(), key);
             String policyName = PolicyNaming.build(adapter.resourceHierarchy(), resourcePath);
-            PolicyKey pk = new PolicyKey(svc.name(), policyName);
+            // Ranger 端按 ranger_service_name 定位 service;scope.name 仅为中文展示名,不能下发给 Ranger。
+            PolicyKey pk = new PolicyKey(svc.rangerServiceName(), policyName);
             DesiredPolicy existing = byKey.get(pk);
             Set<String> mergedAccesses = new TreeSet<>(e.getValue());
             LinkedHashSet<PermSource> mergedSources = new LinkedHashSet<>(
@@ -402,7 +424,7 @@ public class DataPermReconciler {
                     userId,
                     user.getUsername(),
                     key.scopeCode(),
-                    svc.name(),
+                    svc.rangerServiceName(),
                     pluginType,
                     policyName,
                     List.copyOf(mergedAccesses),
@@ -413,17 +435,46 @@ public class DataPermReconciler {
     }
 
     /** 从 grant view 行收集到的 scope 元数据;同一 scopeCode 跨多 row 字段一致,反向收集 = 反查 scope 表的等价物。 */
-    private record ScopeRef(String name, String pluginType, String rangerServiceName, boolean enabled) {
+    private record ScopeRef(String pluginType, String rangerServiceName, boolean enabled) {
 
-        static ScopeRef from(DataPermRolePermissionDetailView p) {
-            return new ScopeRef(p.getScopeName(), p.getPluginType(),
-                    p.getRangerServiceName(), Boolean.TRUE.equals(p.getScopeEnabled()));
+        static ScopeRef from(DataPermBundleStatementResourceView v) {
+            return new ScopeRef(v.getPluginType(),
+                    v.getRangerServiceName(), Boolean.TRUE.equals(v.getScopeEnabled()));
         }
 
-        static ScopeRef from(DataPermUserDirectGrantDetailView g) {
-            return new ScopeRef(g.getScopeName(), g.getPluginType(),
-                    g.getRangerServiceName(), Boolean.TRUE.equals(g.getScopeEnabled()));
+        static ScopeRef from(DataPermUserDirectGrantResourceView v) {
+            return new ScopeRef(v.getPluginType(),
+                    v.getRangerServiceName(), Boolean.TRUE.equals(v.getScopeEnabled()));
         }
+    }
+
+    /**
+     * 一条库表行(各层 JSON 数组)按 plugin 层级笛卡尔积展开成多个单元组 ItemKey。
+     * plugin 不含的层 → null;含但为空 → "*";否则逐值展开。
+     */
+    private List<ItemKey> expandKeys(Long scopeCode, String pluginType,
+                                     String catJson, String dbJson, String tblJson, String colJson) {
+        List<ResourceLevel> hierarchy = adapterRegistry.find(PluginType.parse(pluginType))
+                .map(RangerResourceAdapter::resourceHierarchy).orElse(List.of());
+        List<String> cats = slotValues(hierarchy.contains(ResourceLevel.CATALOG), catJson);
+        List<String> dbs = slotValues(
+                hierarchy.contains(ResourceLevel.DATABASE) || hierarchy.contains(ResourceLevel.SCHEMA), dbJson);
+        List<String> tables = slotValues(hierarchy.contains(ResourceLevel.TABLE), tblJson);
+        List<String> cols = slotValues(hierarchy.contains(ResourceLevel.COLUMN), colJson);
+        List<ItemKey> out = new ArrayList<>();
+        for (String[] t : DataPermStatementSupport.cartesian(cats, dbs, tables, cols)) {
+            out.add(new ItemKey(scopeCode, t[0], t[1], t[2], t[3]));
+        }
+        return out;
+    }
+
+    /** 该层不适用 → 单元素 [null];适用但空 → ["*"];否则解析数组逐值。 */
+    private static List<String> slotValues(boolean applicable, String json) {
+        if (!applicable) {
+            return Collections.singletonList(null);
+        }
+        List<String> vals = DataPermStatementSupport.parse(json);
+        return vals.isEmpty() ? List.of("*") : vals;
     }
 
     private static List<String> buildResourcePath(List<ResourceLevel> hierarchy, ItemKey key) {
@@ -441,16 +492,41 @@ public class DataPermReconciler {
         return out;
     }
 
-    private static boolean addToMap(Map<ItemKey, Set<String>> map, ItemKey key, String accessesJson) {
-        if (accessesJson == null || accessesJson.isBlank()) {
-            return false;
+    /** groupIds JSON → 各分组 accesses 并集。未知分组(已删但 grant 仍存的过渡态)跳过,返回空集表示无贡献。 */
+    private static Set<String> resolveGroupAccesses(String groupIdsJson, Map<Long, List<String>> accessesByGroupId) {
+        List<Long> groupIds = DataPermStatementSupport.parseGroupIds(groupIdsJson);
+        if (groupIds.isEmpty()) {
+            return Set.of();
         }
-        List<String> accesses = JsonUtils.toList(accessesJson, String.class);
-        if (accesses == null || accesses.isEmpty()) {
-            return false;
+        Set<String> accesses = new HashSet<>();
+        for (Long gid : groupIds) {
+            List<String> a = accessesByGroupId.get(gid);
+            if (a != null) {
+                accesses.addAll(a);
+            }
         }
-        map.computeIfAbsent(key, k -> new HashSet<>()).addAll(accesses);
-        return true;
+        return accesses;
+    }
+
+    /** 一个 role 的全部库表行展开成 (ItemKey → accesses) + scope 元数据。与 user 无关,单轮按 bundleId 算一次后跨用户复用。 */
+    private RoleExpansion expandRole(List<DataPermBundleStatementResourceView> views,
+                                     Map<Long, List<String>> accessesByGroupId) {
+        Map<ItemKey, Set<String>> keyAccesses = new LinkedHashMap<>();
+        Map<Long, ScopeRef> scopeByCode = new HashMap<>();
+        for (DataPermBundleStatementResourceView v : views) {
+            Set<String> accesses = resolveGroupAccesses(v.getGroupIds(), accessesByGroupId);
+            if (!accesses.isEmpty()) {
+                for (ItemKey k : expandKeys(v.getScopeCode(), v.getPluginType(),
+                        v.getCatalogNames(), v.getDatabaseNames(), v.getTableNames(), v.getColumnNames())) {
+                    keyAccesses.computeIfAbsent(k, x -> new HashSet<>()).addAll(accesses);
+                }
+            }
+            scopeByCode.putIfAbsent(v.getScopeCode(), ScopeRef.from(v));
+        }
+        return new RoleExpansion(keyAccesses, scopeByCode);
+    }
+
+    private record RoleExpansion(Map<ItemKey, Set<String>> keyAccesses, Map<Long, ScopeRef> scopeByCode) {
     }
 
     // ---------- merge & diff ----------
@@ -570,16 +646,15 @@ public class DataPermReconciler {
 
     private RangerPolicy buildPolicyPayload(MergedPolicy m) {
         RangerResourceAdapter adapter = adapterRegistry.require(m.pluginType());
-        // bucket 间 resource 同一,采样首 bucket 的 accesses 给 adapter validation。
-        List<String> sampleAccesses = m.buckets().isEmpty() ? List.of() : m.buckets().getFirst().accesses();
-        DataPermRolePermissionItemDTO item = DataPermRolePermissionItemDTO.builder()
+        // toRangerResource 只读 resource 4 元组,access 走 policyItems(buckets),此 DTO 不带 accesses。
+        DataPermPermissionItemDTO item = DataPermPermissionItemDTO.builder()
                 .scopeCode(m.scopeCode())
                 .catalogName(getOrNull(m.resourcePath(), adapter.resourceHierarchy(), ResourceLevel.CATALOG))
                 .databaseName(getOrNullByEither(m.resourcePath(), adapter.resourceHierarchy(),
                         ResourceLevel.DATABASE, ResourceLevel.SCHEMA))
                 .tableName(getOrNull(m.resourcePath(), adapter.resourceHierarchy(), ResourceLevel.TABLE))
                 .columnName(getOrNull(m.resourcePath(), adapter.resourceHierarchy(), ResourceLevel.COLUMN))
-                .accesses(sampleAccesses).build();
+                .build();
         Map<String, RangerPolicyResource> resources = adapter.toRangerResource(item);
         List<RangerPolicyItem> policyItems = m.buckets().stream()
                 .map(b -> RangerPolicyItem.builder()
@@ -804,10 +879,8 @@ public class DataPermReconciler {
         if (currentKey.equals(lastCanonicalKey.get(userId))) {
             return;
         }
-        Long latestVersion = userEffectiveSnapshotDao.findMaxVersion(userId);
-        List<DataPermUserEffectiveSnapshot> latest = latestVersion == null
-                ? List.of()
-                : userEffectiveSnapshotDao.selectLatest(userId);
+        List<DataPermUserEffectiveSnapshot> latest = userEffectiveSnapshotDao.selectLatest(userId);
+        Long latestVersion = latest.isEmpty() ? null : latest.get(0).getVersion();
         if (sameSnapshot(safe, latest)) {
             lastCanonicalKey.put(userId, currentKey);
             return;

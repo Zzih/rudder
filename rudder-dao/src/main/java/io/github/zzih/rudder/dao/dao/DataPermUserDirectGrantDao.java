@@ -18,34 +18,42 @@
 package io.github.zzih.rudder.dao.dao;
 
 import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant;
-import io.github.zzih.rudder.dao.entity.view.DataPermUserDirectGrantDetailView;
-import io.github.zzih.rudder.dao.projection.UserDirectGrantOverviewRow;
+import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrantResource;
+import io.github.zzih.rudder.dao.entity.view.DataPermUserDirectGrantResourceView;
+import io.github.zzih.rudder.dao.projection.GrantItemRow;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 
+/** 用户 direct 授权块 + 块内库表行的持久化。 */
 public interface DataPermUserDirectGrantDao {
-
-    int insert(DataPermUserDirectGrant grant);
 
     DataPermUserDirectGrant selectById(Long id);
 
-    List<DataPermUserDirectGrantDetailView> selectActiveByUser(Long userId, LocalDateTime asOf);
+    /** 插入块,返回生成 id。 */
+    Long insertStatement(DataPermUserDirectGrant block);
 
-    /** 批量拉多用户的 active direct grants,reconciler 单轮一次 SQL 替代 N 次;LEFT JOIN scope 出元数据。 */
-    List<DataPermUserDirectGrantDetailView> selectActiveByUserIds(java.util.Collection<Long> userIds,
-                                                                  LocalDateTime asOf);
+    void insertResources(Long statementId, List<DataPermUserDirectGrantResource> resources);
 
-    /** "我的权限" Direct 概览:1 次聚合返回,无 grant 时返 null。 */
-    UserDirectGrantOverviewRow selectActiveOverviewByUser(Long userId, LocalDateTime asOf);
+    List<DataPermUserDirectGrant> selectActiveByUser(Long userId, LocalDateTime asOf);
 
-    /** Direct 卡片展开后翻页拉行,LEFT JOIN scope 直出 scopeName。 */
-    IPage<DataPermUserDirectGrantDetailView> pageActiveByUser(Long userId, LocalDateTime asOf,
-                                                              int pageNum, int pageSize);
+    List<DataPermUserDirectGrantResource> selectResourcesByStatementIds(Collection<Long> statementIds);
 
-    List<DataPermUserDirectGrantDetailView> selectInactiveByUser(Long userId, LocalDateTime now);
+    /** 扁平库表行视图(resource + block + scope),reconciler 用;空集返空。 */
+    List<DataPermUserDirectGrantResourceView> selectActiveResourceViewsByUserIds(
+                                                                                 Collection<Long> userIds,
+                                                                                 LocalDateTime asOf);
+
+    /** 单个用户当前活跃直接授权的库表行经 JSON_TABLE 笛卡尔展开后的单元组分页(原生分页,total 为展开条数)。 */
+    IPage<GrantItemRow> pageActiveFlattenedByUser(Long userId, LocalDateTime asOf, int pageNum, int pageSize);
+
+    /** 单个用户当前活跃直接授权展开后的单元组总数(各层数组长度乘积之和)。 */
+    long sumFlattenedActiveByUser(Long userId, LocalDateTime asOf);
+
+    List<DataPermUserDirectGrant> selectInactiveByUser(Long userId, LocalDateTime now);
 
     List<DataPermUserDirectGrant> selectByApprovalId(Long approvalId);
 
@@ -53,6 +61,7 @@ public interface DataPermUserDirectGrantDao {
 
     List<Long> selectDistinctActiveUserIds(LocalDateTime asOf);
 
-    /** 计算引用某 Ranger Service 的 direct grant 数(校验 service 是否仍被引用时用)。 */
     long countByScopeCode(Long scopeCode);
+
+    long countByGroupId(Long groupId);
 }

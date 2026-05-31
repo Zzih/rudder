@@ -1,0 +1,122 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermUserBundleGrantMapper">
+
+    <sql id="baseSql">
+        id, user_id, source_approval_id, bundle_id,
+        effective_time, expiration_time,
+        end_reason, end_by, end_note
+    </sql>
+
+    <sql id="detailSql">
+        g.id, g.user_id, g.source_approval_id, g.bundle_id,
+        g.effective_time, g.expiration_time,
+        g.end_reason, g.end_by, g.end_note,
+        r.name as bundle_name
+    </sql>
+
+    <select id="queryActiveByUser" resultType="io.github.zzih.rudder.dao.entity.view.DataPermUserBundleGrantDetailView">
+        select <include refid="detailSql"/>
+        from t_r_data_perm_user_bundle_grant g
+        left join t_r_data_perm_bundle r on r.id = g.bundle_id
+        where g.user_id = #{userId}
+          and g.effective_time &lt;= #{asOf}
+          and (g.expiration_time is null or g.expiration_time &gt; #{asOf})
+    </select>
+
+    <select id="queryActiveByUserIds" resultType="io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant">
+        select <include refid="baseSql"/>
+        from t_r_data_perm_user_bundle_grant
+        where user_id in
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+          and effective_time &lt;= #{asOf}
+          and (expiration_time is null or expiration_time &gt; #{asOf})
+    </select>
+
+    <!-- 同 bundleId 多 grant 按 bundleId GROUP BY 合并:effective 取最早、expiration 任一永久则 NULL 否则最晚;
+         perm_count = 该 role 各作用域块的库表行数,与 direct 概览口径一致。 -->
+    <select id="queryActiveSummaryByUser"
+            resultType="io.github.zzih.rudder.dao.projection.UserBundleGrantSummaryRow">
+        select g.bundle_id                                   as bundleId,
+               r.name                                      as bundleName,
+               max(g.id)                                   as grantId,
+               max(g.source_approval_id)                   as sourceApprovalId,
+               min(g.effective_time)                       as effectiveTime,
+               case when max(case when g.expiration_time is null then 1 else 0 end) = 1
+                    then null
+                    else max(g.expiration_time)
+               end                                         as expirationTime,
+               (select coalesce(sum(
+                            greatest(json_length(res.catalog_names), 1) *
+                            greatest(json_length(res.database_names), 1) *
+                            greatest(json_length(res.table_names), 1) *
+                            greatest(json_length(res.column_names), 1)), 0)
+                from t_r_data_perm_bundle_statement b
+                join t_r_data_perm_bundle_statement_resource res on res.statement_id = b.id
+                where b.bundle_id = g.bundle_id)               as permCount
+        from t_r_data_perm_user_bundle_grant g
+        left join t_r_data_perm_bundle r on r.id = g.bundle_id
+        where g.user_id = #{userId}
+          and g.effective_time &lt;= #{asOf}
+          and (g.expiration_time is null or g.expiration_time &gt; #{asOf})
+        group by g.bundle_id, r.name
+        order by min(g.effective_time)
+    </select>
+
+    <select id="queryInactiveByUser" resultType="io.github.zzih.rudder.dao.entity.view.DataPermUserBundleGrantDetailView">
+        select <include refid="detailSql"/>
+        from t_r_data_perm_user_bundle_grant g
+        left join t_r_data_perm_bundle r on r.id = g.bundle_id
+        where g.user_id = #{userId}
+          and g.expiration_time is not null
+          and g.expiration_time &lt;= #{now}
+        order by g.expiration_time desc
+    </select>
+
+    <!--
+      BundleManage 「当前授权数」: 按 bundle_id 维度统计仍在生效的独立用户数,与 user 视角 queryActiveByUser 的
+      活跃定义对齐(已生效 AND 未过期);同人多条 active grant 用 COUNT(DISTINCT) 去重,避免重复计数。
+    -->
+    <select id="queryActiveCountByBundleIds" resultType="java.util.LinkedHashMap">
+        select bundle_id as bundleId, count(distinct user_id) as cnt
+        from t_r_data_perm_user_bundle_grant
+        where effective_time &lt;= #{asOf}
+          and (expiration_time is null or expiration_time &gt; #{asOf})
+          and bundle_id in
+          <foreach collection="bundleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+        group by bundle_id
+    </select>
+
+    <select id="queryByApprovalId" resultType="io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant">
+        select <include refid="baseSql"/>
+        from t_r_data_perm_user_bundle_grant
+        where source_approval_id = #{approvalId}
+    </select>
+
+    <update id="expireIfActive">
+        update t_r_data_perm_user_bundle_grant
+        set expiration_time = #{now},
+            end_reason = #{endReason},
+            end_by = #{endBy},
+            end_note = #{endNote}
+        where id = #{id}
+          and expiration_time is null
+    </update>
+
+    <update id="expireAllByBundleId">
+        update t_r_data_perm_user_bundle_grant
+        set expiration_time = #{now},
+            end_reason = #{endReason}
+        where bundle_id = #{bundleId}
+          and expiration_time is null
+    </update>
+
+    <select id="queryDistinctActiveUserIds" resultType="long">
+        select distinct user_id
+        from t_r_data_perm_user_bundle_grant
+        where effective_time &lt;= #{asOf}
+          and (expiration_time is null or expiration_time &gt; #{asOf})
+    </select>
+
+</mapper>
