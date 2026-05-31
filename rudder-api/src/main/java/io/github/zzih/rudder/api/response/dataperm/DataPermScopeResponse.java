@@ -38,4 +38,7 @@ public class DataPermScopeResponse {
     private String rangerServiceName;
     private String description;
     private boolean enabled;
+
+    /** 该域下的操作分组(含 accesses);仅管理员配置端点回填,精简列表为 null。 */
+    private List<DataPermScopeAccessGroupResponse> accessGroups;
 }

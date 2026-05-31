@@ -21,7 +21,7 @@ const tabs = computed<TabDef[]>(() => {
   const all: TabDef[] = [
     { key: 'my', label: t('dataPerm.tabMy'), routeName: 'MyDataPerm', superAdminOnly: false },
     { key: 'grants', label: t('dataPerm.tabGrants'), routeName: 'DataPermGrantManage', superAdminOnly: false },
-    { key: 'roles', label: t('dataPerm.tabRoles'), routeName: 'DataPermRoleManage', superAdminOnly: true },
+    { key: 'roles', label: t('dataPerm.tabRoles'), routeName: 'DataPermBundleManage', superAdminOnly: true },
   ]
   return all.filter(tab => !tab.superAdminOnly || hasRole('SUPER_ADMIN'))
 })

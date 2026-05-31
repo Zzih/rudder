@@ -22,22 +22,32 @@ import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.dao.ApprovalRecordDao;
-import io.github.zzih.rudder.dao.dao.DataPermRoleDao;
+import io.github.zzih.rudder.dao.dao.DataPermBundleDao;
+import io.github.zzih.rudder.dao.dao.DataPermUserBundleGrantDao;
 import io.github.zzih.rudder.dao.dao.DataPermUserDirectGrantDao;
-import io.github.zzih.rudder.dao.dao.DataPermUserRoleGrantDao;
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
+import io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant;
 import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant;
-import io.github.zzih.rudder.dao.entity.DataPermUserRoleGrant;
+import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrantResource;
 import io.github.zzih.rudder.service.approval.event.ApprovalFinalizedEvent;
 import io.github.zzih.rudder.service.approval.integration.ApprovalIntegration;
+import io.github.zzih.rudder.service.dataperm.adapter.RangerAdapterRegistry;
+import io.github.zzih.rudder.service.dataperm.adapter.RangerResourceAdapter;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
+import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermApplyContext;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermStatementDTO;
+import io.github.zzih.rudder.service.dataperm.dto.ResourcePathDTO;
 import io.github.zzih.rudder.service.dataperm.reconciler.DataPermReconciler;
 import io.github.zzih.rudder.service.dataperm.service.DataPermApplyService;
+import io.github.zzih.rudder.service.dataperm.service.DataPermScopeAccessGroupService;
+import io.github.zzih.rudder.service.dataperm.service.DataPermStatementSupport;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -68,11 +78,13 @@ import lombok.extern.slf4j.Slf4j;
 public class DataPermApprovalIntegration implements ApprovalIntegration {
 
     private final ApprovalRecordDao approvalRecordDao;
-    private final DataPermRoleDao roleDao;
+    private final DataPermBundleDao bundleDao;
     private final DataPermConfigService configService;
-    private final DataPermUserRoleGrantDao userRoleGrantDao;
+    private final DataPermScopeAccessGroupService accessGroupService;
+    private final DataPermUserBundleGrantDao userBundleGrantDao;
     private final DataPermUserDirectGrantDao userDirectGrantDao;
     private final DataPermReconciler reconciler;
+    private final RangerAdapterRegistry adapterRegistry;
 
     @Override
     public String resourceType() {
@@ -86,7 +98,7 @@ public class DataPermApprovalIntegration implements ApprovalIntegration {
             return;
         }
         // 重试幂等:dispatcher 失败重试时跳过已落 grants
-        if (!userRoleGrantDao.selectByApprovalId(event.approvalId()).isEmpty()
+        if (!userBundleGrantDao.selectByApprovalId(event.approvalId()).isEmpty()
                 || !userDirectGrantDao.selectByApprovalId(event.approvalId()).isEmpty()) {
             log.info("DataPerm grants already exist for approvalId={}, skip", event.approvalId());
             return;
@@ -101,52 +113,81 @@ public class DataPermApprovalIntegration implements ApprovalIntegration {
 
         // 失效资源校验: role / Ranger service 必须仍存在
         Set<Long> missingRoles = new HashSet<>();
-        for (Long roleId : context.roleIds()) {
-            if (roleDao.selectById(roleId) == null) {
-                missingRoles.add(roleId);
+        for (Long bundleId : context.bundleIds()) {
+            if (bundleDao.selectById(bundleId) == null) {
+                missingRoles.add(bundleId);
             }
         }
         Set<Long> missingScopes = new HashSet<>();
-        for (DataPermRolePermissionItemDTO item : context.directItems()) {
-            if (configService.findScope(item.getScopeCode()).isEmpty()) {
-                missingScopes.add(item.getScopeCode());
+        for (DataPermStatementDTO block : context.directGrants()) {
+            if (configService.findScope(block.getScopeCode()).isEmpty()) {
+                missingScopes.add(block.getScopeCode());
             }
         }
         if (!missingRoles.isEmpty() || !missingScopes.isEmpty()) {
             throw new BizException(DataPermErrorCode.RESOURCE_MISSING,
                     "missingRoles=" + missingRoles + ", missingScopes=" + missingScopes);
         }
+        // groupIds 是引用,申请到终审之间分组可能被删/改归属。不再校验会落出"已批准但 0 权限"的静默 grant,
+        // 故此处重新校验存在 + 归属(申请期已校验过一次),失败走 dispatcher 失败链路而非静默放行。
+        for (DataPermStatementDTO block : context.directGrants()) {
+            accessGroupService.validateGroups(block.getScopeCode(), block.getGroupIds());
+        }
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireAt = context.expireAt();
-        for (Long roleId : context.roleIds()) {
-            DataPermUserRoleGrant grant = new DataPermUserRoleGrant();
+        for (Long bundleId : context.bundleIds()) {
+            DataPermUserBundleGrant grant = new DataPermUserBundleGrant();
             grant.setUserId(context.applicantUserId());
             grant.setSourceApprovalId(event.approvalId());
-            grant.setRoleId(roleId);
+            grant.setBundleId(bundleId);
             grant.setEffectiveTime(now);
             grant.setExpirationTime(expireAt);
-            userRoleGrantDao.insert(grant);
+            userBundleGrantDao.insert(grant);
         }
-        for (DataPermRolePermissionItemDTO item : context.directItems()) {
-            DataPermUserDirectGrant grant = new DataPermUserDirectGrant();
-            grant.setUserId(context.applicantUserId());
-            grant.setSourceApprovalId(event.approvalId());
-            grant.setScopeCode(item.getScopeCode());
-            grant.setCatalogName(item.getCatalogName());
-            grant.setDatabaseName(item.getDatabaseName());
-            grant.setTableName(item.getTableName());
-            grant.setColumnName(item.getColumnName());
-            grant.setAccesses(JsonUtils.toJson(item.getAccesses()));
-            grant.setEffectiveTime(now);
-            grant.setExpirationTime(expireAt);
-            userDirectGrantDao.insert(grant);
+        for (DataPermStatementDTO block : context.directGrants()) {
+            DataPermUserDirectGrant entity = new DataPermUserDirectGrant();
+            entity.setUserId(context.applicantUserId());
+            entity.setSourceApprovalId(event.approvalId());
+            entity.setScopeCode(block.getScopeCode());
+            entity.setGroupIds(DataPermStatementSupport.toGroupIdsJson(block.getGroupIds()));
+            entity.setEffectiveTime(now);
+            entity.setExpirationTime(expireAt);
+            Long statementId = userDirectGrantDao.insertStatement(entity);
+            List<ResourceLevel> hierarchy = configService.findScope(block.getScopeCode())
+                    .map(DataPermScopeDTO::getPluginType)
+                    .flatMap(adapterRegistry::find)
+                    .map(RangerResourceAdapter::resourceHierarchy)
+                    .orElse(List.of());
+            userDirectGrantDao.insertResources(statementId, toResourceEntities(hierarchy, block.getResources()));
         }
-        log.info("DataPerm grants created: approvalId={}, applicantUserId={}, roleGrants={}, directGrants={}",
+        log.info("DataPerm grants created: approvalId={}, applicantUserId={}, bundleGrants={}, directGrants={}",
                 event.approvalId(), context.applicantUserId(),
-                context.roleIds().size(), context.directItems().size());
+                context.bundleIds().size(), context.directGrants().size());
 
         reconciler.triggerNowAfterCommit("APPROVAL_APPROVED:" + event.approvalId());
+    }
+
+    private static List<DataPermUserDirectGrantResource> toResourceEntities(List<ResourceLevel> hierarchy,
+                                                                            List<ResourcePathDTO> resources) {
+        List<DataPermUserDirectGrantResource> out = new ArrayList<>();
+        if (resources == null) {
+            return out;
+        }
+        for (ResourcePathDTO r : resources) {
+            List<List<String>> canon = DataPermStatementSupport.canonicalizeForcedAll(hierarchy,
+                    DataPermStatementSupport.normLevel(r.getCatalogNames()),
+                    DataPermStatementSupport.normLevel(r.getDatabaseNames()),
+                    DataPermStatementSupport.normLevel(r.getTableNames()),
+                    DataPermStatementSupport.normLevel(r.getColumnNames()));
+            DataPermUserDirectGrantResource e = new DataPermUserDirectGrantResource();
+            e.setCatalogNames(DataPermStatementSupport.toJson(canon.get(0)));
+            e.setDatabaseNames(DataPermStatementSupport.toJson(canon.get(1)));
+            e.setTableNames(DataPermStatementSupport.toJson(canon.get(2)));
+            e.setColumnNames(DataPermStatementSupport.toJson(canon.get(3)));
+            out.add(e);
+        }
+        return out;
     }
 
     private static DataPermApplyContext parseContext(ApprovalRecord record) {

@@ -26,7 +26,7 @@ import io.github.zzih.rudder.service.dataperm.client.ranger.RangerPolicyResource
 import io.github.zzih.rudder.service.dataperm.client.ranger.RangerServiceDef;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermPermissionItemDTO;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -70,7 +70,7 @@ abstract class AbstractRangerResourceAdapter implements RangerResourceAdapter {
     }
 
     /** 子类钩子:从 item 取该层级的值,缺省返回 null → 替换为 {@code "*"}。 */
-    protected abstract String valueAt(ResourceLevel level, DataPermRolePermissionItemDTO item);
+    protected abstract String valueAt(ResourceLevel level, DataPermPermissionItemDTO item);
 
     /**
      * Ranger mode 关 → 返 null,上层走 base spec;
@@ -179,7 +179,7 @@ abstract class AbstractRangerResourceAdapter implements RangerResourceAdapter {
     }
 
     @Override
-    public Map<String, RangerPolicyResource> toRangerResource(DataPermRolePermissionItemDTO item) {
+    public Map<String, RangerPolicyResource> toRangerResource(DataPermPermissionItemDTO item) {
         List<ResourceLevel> levels = resourceHierarchy();
         Map<String, RangerPolicyResource> resources = new LinkedHashMap<>(levels.size() * 2);
         for (ResourceLevel level : levels) {
@@ -195,7 +195,7 @@ abstract class AbstractRangerResourceAdapter implements RangerResourceAdapter {
     }
 
     @Override
-    public void validateResources(DataPermRolePermissionItemDTO item) {
+    public void validateResources(DataPermPermissionItemDTO item) {
         for (ResourceLevel level : resourceHierarchy()) {
             String v = valueAt(level, item);
             if (v == null || v.isBlank()) {

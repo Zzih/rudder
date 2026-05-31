@@ -26,18 +26,18 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 数据权限申请提交。`roleIds` / `directItems` 至少一个非空。
+ * 数据权限申请提交。`bundleIds` / `directGrants` 至少一个非空。
  * `expireAt` 为 null 表示永久。
  */
 @Data
 public class DataPermApplyRequest {
 
     /** 申请加入的资源包 id 列表,可空。 */
-    private List<Long> roleIds;
+    private List<Long> bundleIds;
 
-    /** 申请的 direct 项,可空。 */
+    /** 申请的 direct 作用域块,可空。 */
     @Valid
-    private List<DataPermRolePermissionItemRequest> directItems;
+    private List<DataPermStatementRequest> directGrants;
 
     /** 到期日,null = 永久。 */
     private LocalDateTime expireAt;

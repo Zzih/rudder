@@ -24,12 +24,14 @@ import io.github.zzih.rudder.api.request.RagPipelineConfigRequest;
 import io.github.zzih.rudder.api.request.SpiConfigRequest;
 import io.github.zzih.rudder.api.request.SpiTestRequest;
 import io.github.zzih.rudder.api.request.dataperm.DataPermConfigRequest;
+import io.github.zzih.rudder.api.request.dataperm.DataPermScopeAccessGroupRequest;
 import io.github.zzih.rudder.api.request.dataperm.DataPermScopeRequest;
 import io.github.zzih.rudder.api.response.ProviderConfigResponse;
 import io.github.zzih.rudder.api.response.RagPipelineConfigResponse;
 import io.github.zzih.rudder.api.response.RuntimeTypeResponse;
 import io.github.zzih.rudder.api.response.dataperm.DataPermAdapterResponse;
 import io.github.zzih.rudder.api.response.dataperm.DataPermConfigResponse;
+import io.github.zzih.rudder.api.response.dataperm.DataPermScopeAccessGroupResponse;
 import io.github.zzih.rudder.api.response.dataperm.DataPermScopeResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
@@ -74,8 +76,10 @@ import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.config.PluginType;
 import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermConfigDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeAccessGroupDTO;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
 import io.github.zzih.rudder.service.dataperm.reconciler.DataPermReconciler;
+import io.github.zzih.rudder.service.dataperm.service.DataPermScopeAccessGroupService;
 import io.github.zzih.rudder.spi.api.SpiGuideFile;
 import io.github.zzih.rudder.spi.api.SpiGuideLoader;
 import io.github.zzih.rudder.spi.api.model.HealthStatus;
@@ -139,6 +143,7 @@ public class ConfigController {
     private final NotificationConfigService notificationConfigService;
     private final PlatformConfigService platformConfig;
     private final DataPermConfigService dataPermConfigService;
+    private final DataPermScopeAccessGroupService dataPermAccessGroupService;
     private final DataPermReconciler dataPermReconciler;
     private final RangerAdapterRegistry rangerAdapterRegistry;
 
@@ -765,7 +770,50 @@ public class ConfigController {
                 .toList());
     }
 
+    /** 某 scope 下的操作分组列表(精简,不含裸 accesses),申请 / 权限包编辑选分组用。所有登录用户可读。 */
+    @GetMapping("/data-perm/scopes/{scopeCode}/access-groups")
+    @RequireLoggedIn
+    public Result<List<DataPermScopeAccessGroupResponse>> listAccessGroups(@PathVariable Long scopeCode) {
+        return Result.ok(dataPermAccessGroupService.listByScope(scopeCode).stream()
+                .map(ConfigController::toGroupResponseSlim)
+                .toList());
+    }
+
+    private static DataPermScopeAccessGroupResponse toGroupResponseSlim(DataPermScopeAccessGroupDTO g) {
+        return DataPermScopeAccessGroupResponse.builder()
+                .id(g.getId())
+                .scopeCode(g.getScopeCode())
+                .name(g.getName())
+                .description(g.getDescription())
+                .build();
+    }
+
+    private static DataPermScopeAccessGroupResponse toGroupResponseFull(DataPermScopeAccessGroupDTO g) {
+        return DataPermScopeAccessGroupResponse.builder()
+                .id(g.getId())
+                .scopeCode(g.getScopeCode())
+                .name(g.getName())
+                .accesses(g.getAccesses())
+                .description(g.getDescription())
+                .build();
+    }
+
+    /** 精简出参:不含操作分组(LoggedIn 列表,避免向普通用户泄露裸操作)。 */
     private static DataPermScopeResponse toScopeResponse(DataPermScopeDTO s) {
+        return scopeResponseBuilder(s).build();
+    }
+
+    /** 完整出参:含操作分组明细(SuperAdmin 配置编辑用)。 */
+    private static DataPermScopeResponse toScopeResponseWithGroups(DataPermScopeDTO s) {
+        return scopeResponseBuilder(s)
+                .accessGroups(s.getAccessGroups() == null ? List.of()
+                        : s.getAccessGroups().stream()
+                                .map(ConfigController::toGroupResponseFull)
+                                .toList())
+                .build();
+    }
+
+    private static DataPermScopeResponse.DataPermScopeResponseBuilder scopeResponseBuilder(DataPermScopeDTO s) {
         return DataPermScopeResponse.builder()
                 .code(s.getCode())
                 .name(s.getName())
@@ -775,8 +823,7 @@ public class ConfigController {
                         : s.getManagedTaskTypes().stream().map(Enum::name).toList())
                 .rangerServiceName(s.getRangerServiceName())
                 .description(s.getDescription())
-                .enabled(Boolean.TRUE.equals(s.getEnabled()))
-                .build();
+                .enabled(Boolean.TRUE.equals(s.getEnabled()));
     }
 
     @GetMapping("/data-perm")
@@ -799,8 +846,8 @@ public class ConfigController {
                 .reconcileBatchSize(orDefault(config.getReconcileBatchSize(), 100))
                 .reconcileFailureAlertThreshold(orDefault(config.getReconcileFailureAlertThreshold(), 3))
                 .ensureRangerUser(Boolean.TRUE.equals(config.getEnsureRangerUser()))
-                .scopes(dataPermConfigService.listScopes().stream()
-                        .map(ConfigController::toScopeResponse)
+                .scopes(dataPermConfigService.listScopesWithGroups().stream()
+                        .map(ConfigController::toScopeResponseWithGroups)
                         .toList())
                 .build());
     }
@@ -812,9 +859,21 @@ public class ConfigController {
         List<DataPermScopeDTO> incomingScopes = req.getScopes() == null
                 ? null
                 : req.getScopes().stream().map(ConfigController::toScopeDto).toList();
+        // 操作分组的裸 access 闭集校验放控制器层(adapter 依赖 configService,不能反向注入)。
+        if (incomingScopes != null) {
+            for (DataPermScopeDTO scope : incomingScopes) {
+                if (scope.getAccessGroups() == null) {
+                    continue;
+                }
+                rangerAdapterRegistry.find(scope.getPluginType()).ifPresent(
+                        adapter -> scope.getAccessGroups().forEach(g -> adapter.validateAccesses(g.getAccesses())));
+            }
+        }
         dataPermConfigService.saveDetail(buildScalarDto(req, req.isEnabled()), incomingScopes);
-        // saveDetail 已 commit + cache invalidate;此处 reconciler 重读最新 config 应用 interval / lockTtl
+        // saveDetail 已 commit + cache invalidate;reconciler 重读最新 config 应用 interval / lockTtl,
+        // 并立即对账让分组改动尽快物化到 snapshot。
         dataPermReconciler.reconfigureScheduler();
+        dataPermReconciler.triggerNow("DATA_PERM_CONFIG_SAVED");
         return Result.ok();
     }
 
@@ -861,6 +920,17 @@ public class ConfigController {
         dto.setRangerServiceName(r.getRangerServiceName());
         dto.setDescription(r.getDescription());
         dto.setEnabled(r.isEnabled());
+        dto.setAccessGroups(r.getAccessGroups() == null ? null
+                : r.getAccessGroups().stream().map(ConfigController::toGroupDto).toList());
+        return dto;
+    }
+
+    private static DataPermScopeAccessGroupDTO toGroupDto(DataPermScopeAccessGroupRequest g) {
+        DataPermScopeAccessGroupDTO dto = new DataPermScopeAccessGroupDTO();
+        dto.setId(g.getId());
+        dto.setName(g.getName());
+        dto.setAccesses(g.getAccesses());
+        dto.setDescription(g.getDescription());
         return dto;
     }
 

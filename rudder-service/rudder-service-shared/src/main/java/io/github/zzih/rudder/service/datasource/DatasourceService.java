@@ -19,19 +19,19 @@ package io.github.zzih.rudder.service.datasource;
 
 import io.github.zzih.rudder.common.enums.error.DatasourceErrorCode;
 import io.github.zzih.rudder.common.enums.error.SystemErrorCode;
+import io.github.zzih.rudder.common.enums.workspace.WorkspaceResourceType;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.common.jdbc.JdbcConnections;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.dao.DatasourceDao;
-import io.github.zzih.rudder.dao.dao.DatasourcePermissionDao;
 import io.github.zzih.rudder.dao.entity.Datasource;
-import io.github.zzih.rudder.dao.entity.DatasourcePermission;
 import io.github.zzih.rudder.datasource.api.DatasourceTypeProvider;
 import io.github.zzih.rudder.datasource.api.DatasourceTypeProviderRegistry;
 import io.github.zzih.rudder.service.datasource.dto.DatasourceDTO;
 import io.github.zzih.rudder.service.datasource.model.DataSourceCredentials;
+import io.github.zzih.rudder.service.permission.WorkspacePermissionService;
 import io.github.zzih.rudder.spi.api.context.DataSourceInfo;
 import io.github.zzih.rudder.spi.api.datasource.DatasourceType;
 
@@ -60,7 +60,7 @@ public class DatasourceService {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
 
     private final DatasourceDao datasourceDao;
-    private final DatasourcePermissionDao datasourcePermissionDao;
+    private final WorkspacePermissionService workspacePermissionService;
     private final CredentialService credentialService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -99,7 +99,7 @@ public class DatasourceService {
 
     public Datasource getByIdWithWorkspace(Long workspaceId, Long id) {
         Datasource ds = getById(id);
-        if (datasourcePermissionDao.countByDatasourceIdAndWorkspaceId(id, workspaceId) <= 0) {
+        if (!workspacePermissionService.hasPermission(WorkspaceResourceType.DATASOURCE, id, workspaceId)) {
             throw new BizException(SystemErrorCode.FORBIDDEN,
                     "Datasource not accessible from current workspace: " + id);
         }
@@ -117,16 +117,11 @@ public class DatasourceService {
      * 通过权限表列出指定工作空间可访问的数据源。
      */
     public List<Datasource> listByWorkspaceId(Long workspaceId) {
-        List<DatasourcePermission> permissions = datasourcePermissionDao.selectByWorkspaceId(workspaceId);
-
-        if (permissions.isEmpty()) {
+        List<Long> datasourceIds =
+                workspacePermissionService.listResourceIdsByWorkspace(WorkspaceResourceType.DATASOURCE, workspaceId);
+        if (datasourceIds.isEmpty()) {
             return List.of();
         }
-
-        List<Long> datasourceIds = permissions.stream()
-                .map(DatasourcePermission::getDatasourceId)
-                .collect(Collectors.toList());
-
         return datasourceDao.selectByIds(datasourceIds);
     }
 
@@ -177,6 +172,7 @@ public class DatasourceService {
         log.info("删除数据源, id={}", id);
         getById(id); // 确保存在
         datasourceDao.deleteById(id);
+        workspacePermissionService.revokeAll(WorkspaceResourceType.DATASOURCE, id);
         eventPublisher.publishEvent(new DatasourceChangedEvent(id));
     }
 

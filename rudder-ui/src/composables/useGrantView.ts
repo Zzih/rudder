@@ -1,5 +1,5 @@
 import { useI18n } from 'vue-i18n'
-import type { DataPermRolePermissionItem, UserGrantView } from '@/api/data-perm'
+import type { DataPermPermissionItem, UserGrantView } from '@/api/data-perm'
 
 /** 在卡片视图(MyDataPerm / GrantManage)之间共享的 grant 渲染辅助。 */
 export function useGrantView() {
@@ -10,13 +10,22 @@ export function useGrantView() {
     return new Date(s).toLocaleString()
   }
 
-  function resourcePath(item: DataPermRolePermissionItem): string {
+  function resourcePath(item: DataPermPermissionItem): string {
     const parts: string[] = []
     if (item.catalogName) parts.push(item.catalogName)
     if (item.databaseName) parts.push(item.databaseName)
     if (item.tableName) parts.push(item.tableName)
     if (item.columnName) parts.push(item.columnName)
     return parts.join('.') || '*'
+  }
+
+  function serviceLabel(item: DataPermPermissionItem): string {
+    return item.scopeName ?? `scope-${item.scopeCode}`
+  }
+
+  /** 当前授权展示分组名;历史快照无分组名时回退裸 access。 */
+  function permLabels(item: DataPermPermissionItem): string[] {
+    return (item.groupNames && item.groupNames.length ? item.groupNames : item.accesses) ?? []
   }
 
   /** 判断 grant 在 referenceMs(默认 Date.now())时是否仍有效。 */
@@ -26,5 +35,5 @@ export function useGrantView() {
     return new Date(g.expirationTime).getTime() > referenceMs
   }
 
-  return { fmtTime, resourcePath, isActiveAt }
+  return { fmtTime, resourcePath, serviceLabel, permLabels, isActiveAt }
 }

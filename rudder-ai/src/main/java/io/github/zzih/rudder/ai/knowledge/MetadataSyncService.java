@@ -61,7 +61,7 @@ import lombok.extern.slf4j.Slf4j;
  * <b>平台级共享(不按工作空间隔离)</b>:同步产出的 SCHEMA 文档 {@code workspace_id=null},
  * 所有工作空间共用。设计动机:数据源本身是跨工作空间的共用资产,表结构不具隐私属性,按工作空间切分
  * 会导致同一个数据源被重复同步 N 份,维护成本爆炸。如果未来出现"某表只有 A 工作区能看"的合规需求,
- * 应当在数据源访问权限层(datasource_permission)拦截,不要退回把元数据切给工作空间。
+ * 应当在数据源访问权限层(workspace_permission)拦截,不要退回把元数据切给工作空间。
  */
 @Slf4j
 @Service

@@ -31,19 +31,20 @@ import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.dao.dao.ApprovalRecordDao;
-import io.github.zzih.rudder.dao.dao.DataPermRoleDao;
+import io.github.zzih.rudder.dao.dao.DataPermBundleDao;
+import io.github.zzih.rudder.dao.dao.DataPermUserBundleGrantDao;
 import io.github.zzih.rudder.dao.dao.DataPermUserDirectGrantDao;
-import io.github.zzih.rudder.dao.dao.DataPermUserRoleGrantDao;
 import io.github.zzih.rudder.dao.entity.ApprovalRecord;
-import io.github.zzih.rudder.dao.entity.DataPermRole;
+import io.github.zzih.rudder.dao.entity.DataPermBundle;
+import io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant;
 import io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant;
-import io.github.zzih.rudder.dao.entity.DataPermUserRoleGrant;
 import io.github.zzih.rudder.service.approval.event.ApprovalFinalizedEvent;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.config.PluginType;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermApplyContext;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermStatementDTO;
+import io.github.zzih.rudder.service.dataperm.dto.ResourcePathDTO;
 import io.github.zzih.rudder.service.dataperm.service.DataPermApplyService;
 
 import java.time.LocalDateTime;
@@ -63,15 +64,19 @@ class DataPermApprovalIntegrationTest {
     @Mock
     private ApprovalRecordDao approvalRecordDao;
     @Mock
-    private DataPermRoleDao roleDao;
+    private DataPermBundleDao bundleDao;
     @Mock
     private DataPermConfigService configService;
     @Mock
-    private DataPermUserRoleGrantDao userRoleGrantDao;
+    private io.github.zzih.rudder.service.dataperm.service.DataPermScopeAccessGroupService accessGroupService;
     @Mock
-    private DataPermUserDirectGrantDao userDirectGrantDao;
+    private DataPermUserBundleGrantDao userBundleGrantDao;
+    @Mock
+    private DataPermUserDirectGrantDao userDirectBlockDao;
     @Mock
     private io.github.zzih.rudder.service.dataperm.reconciler.DataPermReconciler reconciler;
+    @Mock
+    private io.github.zzih.rudder.service.dataperm.adapter.RangerAdapterRegistry adapterRegistry;
 
     @InjectMocks
     private DataPermApprovalIntegration integration;
@@ -90,19 +95,21 @@ class DataPermApprovalIntegrationTest {
         return record;
     }
 
-    private static DataPermApplyContext context(Long applicant, List<Long> roleIds,
-                                                List<DataPermRolePermissionItemDTO> direct,
+    private static DataPermApplyContext context(Long applicant, List<Long> bundleIds,
+                                                List<DataPermStatementDTO> direct,
                                                 LocalDateTime expireAt) {
-        return new DataPermApplyContext(applicant, 5L, roleIds, direct, expireAt);
+        return new DataPermApplyContext(applicant, 5L, bundleIds, direct, expireAt);
     }
 
-    private static DataPermRolePermissionItemDTO sampleDirect() {
-        return DataPermRolePermissionItemDTO.builder()
-                .scopeCode(7L)
-                .databaseName("ods")
-                .tableName("orders")
-                .accesses(List.of("select"))
-                .build();
+    private static DataPermStatementDTO sampleBlock() {
+        DataPermStatementDTO b = new DataPermStatementDTO();
+        b.setScopeCode(7L);
+        b.setGroupIds(List.of(1L));
+        ResourcePathDTO r = new ResourcePathDTO();
+        r.setDatabaseNames(List.of("ods"));
+        r.setTableNames(List.of("orders"));
+        b.setResources(List.of(r));
+        return b;
     }
 
     @Test
@@ -115,28 +122,28 @@ class DataPermApprovalIntegrationTest {
     @DisplayName("非 APPROVED 状态 → 业务侧无操作 / 不查 DAO")
     void rejectedNoop() {
         integration.onFinalized(event(ApprovalFinalizedEvent.STATUS_REJECTED, 42L));
-        verify(userRoleGrantDao, never()).insert(any());
-        verify(userDirectGrantDao, never()).insert(any());
+        verify(userBundleGrantDao, never()).insert(any());
+        verify(userDirectBlockDao, never()).insertStatement(any());
     }
 
     @Test
     @DisplayName("APPROVED + 幂等: 已存在 role grants → skip")
     void idempotentOnExistingRoleGrants() {
-        when(userRoleGrantDao.selectByApprovalId(42L)).thenReturn(List.of(new DataPermUserRoleGrant()));
+        when(userBundleGrantDao.selectByApprovalId(42L)).thenReturn(List.of(new DataPermUserBundleGrant()));
         integration.onFinalized(event(ApprovalFinalizedEvent.STATUS_APPROVED, 42L));
         verify(approvalRecordDao, never()).selectById(anyLong());
-        verify(userRoleGrantDao, never()).insert(any());
+        verify(userBundleGrantDao, never()).insert(any());
     }
 
     @Test
-    @DisplayName("APPROVED + 完整 context → 创建 role grants + direct grants")
+    @DisplayName("APPROVED + 完整 context → 创建 role grants + direct 块")
     void approvedCreatesGrants() {
-        var ctx = context(99L, List.of(1L, 2L), List.of(sampleDirect()), null);
-        when(userRoleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
-        when(userDirectGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        var ctx = context(99L, List.of(1L, 2L), List.of(sampleBlock()), null);
+        when(userBundleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        when(userDirectBlockDao.selectByApprovalId(42L)).thenReturn(List.of());
         when(approvalRecordDao.selectById(42L)).thenReturn(recordWithContext(42L, ctx));
-        when(roleDao.selectById(1L)).thenReturn(new DataPermRole());
-        when(roleDao.selectById(2L)).thenReturn(new DataPermRole());
+        when(bundleDao.selectById(1L)).thenReturn(new DataPermBundle());
+        when(bundleDao.selectById(2L)).thenReturn(new DataPermBundle());
         DataPermScopeDTO scope = new DataPermScopeDTO();
         scope.setCode(7L);
         scope.setName("hive_prod");
@@ -149,32 +156,32 @@ class DataPermApprovalIntegrationTest {
 
         integration.onFinalized(event(ApprovalFinalizedEvent.STATUS_APPROVED, 42L));
 
-        verify(userRoleGrantDao, times(2)).insert(any(DataPermUserRoleGrant.class));
-        verify(userDirectGrantDao, times(1)).insert(any(DataPermUserDirectGrant.class));
+        verify(userBundleGrantDao, times(2)).insert(any(DataPermUserBundleGrant.class));
+        verify(userDirectBlockDao, times(1)).insertStatement(any(DataPermUserDirectGrant.class));
     }
 
     @Test
     @DisplayName("APPROVED + role 在审批期间被删 → 抛 RESOURCE_MISSING")
     void missingRoleThrows() {
         var ctx = context(99L, List.of(1L), List.of(), null);
-        when(userRoleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
-        when(userDirectGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        when(userBundleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        when(userDirectBlockDao.selectByApprovalId(42L)).thenReturn(List.of());
         when(approvalRecordDao.selectById(42L)).thenReturn(recordWithContext(42L, ctx));
-        when(roleDao.selectById(1L)).thenReturn(null);
+        when(bundleDao.selectById(1L)).thenReturn(null);
 
         assertThatThrownBy(() -> integration.onFinalized(event(ApprovalFinalizedEvent.STATUS_APPROVED, 42L)))
                 .isInstanceOf(BizException.class)
                 .extracting("errorCode")
                 .isEqualTo(DataPermErrorCode.RESOURCE_MISSING);
-        verify(userRoleGrantDao, never()).insert(any());
+        verify(userBundleGrantDao, never()).insert(any());
     }
 
     @Test
-    @DisplayName("APPROVED + Ranger service 在审批期间被删 → 抛 RESOURCE_MISSING")
-    void missingRangerServiceThrows() {
-        var ctx = context(99L, List.of(), List.of(sampleDirect()), null);
-        when(userRoleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
-        when(userDirectGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+    @DisplayName("APPROVED + scope 在审批期间被删 → 抛 RESOURCE_MISSING")
+    void missingScopeThrows() {
+        var ctx = context(99L, List.of(), List.of(sampleBlock()), null);
+        when(userBundleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        when(userDirectBlockDao.selectByApprovalId(42L)).thenReturn(List.of());
         when(approvalRecordDao.selectById(42L)).thenReturn(recordWithContext(42L, ctx));
         when(configService.findScope(7L)).thenReturn(java.util.Optional.empty());
 
@@ -182,14 +189,14 @@ class DataPermApprovalIntegrationTest {
                 .isInstanceOf(BizException.class)
                 .extracting("errorCode")
                 .isEqualTo(DataPermErrorCode.RESOURCE_MISSING);
-        verify(userDirectGrantDao, never()).insert(any());
+        verify(userDirectBlockDao, never()).insertStatement(any());
     }
 
     @Test
     @DisplayName("APPROVED + record.ext_data 空 → 抛 APPLICATION_INVALID")
     void missingExtDataThrows() {
-        when(userRoleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
-        when(userDirectGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        when(userBundleGrantDao.selectByApprovalId(42L)).thenReturn(List.of());
+        when(userDirectBlockDao.selectByApprovalId(42L)).thenReturn(List.of());
         ApprovalRecord record = new ApprovalRecord();
         record.setId(42L);
         record.setExtData(null);

@@ -29,6 +29,7 @@ import io.github.zzih.rudder.dao.entity.DataPermScope;
 import io.github.zzih.rudder.dao.entity.DataPermUserEffectiveSnapshot;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheKey;
 import io.github.zzih.rudder.service.coordination.cache.GlobalCacheService;
+import io.github.zzih.rudder.service.dataperm.config.PluginType;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermConfigDTO;
 import io.github.zzih.rudder.task.api.task.enums.TaskType;
 
@@ -84,6 +85,7 @@ public class DataPermLocalAuthorizer {
                     "missing submit user id for scope " + scope.getName());
         }
 
+        PluginType pluginType = PluginType.parse(scope.getPluginType());
         Long scopeCode = scope.getCode();
         List<DataPermUserEffectiveSnapshot> grants = snapshotDao.selectLatest(userId).stream()
                 .filter(g -> g.getScopeCode() != null)
@@ -114,8 +116,10 @@ public class DataPermLocalAuthorizer {
                 unqualified.add(intent.table() + " (缺少 " + missing + ")");
                 continue;
             }
-            if (!isAllowed(intent, grants)) {
-                denials.add(formatDenial(scope, intent));
+            // 该 plugin 无法表达此动作(如 Trino 无 update)或 pluginType 解析不出 → needAccess 为 null → fail-closed 拒。
+            String needAccess = pluginType == null ? null : pluginType.accessFor(intent.action());
+            if (!isAllowed(needAccess, intent, grants)) {
+                denials.add(formatDenial(needAccess, scope, intent));
             }
         }
         if (!unqualified.isEmpty()) {
@@ -160,8 +164,12 @@ public class DataPermLocalAuthorizer {
         });
     }
 
-    private static boolean isAllowed(TableAccess intent, List<DataPermUserEffectiveSnapshot> grants) {
-        String needAccess = actionToAccess(intent.action());
+    private static boolean isAllowed(String needAccess, TableAccess intent,
+                                     List<DataPermUserEffectiveSnapshot> grants) {
+        // needAccess 为 null = 该 plugin 表达不了此动作 → fail-closed 拒(调用方已统一计算)。
+        if (needAccess == null) {
+            return false;
+        }
         // 先收集 (table 匹配 + access 含) 的候选 grant 集合,再做列覆盖判定。
         // 单 grant 不一定覆盖所有列,但多个 grant 合并可能覆盖 → 必须聚合判定而非任一返回。
         List<DataPermUserEffectiveSnapshot> covering = new java.util.ArrayList<>();
@@ -232,29 +240,18 @@ public class DataPermLocalAuthorizer {
         if (accesses == null) {
             return false;
         }
-        return accesses.stream().anyMatch(a -> a != null && a.equalsIgnoreCase(needAccess));
+        // grant 含具体 access 即覆盖;含 "all"(plugin 通配 access)覆盖一切,语义与 Ranger 对齐。
+        return accesses.stream()
+                .anyMatch(a -> a != null && (a.equalsIgnoreCase(needAccess) || "all".equalsIgnoreCase(a)));
     }
 
-    /** Action → plugin 端 access 名映射。Hive/Trino/StarRocks 三个 plugin 的 access 名都对齐。 */
-    private static String actionToAccess(TableAccess.Action action) {
-        return switch (action) {
-            case READ -> "SELECT";
-            case INSERT -> "INSERT";
-            case UPDATE -> "UPDATE";
-            case DELETE -> "DELETE";
-            case CREATE -> "CREATE";
-            case DROP -> "DROP";
-            case ALTER -> "ALTER";
-        };
-    }
-
-    private static String formatDenial(DataPermScope scope, TableAccess intent) {
+    private static String formatDenial(String needAccess, DataPermScope scope, TableAccess intent) {
         String path = java.util.stream.Stream.of(intent.catalog(), intent.database(), intent.table())
                 .filter(s -> s != null && !s.isEmpty())
                 .collect(Collectors.joining("."));
         String cols = intent.columns() == null || intent.columns().isEmpty()
                 ? ""
                 : "[" + String.join(",", intent.columns()) + "]";
-        return scope.getName() + "." + path + cols + " " + actionToAccess(intent.action());
+        return scope.getName() + "." + path + cols + " " + (needAccess != null ? needAccess : intent.action().name());
     }
 }

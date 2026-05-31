@@ -22,7 +22,7 @@ import io.github.zzih.rudder.service.dataperm.client.ranger.RangerAdminRestClien
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.config.PluginType;
 import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermPermissionItemDTO;
 
 import org.springframework.stereotype.Component;
 
@@ -45,7 +45,7 @@ public class HadoopSqlRangerAdapter extends AbstractRangerResourceAdapter {
     }
 
     @Override
-    protected String valueAt(ResourceLevel level, DataPermRolePermissionItemDTO item) {
+    protected String valueAt(ResourceLevel level, DataPermPermissionItemDTO item) {
         return switch (level) {
             case DATABASE -> item.getDatabaseName();
             case TABLE -> item.getTableName();

@@ -7,21 +7,21 @@ import {
 } from '@element-plus/icons-vue'
 import {
   getMyGrantsSummary,
-  pageMyRolePermissions,
-  pageMyDirectPermissions,
+  listMyRolePermissions,
+  listMyDirectPermissions,
   listMyGrantsHistory,
   type MyGrantsSummary,
   type MyGrantsRoleCard,
   type MyGrantsDirectOverview,
-  type DataPermRolePermissionItem,
   type UserGrantView,
 } from '@/api/data-perm'
 import { useGrantView } from '@/composables/useGrantView'
 import ApplyDialog from './ApplyDialog.vue'
+import GrantItemList from './components/GrantItemList.vue'
 
 const { t } = useI18n()
 const route = useRoute()
-const { fmtTime, resourcePath } = useGrantView()
+const { fmtTime, resourcePath, serviceLabel, permLabels } = useGrantView()
 const workspaceId = computed(() => Number(route.params.workspaceId))
 const applyOpen = ref(false)
 
@@ -45,91 +45,16 @@ const stats = computed(() => summary.value?.stats ?? { roles: 0, direct: 0, expi
 const isExpired = (expiration?: string | null) =>
   !!expiration && new Date(expiration).getTime() <= Date.now()
 
-interface RoleSlot {
-  expanded: boolean
-  loading: boolean
-  loaded: boolean
-  perms: DataPermRolePermissionItem[]
-  pageNum: number
-  pageSize: number
-  total: number
-}
-const roleSlots = reactive<Record<number, RoleSlot>>({})
-function slotOf(roleId: number): RoleSlot {
-  return roleSlots[roleId] ?? (roleSlots[roleId] = {
-    expanded: false, loading: false, loaded: false,
-    perms: [], pageNum: 1, pageSize: 20, total: 0,
-  })
-}
-
-async function loadRolePage(roleId: number) {
-  const slot = slotOf(roleId)
-  slot.loading = true
-  try {
-    const res: any = await pageMyRolePermissions(roleId, {
-      pageNum: slot.pageNum, pageSize: slot.pageSize,
-    })
-    slot.perms = (res?.data as DataPermRolePermissionItem[]) ?? []
-    slot.total = Number(res?.total ?? 0)
-    slot.loaded = true
-  } catch {
-    slot.perms = []
-  } finally {
-    slot.loading = false
-  }
-}
-
-async function toggleRoleExpand(card: MyGrantsRoleCard) {
-  const slot = slotOf(card.roleId)
-  slot.expanded = !slot.expanded
-  if (slot.expanded && !slot.loaded) {
-    await loadRolePage(card.roleId)
-  }
-}
-
-function onRolePageChange(roleId: number, pn: number) {
-  const slot = slotOf(roleId)
-  slot.pageNum = pn
-  loadRolePage(roleId)
+// 展开仅切显隐;权限项由 GrantItemList 分页懒加载(与数据权限总览共用同一接口与渲染)。
+const expandedRoles = reactive<Set<number>>(new Set())
+function toggleRoleExpand(card: MyGrantsRoleCard) {
+  if (expandedRoles.has(card.bundleId)) expandedRoles.delete(card.bundleId)
+  else expandedRoles.add(card.bundleId)
 }
 
 const directExpanded = ref(false)
-const directPage = reactive({ pageNum: 1, pageSize: 20, total: 0 })
-const directPerms = ref<DataPermRolePermissionItem[]>([])
-const directLoading = ref(false)
-const directLoaded = ref(false)
-
-async function loadDirectPage() {
-  directLoading.value = true
-  try {
-    const res: any = await pageMyDirectPermissions({
-      pageNum: directPage.pageNum,
-      pageSize: directPage.pageSize,
-    })
-    directPerms.value = (res?.data as DataPermRolePermissionItem[]) ?? []
-    directPage.total = Number(res?.total ?? 0)
-    directLoaded.value = true
-  } catch {
-    directPerms.value = []
-  } finally {
-    directLoading.value = false
-  }
-}
-
-async function toggleDirectExpand() {
+function toggleDirectExpand() {
   directExpanded.value = !directExpanded.value
-  if (directExpanded.value && !directLoaded.value) {
-    await loadDirectPage()
-  }
-}
-
-function onDirectPageChange(pn: number) {
-  directPage.pageNum = pn
-  loadDirectPage()
-}
-
-function serviceLabel(it: DataPermRolePermissionItem) {
-  return it.scopeName ?? `svc-${it.scopeCode}`
 }
 
 const historyExpanded = ref(false)
@@ -196,10 +121,10 @@ onMounted(loadSummary)
 
       <div v-if="!roleCards.length" class="placeholder-line">{{ t('dataPerm.empty') }}</div>
       <div v-else class="grant-list">
-        <article v-for="card in roleCards" :key="card.roleId" class="grant-card" data-kind="ROLE">
+        <article v-for="card in roleCards" :key="card.bundleId" class="grant-card" data-kind="ROLE">
           <button class="grant-card__head" type="button" @click="toggleRoleExpand(card)">
             <span class="grant-card__icon" data-kind="ROLE"><el-icon><CollectionTag /></el-icon></span>
-            <strong class="grant-card__name">{{ card.roleName }}</strong>
+            <strong class="grant-card__name">{{ card.bundleName }}</strong>
             <div class="grant-card__meta-right">
               <span class="status-pill" :data-status="isExpired(card.expirationTime) ? 'EXPIRED' : 'ACTIVE'">
                 <span class="dot" />
@@ -207,7 +132,7 @@ onMounted(loadSummary)
               </span>
               <span class="grant-card__subtitle">{{ t('dataPerm.kindRole') }} · {{ card.permCount }} {{ t('dataPerm.unitPerm') }}</span>
             </div>
-            <span class="chevron" :class="{ 'is-open': slotOf(card.roleId).expanded }">
+            <span class="chevron" :class="{ 'is-open': expandedRoles.has(card.bundleId) }">
               <el-icon><ArrowDown /></el-icon>
             </span>
           </button>
@@ -216,25 +141,8 @@ onMounted(loadSummary)
             <el-icon class="arrow"><ArrowRight /></el-icon>
             <span><em>{{ t('dataPerm.expirationTime') }}</em>{{ fmtTime(card.expirationTime) }}</span>
           </div>
-          <div v-if="slotOf(card.roleId).expanded" v-loading="slotOf(card.roleId).loading" class="grant-card__items">
-            <div v-if="slotOf(card.roleId).perms.length > 0" class="items-head">
-              <span>{{ t('dataPerm.colService') }}</span>
-              <span>{{ t('dataPerm.colResource') }}</span>
-              <span>{{ t('dataPerm.colAccesses') }}</span>
-            </div>
-            <div v-for="(it, idx) in slotOf(card.roleId).perms" :key="idx" class="items-row">
-              <span class="ds-chip" :title="serviceLabel(it)">{{ serviceLabel(it) }}</span>
-              <code class="resource">{{ resourcePath(it) }}</code>
-              <div class="access-chips">
-                <span v-for="a in it.accesses" :key="a" class="access-chip">{{ a }}</span>
-              </div>
-            </div>
-            <el-pagination v-if="slotOf(card.roleId).total > slotOf(card.roleId).pageSize"
-              class="items-pagination" background layout="prev, pager, next"
-              :current-page="slotOf(card.roleId).pageNum"
-              :page-size="slotOf(card.roleId).pageSize"
-              :total="slotOf(card.roleId).total"
-              @current-change="(p: number) => onRolePageChange(card.roleId, p)" />
+          <div v-if="expandedRoles.has(card.bundleId)" class="grant-card__items">
+            <GrantItemList :load-fn="p => listMyRolePermissions(card.bundleId, p)" />
           </div>
         </article>
       </div>
@@ -261,31 +169,8 @@ onMounted(loadSummary)
             <el-icon><ArrowDown /></el-icon>
           </span>
         </button>
-        <div v-if="directExpanded" v-loading="directLoading" class="grant-card__items">
-          <div v-if="directPerms.length > 0" class="items-head items-head--direct">
-            <span>{{ t('dataPerm.colService') }}</span>
-            <span>{{ t('dataPerm.colResource') }}</span>
-            <span>{{ t('dataPerm.colAccesses') }}</span>
-            <span>{{ t('dataPerm.effectiveTime') }}</span>
-            <span>{{ t('dataPerm.expirationTime') }}</span>
-          </div>
-          <div v-for="(it, idx) in directPerms" :key="idx" class="items-row items-row--direct">
-            <span class="ds-chip" :title="serviceLabel(it)">{{ serviceLabel(it) }}</span>
-            <code class="resource">{{ resourcePath(it) }}</code>
-            <div class="access-chips">
-              <span v-for="a in it.accesses" :key="a" class="access-chip">{{ a }}</span>
-            </div>
-            <span class="time-cell">{{ fmtTime(it.effectiveTime) }}</span>
-            <span class="time-cell" :class="{ 'is-expired': isExpired(it.expirationTime) }">
-              {{ fmtTime(it.expirationTime) }}
-            </span>
-          </div>
-          <el-pagination v-if="directPage.total > directPage.pageSize" class="items-pagination"
-            background layout="prev, pager, next"
-            :current-page="directPage.pageNum"
-            :page-size="directPage.pageSize"
-            :total="directPage.total"
-            @current-change="onDirectPageChange" />
+        <div v-if="directExpanded" class="grant-card__items">
+          <GrantItemList :load-fn="p => listMyDirectPermissions(p)" />
         </div>
       </article>
     </section>
@@ -310,7 +195,7 @@ onMounted(loadSummary)
                 <el-icon><component :is="g.kind === 'ROLE' ? CollectionTag : Lock" /></el-icon>
               </span>
               <strong class="grant-card__name">
-                {{ g.kind === 'ROLE' ? g.roleName : t('dataPerm.directSection') }}
+                {{ g.kind === 'ROLE' ? g.bundleName : t('dataPerm.directSection') }}
               </strong>
               <div class="grant-card__meta-right">
                 <span class="status-pill" data-status="EXPIRED">
@@ -331,7 +216,7 @@ onMounted(loadSummary)
                 <span class="ds-chip" :title="serviceLabel(it)">{{ serviceLabel(it) }}</span>
                 <code class="resource">{{ resourcePath(it) }}</code>
                 <div class="access-chips">
-                  <span v-for="a in it.accesses" :key="a" class="access-chip">{{ a }}</span>
+                  <span v-for="a in permLabels(it)" :key="a" class="access-chip">{{ a }}</span>
                 </div>
               </div>
             </div>
@@ -476,46 +361,15 @@ onMounted(loadSummary)
   &.is-open { transform: rotate(180deg); }
 }
 
-.items-head, .items-row {
+// 历史(已失效)折叠区的扁平权限行;当前态列表已抽到 GrantItemList。
+.items-row {
   display: grid;
   grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) minmax(0, 1.5fr);
   gap: 16px;
   align-items: start;
   padding: 6px 8px;
-}
-.items-head--direct, .items-row--direct {
-  grid-template-columns:
-    minmax(140px, 180px)
-    minmax(0, 1fr)
-    minmax(0, 1.4fr)
-    minmax(120px, max-content)
-    minmax(120px, max-content);
-}
-.time-cell {
-  font-family: var(--r-font-mono);
-  font-size: var(--r-font-xs);
-  color: var(--r-text-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-
-  &.is-expired { color: var(--r-text-disabled); text-decoration: line-through; }
-}
-.items-head {
-  font-family: var(--r-font-mono);
-  font-size: var(--r-font-xs);
-  color: var(--r-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.items-row {
   border-top: 1px dashed var(--r-border-light);
   font-size: var(--r-font-sm);
-}
-
-.items-pagination {
-  margin-top: var(--r-space-3);
-  justify-content: flex-end;
-  display: flex;
 }
 
 .history-toggle {

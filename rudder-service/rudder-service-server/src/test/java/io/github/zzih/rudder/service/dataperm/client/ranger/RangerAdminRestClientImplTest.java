@@ -81,7 +81,7 @@ class RangerAdminRestClientImplTest {
         currentConfig.set(enabledConfig(1_000));
         // cache.getOrLoad 不走 supplier,直接返回当前 currentConfig — 允许 test 通过 currentConfig.set 动态切换
         when(cache.getOrLoad(eq(GlobalCacheKey.DATA_PERM), any())).thenAnswer(inv -> currentConfig.get());
-        configService = new DataPermConfigService(cache, configDao, null, null, null, null);
+        configService = new DataPermConfigService(cache, configDao, null, null, null, null, null);
         client = new RangerAdminRestClientImpl(configService, restTemplate);
     }
 

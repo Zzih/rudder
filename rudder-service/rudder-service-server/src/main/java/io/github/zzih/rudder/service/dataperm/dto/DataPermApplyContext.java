@@ -30,7 +30,7 @@ import java.util.List;
 public record DataPermApplyContext(
         Long applicantUserId,
         Long applicantWorkspaceId,
-        List<Long> roleIds,
-        List<DataPermRolePermissionItemDTO> directItems,
+        List<Long> bundleIds,
+        List<DataPermStatementDTO> directGrants,
         LocalDateTime expireAt) {
 }

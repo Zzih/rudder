@@ -1,0 +1,29 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermScopeAccessGroupMapper">
+
+    <select id="queryAll" resultType="io.github.zzih.rudder.dao.entity.DataPermScopeAccessGroup">
+        select *
+        from t_r_data_perm_scope_access_group
+        order by scope_code asc, id asc
+    </select>
+
+    <select id="queryByScopeCode" resultType="io.github.zzih.rudder.dao.entity.DataPermScopeAccessGroup">
+        select *
+        from t_r_data_perm_scope_access_group
+        where scope_code = #{scopeCode}
+        order by id asc
+    </select>
+
+    <update id="updateGroup">
+        update t_r_data_perm_scope_access_group
+        set name        = #{name},
+            accesses    = #{accesses},
+            description = #{description}
+        where id = #{id}
+    </update>
+
+    <delete id="deleteByScopeCode">
+        delete from t_r_data_perm_scope_access_group where scope_code = #{scopeCode}
+    </delete>
+
+</mapper>

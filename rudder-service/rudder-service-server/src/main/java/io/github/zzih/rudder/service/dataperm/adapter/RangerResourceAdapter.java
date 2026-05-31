@@ -20,7 +20,7 @@ package io.github.zzih.rudder.service.dataperm.adapter;
 import io.github.zzih.rudder.service.dataperm.client.ranger.RangerPolicyResource;
 import io.github.zzih.rudder.service.dataperm.config.PluginType;
 import io.github.zzih.rudder.service.dataperm.config.ResourceLevel;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermPermissionItemDTO;
 
 import java.util.List;
 import java.util.Map;
@@ -65,7 +65,7 @@ public interface RangerResourceAdapter {
      *   <li>{@code isExcludes} / {@code isRecursive} 一律 false</li>
      * </ul>
      */
-    Map<String, RangerPolicyResource> toRangerResource(DataPermRolePermissionItemDTO item);
+    Map<String, RangerPolicyResource> toRangerResource(DataPermPermissionItemDTO item);
 
     /**
      * 校验 access 列表全部在闭集中,非法字符串抛
@@ -78,5 +78,5 @@ public interface RangerResourceAdapter {
      * 校验 {@link #resourceHierarchy()} 每一层均有非空值。要通配的层级须显式写
      * {@code "*"};禁止前缀闭包破缺(上级空 + 下级非空)。
      */
-    void validateResources(DataPermRolePermissionItemDTO item);
+    void validateResources(DataPermPermissionItemDTO item);
 }

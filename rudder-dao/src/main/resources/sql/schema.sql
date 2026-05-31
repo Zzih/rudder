@@ -97,20 +97,22 @@ CREATE TABLE IF NOT EXISTS `t_r_datasource` (
     `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY `uk_name` (`name`),
     INDEX `idx_created_by` (`created_by`)
-) ENGINE=InnoDB COMMENT='数据源(全局资源, 通过datasource_permission授权给工作空间)';
+) ENGINE=InnoDB COMMENT='数据源(全局资源, 通过workspace_permission授权给工作空间)';
 
-CREATE TABLE IF NOT EXISTS `t_r_datasource_permission` (
+-- 资源↔工作空间可见性统一表:resource_type 区分数据源 / 权限包等全局资源,workspace_id 为可见方
+CREATE TABLE IF NOT EXISTS `t_r_workspace_permission` (
     `id`            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `datasource_id` BIGINT NOT NULL                   COMMENT '数据源ID',
     `workspace_id`  BIGINT NOT NULL                   COMMENT '工作空间ID',
+    `resource_type` VARCHAR(32) NOT NULL              COMMENT '资源类型: DATASOURCE / DATA_PERM_BUNDLE',
+    `resource_id`   BIGINT NOT NULL                   COMMENT '资源ID(按 resource_type 指向对应表)',
     `created_by`    BIGINT NOT NULL                   COMMENT '创建人ID',
     `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_by`    BIGINT                            COMMENT '更新人ID',
     `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY `uk_ds_workspace` (`datasource_id`, `workspace_id`),
-    INDEX `idx_workspace` (`workspace_id`),
-    INDEX `idx_created_by` (`created_by`)
-) ENGINE=InnoDB COMMENT='数据源授权(数据源与工作空间的关联)';
+    UNIQUE KEY `uk_res_workspace` (`resource_type`, `resource_id`, `workspace_id`),
+    INDEX `idx_workspace_type` (`workspace_id`, `resource_type`),
+    INDEX `idx_resource` (`resource_type`, `resource_id`)
+) ENGINE=InnoDB COMMENT='资源授权(全局资源与工作空间的可见性关联)';
 
 -- ==================== Script Module ====================
 
@@ -880,7 +882,7 @@ CREATE TABLE IF NOT EXISTS `t_r_quick_link` (
 -- ==================== Data Permission ====================
 
 -- 1. 权限包定义
-CREATE TABLE IF NOT EXISTS `t_r_data_perm_role` (
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_bundle` (
     `id`           BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     `name`         VARCHAR(128) NOT NULL             COMMENT '权限包名,全局唯一',
     `description`  VARCHAR(512)                      COMMENT '描述',
@@ -891,59 +893,88 @@ CREATE TABLE IF NOT EXISTS `t_r_data_perm_role` (
     UNIQUE KEY `uk_name` (`name`)
 ) ENGINE=InnoDB COMMENT='数据权限包定义';
 
--- 2. 权限包内权限项明细 (当前态,管理员替换式编辑)
-CREATE TABLE IF NOT EXISTS `t_r_data_perm_role_permission` (
-    `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    `role_id`             BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_role.id',
-    `scope_code` BIGINT NOT NULL                   COMMENT '关联 settings_json.scopes[].code',
-    `catalog_name`        VARCHAR(128)                      COMMENT 'NULL=该 plugin 不适用; "*"=全部',
-    `database_name`       VARCHAR(128)                      COMMENT '同上语义',
-    `table_name`          VARCHAR(128)                      COMMENT '同上语义',
-    `column_name`         VARCHAR(128)                      COMMENT '同上语义',
-    `accesses`            JSON NOT NULL                     COMMENT 'plugin 原生 access 列表, 如 ["select","insert"]',
-    `created_at`          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX `idx_role` (`role_id`),
-    INDEX `idx_service` (`scope_code`)
-) ENGINE=InnoDB COMMENT='权限包内权限项当前态';
+-- 1.1 操作分组:scope 下把 plugin 原生操作组合成业务语义分组(读/写),用户面只见分组不见裸操作
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_scope_access_group` (
+    `id`           BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键,role_block/user_direct_block 的 group_ids 按此 id 引用',
+    `scope_code`   BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_scope.code',
+    `name`         VARCHAR(128) NOT NULL             COMMENT '业务语义名,如 读权限/写权限,scope 内唯一',
+    `accesses`     JSON NOT NULL                     COMMENT 'plugin 原生 access 列表, 如 ["select","read"]',
+    `description`  VARCHAR(512)                      COMMENT '描述',
+    `created_by`   BIGINT                            COMMENT '创建人ID',
+    `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by`   BIGINT                            COMMENT '更新人ID',
+    `updated_at`   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY `uk_scope_name` (`scope_code`, `name`),
+    INDEX `idx_scope` (`scope_code`)
+) ENGINE=InnoDB COMMENT='数据权限操作分组';
+
+-- 2. 权限包内「作用域块」:一个 scope + 一组操作分组,挂多条库表行
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_bundle_statement` (
+    `id`         BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `bundle_id`    BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_bundle.id',
+    `scope_code` BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_scope.code',
+    `group_ids`  JSON NOT NULL                     COMMENT '该块选中的操作分组 id 列表, 如 [1,3]',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_role` (`bundle_id`),
+    INDEX `idx_scope` (`scope_code`)
+) ENGINE=InnoDB COMMENT='权限包内作用域块';
+
+-- 2.1 块内「库表行」:每层多选(JSON 数组),物化时各层笛卡尔积展开成单元组
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_bundle_statement_resource` (
+    `id`             BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `statement_id`       BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_bundle_statement.id',
+    `catalog_names`  JSON NOT NULL                     COMMENT '具体值多选 / ["*"]全部 / []该层不适用',
+    `database_names` JSON NOT NULL                     COMMENT '同上语义',
+    `table_names`    JSON NOT NULL                     COMMENT '同上语义',
+    `column_names`   JSON NOT NULL                     COMMENT '同上语义',
+    INDEX `idx_block` (`statement_id`)
+) ENGINE=InnoDB COMMENT='权限包作用域块内库表行(每层可多选)';
 
 
 -- 4. 用户被授予的权限包
-CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_role_grant` (
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_bundle_grant` (
     `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     `user_id`             BIGINT NOT NULL                   COMMENT '被授予用户 t_r_user.id',
     `source_approval_id`  BIGINT NOT NULL                   COMMENT '关联 t_r_approval_record.id',
-    `role_id`             BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_role.id',
+    `bundle_id`             BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_bundle.id',
     `effective_time`      DATETIME NOT NULL                 COMMENT '生效起点(审批通过时间)',
     `expiration_time`    DATETIME                          COMMENT 'NULL=永久; 否则=失效时间',
     `end_reason`          VARCHAR(32)                       COMMENT 'EXPIRED/REVOKED/ROLE_DELETED',
     `end_by`              BIGINT                            COMMENT '撤销操作人 user_id',
     `end_note`            VARCHAR(512)                      COMMENT '撤销备注',
     INDEX `idx_user` (`user_id`),
-    INDEX `idx_role` (`role_id`),
+    INDEX `idx_role` (`bundle_id`),
     INDEX `idx_approval` (`source_approval_id`),
     INDEX `idx_user_time` (`user_id`, `effective_time`, `expiration_time`)
 ) ENGINE=InnoDB COMMENT='用户被授予的权限包';
 
--- 5. 用户的 direct 授权 (不经权限包)
+-- 5. 用户的 direct 授权块 (不经权限包):一个 scope + 一组分组 + 时间窗,挂多条库表行
 CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_direct_grant` (
     `id`                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     `user_id`             BIGINT NOT NULL                   COMMENT '被授予用户',
     `source_approval_id`  BIGINT NOT NULL                   COMMENT '关联 t_r_approval_record.id',
-    `scope_code` BIGINT NOT NULL                   COMMENT '关联 settings_json.scopes[].code',
-    `catalog_name`        VARCHAR(128)                      COMMENT '同 role_permission',
-    `database_name`       VARCHAR(128)                      COMMENT '同上',
-    `table_name`          VARCHAR(128)                      COMMENT '同上',
-    `column_name`         VARCHAR(128)                      COMMENT '同上',
-    `accesses`            JSON NOT NULL                     COMMENT '同上',
+    `scope_code`          BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_scope.code',
+    `group_ids`           JSON NOT NULL                     COMMENT '该块选中的操作分组 id 列表',
     `effective_time`      DATETIME NOT NULL                 COMMENT '生效起点',
-    `expiration_time`    DATETIME                          COMMENT 'NULL=永久',
+    `expiration_time`     DATETIME                          COMMENT 'NULL=永久',
     `end_reason`          VARCHAR(32)                       COMMENT 'EXPIRED/REVOKED',
     `end_by`              BIGINT                            COMMENT '撤销操作人',
     `end_note`            VARCHAR(512)                      COMMENT '撤销备注',
     INDEX `idx_user` (`user_id`),
     INDEX `idx_approval` (`source_approval_id`),
     INDEX `idx_user_time` (`user_id`, `effective_time`, `expiration_time`)
-) ENGINE=InnoDB COMMENT='用户的 direct 授权(不经权限包)';
+) ENGINE=InnoDB COMMENT='用户的 direct 授权块(不经权限包)';
+
+-- 5.1 direct 块内库表行(每层多选)
+CREATE TABLE IF NOT EXISTS `t_r_data_perm_user_direct_grant_resource` (
+    `id`             BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    `statement_id`       BIGINT NOT NULL                   COMMENT '关联 t_r_data_perm_user_direct_grant.id',
+    `catalog_names`  JSON NOT NULL                     COMMENT '具体值多选 / ["*"]全部 / []该层不适用',
+    `database_names` JSON NOT NULL                     COMMENT '同上语义',
+    `table_names`    JSON NOT NULL                     COMMENT '同上语义',
+    `column_names`   JSON NOT NULL                     COMMENT '同上语义',
+    INDEX `idx_block` (`statement_id`)
+) ENGINE=InnoDB COMMENT='direct 授权块内库表行(每层可多选)';
 
 -- 6. 用户权限事实快照(Local 鉴权 + Ranger 同步对账双用)
 -- 每轮 Reconciler 算 desired 后跟最近版本 diff,有变化升 version 写本轮全部 perm 行。

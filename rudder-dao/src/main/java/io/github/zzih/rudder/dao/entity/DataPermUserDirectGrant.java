@@ -27,10 +27,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 /**
- * 用户的 direct 授权(不经资源包)。
+ * 用户的 direct 授权块(不经权限包):一个 scope + 一组操作分组 + 时间窗,挂多条库表行。
  *
- * <p>申请提交时用户自定义勾选的库表项,审批通过时一次性 INSERT。
- * 资源定位字段内联存(catalog/db/table/column + accesses),不依赖 role_permission。
+ * <p>申请提交时用户自定义的作用域块,审批通过时一次性 INSERT。
  */
 @Data
 @TableName("t_r_data_perm_user_direct_grant")
@@ -43,19 +42,11 @@ public class DataPermUserDirectGrant implements Serializable {
 
     private Long sourceApprovalId;
 
-    /** 引用 {@code DataPermConfig.scopes[].code}。 */
+    /** 引用 {@code t_r_data_perm_scope.code}。 */
     private Long scopeCode;
 
-    private String catalogName;
-
-    private String databaseName;
-
-    private String tableName;
-
-    private String columnName;
-
-    /** JSON 数组字符串。 */
-    private String accesses;
+    /** 操作分组 id 列表,JSON 数组字符串。 */
+    private String groupIds;
 
     private LocalDateTime effectiveTime;
 

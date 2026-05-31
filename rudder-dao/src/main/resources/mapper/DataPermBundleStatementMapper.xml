@@ -1,0 +1,53 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermBundleStatementMapper">
+
+    <select id="queryByBundleId" resultType="io.github.zzih.rudder.dao.entity.DataPermBundleStatement">
+        select *
+        from t_r_data_perm_bundle_statement
+        where bundle_id = #{bundleId}
+        order by id asc
+    </select>
+
+    <!-- 块级分页 + keyword 模糊匹配作用域名 / 库表路径(JSON 文本) / 分组名;按约定走后端分页 + 后端搜索。 -->
+    <select id="queryPageByBundle" resultType="io.github.zzih.rudder.dao.entity.DataPermBundleStatement">
+        select b.*
+        from t_r_data_perm_bundle_statement b
+        left join t_r_data_perm_scope sc on sc.code = b.scope_code
+        <where>
+            b.bundle_id = #{bundleId}
+            <if test="keyword != null and keyword != ''">
+                and (
+                    sc.name like concat('%', #{keyword}, '%')
+                    or exists (
+                        select 1 from t_r_data_perm_bundle_statement_resource r
+                        where r.statement_id = b.id
+                          and (r.catalog_names  like concat('%', #{keyword}, '%')
+                            or r.database_names like concat('%', #{keyword}, '%')
+                            or r.table_names    like concat('%', #{keyword}, '%')
+                            or r.column_names   like concat('%', #{keyword}, '%'))
+                    )
+                    or exists (
+                        select 1 from t_r_data_perm_scope_access_group g
+                        where g.name like concat('%', #{keyword}, '%')
+                          and JSON_CONTAINS(b.group_ids, CAST(g.id AS JSON))
+                    )
+                )
+            </if>
+        </where>
+        order by b.id asc
+    </select>
+
+    <delete id="deleteByBundleId">
+        delete from t_r_data_perm_bundle_statement where bundle_id = #{bundleId}
+    </delete>
+
+    <select id="countByScopeCode" resultType="long">
+        select count(*) from t_r_data_perm_bundle_statement where scope_code = #{scopeCode}
+    </select>
+
+    <select id="countByGroupId" resultType="long">
+        select count(*) from t_r_data_perm_bundle_statement
+        where JSON_CONTAINS(group_ids, CAST(#{groupId} AS JSON))
+    </select>
+
+</mapper>

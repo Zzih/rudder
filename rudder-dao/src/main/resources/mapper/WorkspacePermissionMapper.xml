@@ -1,0 +1,39 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.WorkspacePermissionMapper">
+
+    <select id="queryResourceIdsByWorkspaceAndType" resultType="java.lang.Long">
+        select resource_id
+        from t_r_workspace_permission
+        where workspace_id = #{workspaceId}
+          and resource_type = #{resourceType}
+    </select>
+
+    <select id="queryWorkspaceIdsByResource" resultType="java.lang.Long">
+        select workspace_id
+        from t_r_workspace_permission
+        where resource_type = #{resourceType}
+          and resource_id = #{resourceId}
+    </select>
+
+    <select id="countByResourceAndWorkspace" resultType="long">
+        select count(*)
+        from t_r_workspace_permission
+        where resource_type = #{resourceType}
+          and resource_id = #{resourceId}
+          and workspace_id = #{workspaceId}
+    </select>
+
+    <delete id="deleteByResourceAndWorkspace">
+        delete from t_r_workspace_permission
+        where resource_type = #{resourceType}
+          and resource_id = #{resourceId}
+          and workspace_id = #{workspaceId}
+    </delete>
+
+    <delete id="deleteByResource">
+        delete from t_r_workspace_permission
+        where resource_type = #{resourceType}
+          and resource_id = #{resourceId}
+    </delete>
+
+</mapper>

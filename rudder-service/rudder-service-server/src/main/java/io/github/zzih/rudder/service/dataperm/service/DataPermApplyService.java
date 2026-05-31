@@ -21,17 +21,20 @@ import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.approval.ApprovalResourceType;
 import io.github.zzih.rudder.common.enums.error.DataPermErrorCode;
+import io.github.zzih.rudder.common.enums.workspace.WorkspaceResourceType;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.common.i18n.I18n;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
-import io.github.zzih.rudder.dao.dao.DataPermRoleDao;
-import io.github.zzih.rudder.dao.entity.DataPermRole;
+import io.github.zzih.rudder.dao.dao.DataPermBundleDao;
+import io.github.zzih.rudder.dao.entity.DataPermBundle;
 import io.github.zzih.rudder.dao.entity.User;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermApplyContext;
-import io.github.zzih.rudder.service.dataperm.dto.DataPermRolePermissionItemDTO;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermScopeDTO;
+import io.github.zzih.rudder.service.dataperm.dto.DataPermStatementDTO;
+import io.github.zzih.rudder.service.dataperm.dto.ResourcePathDTO;
+import io.github.zzih.rudder.service.permission.WorkspacePermissionService;
 import io.github.zzih.rudder.service.workflow.ApprovalService;
 import io.github.zzih.rudder.service.workspace.UserService;
 import io.github.zzih.rudder.service.workspace.WorkspaceService;
@@ -52,8 +55,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 数据权限申请提交编排:
  * <ol>
- *   <li>校验:至少一个 roleId 或一个 direct 项;到期日不早于当下</li>
- *   <li>校验 roleIds 都存在</li>
+ *   <li>校验:至少一个 bundleId 或一个 direct 项;到期日不早于当下</li>
+ *   <li>校验 bundleIds 都存在</li>
  *   <li>校验 direct 项的数据源都在申请人当前工作空间已开放</li>
  *   <li>组装 {@link DataPermApplyContext} → 序列化进 {@code ApprovalRequest.extra},
  *       由 {@code ApprovalService.submit} 持久化到 {@code t_r_approval_record.ext_data}</li>
@@ -74,21 +77,23 @@ public class DataPermApplyService {
     private static final DateTimeFormatter EXPIRE_AT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ApprovalService approvalService;
-    private final DataPermRoleDao roleDao;
+    private final DataPermBundleDao bundleDao;
     private final DataPermConfigService configService;
+    private final DataPermScopeAccessGroupService accessGroupService;
     private final UserService userService;
     private final WorkspaceService workspaceService;
+    private final WorkspacePermissionService workspacePermissionService;
 
     /**
      * 提交数据权限申请。返回审批单 id。
      *
-     * @param roleIds       申请的资源包 ids,可空(此时 directItems 必须非空)
-     * @param directItems   申请的 direct 项,可空(此时 roleIds 必须非空)
+     * @param bundleIds       申请的资源包 ids,可空(此时 directGrants 必须非空)
+     * @param directGrants  申请的 direct 作用域块,可空(此时 bundleIds 必须非空)
      * @param expireAt      到期日,null=永久
      * @param reason        申请理由(必填)
      */
-    public Long submit(List<Long> roleIds,
-                       List<DataPermRolePermissionItemDTO> directItems,
+    public Long submit(List<Long> bundleIds,
+                       List<DataPermStatementDTO> directGrants,
                        LocalDateTime expireAt,
                        String reason) {
         Long applicantId = UserContext.requireUserId();
@@ -99,29 +104,41 @@ public class DataPermApplyService {
         if (reason == null || reason.isBlank()) {
             throw new BizException(DataPermErrorCode.APPLICATION_INVALID, "reason required");
         }
-        validateContent(roleIds, directItems, expireAt);
+        validateContent(bundleIds, directGrants, expireAt);
 
-        if (roleIds != null) {
-            for (Long roleId : roleIds) {
-                if (roleDao.selectById(roleId) == null) {
-                    throw new NotFoundException(DataPermErrorCode.ROLE_NOT_FOUND, roleId);
+        if (bundleIds != null) {
+            for (Long bundleId : bundleIds) {
+                // 申请侧只能申请当前工作空间可见的权限包;不可见与不存在统一按 NOT_FOUND,
+                // 既不泄露存在性,也堵死「枚举 id 越权申请其他空间的包」。
+                if (!workspacePermissionService.hasPermission(
+                        WorkspaceResourceType.DATA_PERM_BUNDLE, bundleId, workspaceId)) {
+                    throw new NotFoundException(DataPermErrorCode.ROLE_NOT_FOUND, bundleId);
                 }
             }
         }
 
-        if (directItems != null) {
-            for (DataPermRolePermissionItemDTO item : directItems) {
-                if (item.getScopeCode() == null) {
-                    throw new BizException(DataPermErrorCode.APPLICATION_INVALID,
-                            "directItem.scopeCode required");
+        if (directGrants != null) {
+            for (DataPermStatementDTO block : directGrants) {
+                if (block.getScopeCode() == null) {
+                    throw new BizException(DataPermErrorCode.APPLICATION_INVALID, "block.scopeCode required");
                 }
-                if (configService.findScope(item.getScopeCode()).isEmpty()) {
+                if (configService.findScope(block.getScopeCode()).isEmpty()) {
                     throw new NotFoundException(DataPermErrorCode.RESOURCE_MISSING,
-                            "scope:" + item.getScopeCode());
+                            "scope:" + block.getScopeCode());
                 }
-                if (item.getAccesses() == null || item.getAccesses().isEmpty()) {
-                    throw new BizException(DataPermErrorCode.APPLICATION_INVALID,
-                            "directItem.accesses required");
+                // groupIds 全部存在且属于该 scope,否则抛 ACCESS_GROUP_*
+                accessGroupService.validateGroups(block.getScopeCode(), block.getGroupIds());
+                if (block.getResources() == null || block.getResources().isEmpty()) {
+                    throw new BizException(DataPermErrorCode.APPLICATION_INVALID, "block.resources required");
+                }
+                // 四层全空的库表行物化时每个适用层都会展开成 "*",等于整 scope 授权;与权限包录入口径一致地拒绝。
+                for (ResourcePathDTO r : block.getResources()) {
+                    if (DataPermStatementSupport.normLevel(r.getCatalogNames()).isEmpty()
+                            && DataPermStatementSupport.normLevel(r.getDatabaseNames()).isEmpty()
+                            && DataPermStatementSupport.normLevel(r.getTableNames()).isEmpty()
+                            && DataPermStatementSupport.normLevel(r.getColumnNames()).isEmpty()) {
+                        throw new BizException(DataPermErrorCode.APPLICATION_INVALID, "resource path empty");
+                    }
                 }
             }
         }
@@ -129,8 +146,8 @@ public class DataPermApplyService {
         DataPermApplyContext context = new DataPermApplyContext(
                 applicantId,
                 workspaceId,
-                roleIds == null ? List.of() : List.copyOf(roleIds),
-                directItems == null ? List.of() : List.copyOf(directItems),
+                bundleIds == null ? List.of() : List.copyOf(bundleIds),
+                directGrants == null ? List.of() : List.copyOf(directGrants),
                 expireAt);
         Map<String, String> extra = new HashMap<>();
         extra.put(EXTRA_KEY_DATA_PERM, JsonUtils.toJson(context));
@@ -151,20 +168,20 @@ public class DataPermApplyService {
                 workspaceId,
                 null,
                 reason);
-        log.info("Data perm application submitted: approvalId={}, applicant={}, roles={}, directItems={}",
+        log.info("Data perm application submitted: approvalId={}, applicant={}, roles={}, directGrants={}",
                 approvalId, applicantId,
-                context.roleIds().size(), context.directItems().size());
+                context.bundleIds().size(), context.directGrants().size());
         return approvalId;
     }
 
-    private static void validateContent(List<Long> roleIds,
-                                        List<DataPermRolePermissionItemDTO> directItems,
+    private static void validateContent(List<Long> bundleIds,
+                                        List<DataPermStatementDTO> directGrants,
                                         LocalDateTime expireAt) {
-        boolean hasRoles = roleIds != null && !roleIds.isEmpty();
-        boolean hasDirect = directItems != null && !directItems.isEmpty();
+        boolean hasRoles = bundleIds != null && !bundleIds.isEmpty();
+        boolean hasDirect = directGrants != null && !directGrants.isEmpty();
         if (!hasRoles && !hasDirect) {
             throw new BizException(DataPermErrorCode.APPLICATION_INVALID,
-                    "at least one of roleIds / directItems required");
+                    "at least one of bundleIds / directGrants required");
         }
         if (expireAt != null && expireAt.isBefore(LocalDateTime.now())) {
             throw new BizException(DataPermErrorCode.EXPIRE_DATE_INVALID, expireAt.toString());
@@ -172,7 +189,7 @@ public class DataPermApplyService {
     }
 
     private static String buildTitle(DataPermApplyContext context) {
-        int parts = context.roleIds().size() + context.directItems().size();
+        int parts = context.bundleIds().size() + context.directGrants().size();
         return I18n.t("msg.dataperm.applyTitle", parts);
     }
 
@@ -181,17 +198,20 @@ public class DataPermApplyService {
         sb.append(I18n.t("msg.dataperm.applyContent.header",
                 resolveUsername(context.applicantUserId()),
                 resolveWorkspaceName(context.applicantWorkspaceId()))).append('\n');
-        if (!context.roleIds().isEmpty()) {
+        if (!context.bundleIds().isEmpty()) {
             sb.append(I18n.t("msg.dataperm.applyContent.roles",
-                    String.join(", ", resolveRoleNames(context.roleIds())))).append('\n');
+                    String.join(", ", resolveBundleNames(context.bundleIds())))).append('\n');
         }
-        if (!context.directItems().isEmpty()) {
-            sb.append(I18n.t("msg.dataperm.applyContent.directHeader", context.directItems().size())).append('\n');
-            for (DataPermRolePermissionItemDTO item : context.directItems()) {
-                sb.append(I18n.t("msg.dataperm.applyContent.directLine",
-                        resolveServiceName(item.getScopeCode()),
-                        resourcePath(item),
-                        String.join(",", item.getAccesses()))).append('\n');
+        if (!context.directGrants().isEmpty()) {
+            sb.append(I18n.t("msg.dataperm.applyContent.directHeader", context.directGrants().size())).append('\n');
+            Map<Long, String> groupNameById = accessGroupService.allNames();
+            for (DataPermStatementDTO block : context.directGrants()) {
+                String groups = String.join(",",
+                        DataPermScopeAccessGroupService.resolveNames(block.getGroupIds(), groupNameById));
+                for (ResourcePathDTO r : block.getResources()) {
+                    sb.append(I18n.t("msg.dataperm.applyContent.directLine",
+                            resolveScopeName(block.getScopeCode()), resourcePathLabel(r), groups)).append('\n');
+                }
             }
         }
         String expire = context.expireAt() == null
@@ -211,28 +231,29 @@ public class DataPermApplyService {
         return w == null ? ("workspace#" + workspaceId) : w.getName();
     }
 
-    private List<String> resolveRoleNames(List<Long> roleIds) {
-        Map<Long, String> nameById = roleDao.selectByIds(roleIds).stream()
-                .collect(Collectors.toMap(DataPermRole::getId, DataPermRole::getName));
-        return roleIds.stream()
+    private List<String> resolveBundleNames(List<Long> bundleIds) {
+        Map<Long, String> nameById = bundleDao.selectByIds(bundleIds).stream()
+                .collect(Collectors.toMap(DataPermBundle::getId, DataPermBundle::getName));
+        return bundleIds.stream()
                 .map(id -> nameById.getOrDefault(id, "role#" + id))
                 .toList();
     }
 
-    private String resolveServiceName(Long code) {
+    private String resolveScopeName(Long code) {
         if (code == null) {
             return "?";
         }
         return configService.findScope(code)
                 .map(DataPermScopeDTO::getName)
-                .orElse("service#" + code);
+                .orElse("scope#" + code);
     }
 
-    private static String resourcePath(DataPermRolePermissionItemDTO item) {
+    /** 一条库表行的可读路径:各层值用 "." 连接,某层多值显示 {@code [a,b]},空层跳过。 */
+    private static String resourcePathLabel(ResourcePathDTO r) {
         return java.util.stream.Stream.of(
-                item.getCatalogName(), item.getDatabaseName(),
-                item.getTableName(), item.getColumnName())
-                .filter(java.util.Objects::nonNull)
+                r.getCatalogNames(), r.getDatabaseNames(), r.getTableNames(), r.getColumnNames())
+                .filter(v -> v != null && !v.isEmpty())
+                .map(v -> v.size() == 1 ? v.get(0) : "[" + String.join(",", v) + "]")
                 .collect(Collectors.joining("."));
     }
 }

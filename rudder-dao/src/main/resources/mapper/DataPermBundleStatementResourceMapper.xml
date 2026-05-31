@@ -1,0 +1,76 @@
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.zzih.rudder.dao.mapper.DataPermBundleStatementResourceMapper">
+
+    <delete id="deleteByStatementId">
+        delete from t_r_data_perm_bundle_statement_resource where statement_id = #{statementId}
+    </delete>
+
+    <select id="queryViewsByBundleIds"
+            resultType="io.github.zzih.rudder.dao.entity.view.DataPermBundleStatementResourceView">
+        select r.id, r.statement_id,
+               r.catalog_names, r.database_names, r.table_names, r.column_names,
+               b.bundle_id, b.scope_code, b.group_ids,
+               sc.name              as scope_name,
+               sc.plugin_type       as plugin_type,
+               sc.ranger_service_name as ranger_service_name,
+               sc.enabled           as scope_enabled
+        from t_r_data_perm_bundle_statement_resource r
+        join t_r_data_perm_bundle_statement b on b.id = r.statement_id
+        left join t_r_data_perm_scope sc on sc.code = b.scope_code
+        where b.bundle_id in
+        <foreach collection="bundleIds" item="rid" open="(" separator="," close=")">#{rid}</foreach>
+        order by b.id asc, r.id asc
+    </select>
+
+    <select id="queryViewsByStatementIds"
+            resultType="io.github.zzih.rudder.dao.entity.view.DataPermBundleStatementResourceView">
+        select r.id, r.statement_id,
+               r.catalog_names, r.database_names, r.table_names, r.column_names,
+               b.bundle_id, b.scope_code, b.group_ids,
+               sc.name              as scope_name,
+               sc.plugin_type       as plugin_type,
+               sc.ranger_service_name as ranger_service_name,
+               sc.enabled           as scope_enabled
+        from t_r_data_perm_bundle_statement_resource r
+        join t_r_data_perm_bundle_statement b on b.id = r.statement_id
+        left join t_r_data_perm_scope sc on sc.code = b.scope_code
+        where b.id in
+        <foreach collection="statementIds" item="bid" open="(" separator="," close=")">#{bid}</foreach>
+        order by b.id asc, r.id asc
+    </select>
+
+    <select id="queryPageFlattenedByBundle" resultType="io.github.zzih.rudder.dao.projection.GrantItemRow">
+        select b.scope_code              as scopeCode,
+               sc.name                   as scopeName,
+               b.group_ids               as groupIds,
+               c.v                       as catalogName,
+               d.v                       as databaseName,
+               t.v                       as tableName,
+               col.v                     as columnName
+        from t_r_data_perm_bundle_statement_resource r
+        join t_r_data_perm_bundle_statement b on b.id = r.statement_id
+        left join t_r_data_perm_scope sc on sc.code = b.scope_code
+        join json_table(if(json_length(r.catalog_names) = 0, cast('[null]' as json), r.catalog_names),
+             '$[*]' columns(v varchar(512) path '$')) c
+        join json_table(if(json_length(r.database_names) = 0, cast('[null]' as json), r.database_names),
+             '$[*]' columns(v varchar(512) path '$')) d
+        join json_table(if(json_length(r.table_names) = 0, cast('[null]' as json), r.table_names),
+             '$[*]' columns(v varchar(512) path '$')) t
+        join json_table(if(json_length(r.column_names) = 0, cast('[null]' as json), r.column_names),
+             '$[*]' columns(v varchar(512) path '$')) col
+        where b.bundle_id = #{bundleId}
+        order by b.id asc, r.id asc, c.v asc, d.v asc, t.v asc, col.v asc
+    </select>
+
+    <select id="sumFlattenedByBundle" resultType="long">
+        select coalesce(sum(
+                   greatest(json_length(r.catalog_names), 1) *
+                   greatest(json_length(r.database_names), 1) *
+                   greatest(json_length(r.table_names), 1) *
+                   greatest(json_length(r.column_names), 1)), 0)
+        from t_r_data_perm_bundle_statement_resource r
+        join t_r_data_perm_bundle_statement b on b.id = r.statement_id
+        where b.bundle_id = #{bundleId}
+    </select>
+
+</mapper>

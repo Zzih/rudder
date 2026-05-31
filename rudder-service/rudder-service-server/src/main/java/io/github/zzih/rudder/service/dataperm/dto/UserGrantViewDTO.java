@@ -38,11 +38,11 @@ public class UserGrantViewDTO {
 
     private Kind kind;
 
-    /** ROLE 时填,关联 t_r_data_perm_role.id;DIRECT 时为 null。 */
-    private Long roleId;
+    /** ROLE 时填,关联 t_r_data_perm_bundle.id;DIRECT 时为 null。 */
+    private Long bundleId;
 
     /** ROLE 时填 role.name;DIRECT 时为 "Direct 授权"。 */
-    private String roleName;
+    private String bundleName;
 
     private Long sourceApprovalId;
 
@@ -56,6 +56,9 @@ public class UserGrantViewDTO {
     /** 失效原因,active grant 为 null。 */
     private String endReason;
 
-    /** ROLE 类型:role 当前的全部 permission 项;DIRECT 类型:该 grant 本身一条 item。 */
-    private List<DataPermRolePermissionItemDTO> permissions;
+    /** ROLE 类型:role 当前的全部 permission 项;DIRECT 类型:该 grant 本身一条 item。聚合摘要视图不填(改用 permCount)。 */
+    private List<DataPermPermissionItemDTO> permissions;
+
+    /** 聚合摘要视图填:该来源当前的库表行(资源行)条数;明细视图不填。 */
+    private Long permCount;
 }
