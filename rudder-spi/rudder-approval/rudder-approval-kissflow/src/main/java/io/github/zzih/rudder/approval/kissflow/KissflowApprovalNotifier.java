@@ -36,99 +36,61 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Kissflow 审批通知器。
  * <p>
- * 提交审批：调用 Kissflow Process API 创建流程实例。
- * 处理回调：解析 Kissflow Webhook 推送的状态变更事件。
+ * 提交审批：先以表单字段建实例草稿，再 submit 进入流程（Kissflow Process v2 API 分两步）。
+ * 处理回调：解析 Kissflow Webhook 推送的工作流事件。
  */
 @Slf4j
 public class KissflowApprovalNotifier implements ApprovalNotifier {
 
-    private final String apiKey;
+    static final String CHANNEL = "KISSFLOW";
+
+    // Kissflow access key 鉴权：key id 明文 + secret 成对走 header，非 Bearer。
+    private static final String HEADER_ACCESS_KEY_ID = "X-Access-Key-Id";
+    private static final String HEADER_ACCESS_KEY_SECRET = "X-Access-Key-Secret";
+
+    // 约定字段 ID：流程表单须按此命名，Rudder 直接以这些 ID 写入。阶段候选人字段 ID 等于阶段标识。
+    private static final String FIELD_TITLE = "Title";
+    private static final String FIELD_CONTENT = "Description";
+    private static final String FIELD_APPLICANT = "Applicant";
+
+    private final String accessKeyId;
+    private final String accessKeySecret;
     private final String accountId;
     private final String processId;
-    private final String titleField;
-    private final String contentField;
-    private final String applicantField;
-    /** 阶段名 → Kissflow 字段名（多阶段映射）。无配置时跳过该阶段填充。 */
-    private final Map<String, String> stageFieldMapping;
 
-    public KissflowApprovalNotifier(String apiKey, String accountId, String processId,
-                                    String titleField, String contentField, String applicantField,
-                                    Map<String, String> stageFieldMapping) {
-        this.apiKey = apiKey;
+    public KissflowApprovalNotifier(String accessKeyId, String accessKeySecret, String accountId, String processId) {
+        this.accessKeyId = accessKeyId;
+        this.accessKeySecret = accessKeySecret;
         this.accountId = accountId;
         this.processId = processId;
-        this.titleField = (titleField == null || titleField.isBlank()) ? "Title" : titleField;
-        this.contentField = (contentField == null || contentField.isBlank()) ? "Description" : contentField;
-        this.applicantField = applicantField;
-        this.stageFieldMapping = stageFieldMapping == null ? Map.of() : Map.copyOf(stageFieldMapping);
     }
 
     @Override
     public String getProvider() {
-        return "KISSFLOW";
+        return CHANNEL;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public String submitApproval(ApprovalRequest request) {
-        String url = String.format(
-                "https://%s.kissflow.com/api/1/process/%s/submit", accountId, processId);
+        Map<String, Object> fields = buildFields(request);
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put(titleField, request.getTitle());
-        if (request.getContent() != null) {
-            body.put(contentField, request.getContent());
-        }
+        String createUrl = String.format("%s/process/2/%s/%s", baseUrl(), accountId, processId);
+        String createResp = HttpUtils.postJson(createUrl, JsonUtils.toJson(fields), authHeaders());
+        Map<String, Object> created = JsonUtils.fromJson(createResp, Map.class);
 
-        // 申请人 email 优先使用 ApprovalRequest 字段，回退到 extra（兼容旧调用方）
-        String initiatorEmail = request.getApplicantEmail();
-        if (initiatorEmail == null || initiatorEmail.isBlank()) {
-            Map<String, String> extra = request.getExtra();
-            initiatorEmail = extra != null ? extra.get(INITIATOR_EMAIL) : null;
-        }
-        if (initiatorEmail != null && !initiatorEmail.isBlank()) {
-            body.put("_created_by", initiatorEmail);
-            if (applicantField != null && !applicantField.isBlank()) {
-                body.put(applicantField, initiatorEmail);
-            }
-        }
-
-        // 各阶段候选人 emails → 填到对应 Kissflow 字段
-        Map<String, List<String>> stageCandidates = request.getStageCandidates();
-        if (stageCandidates != null && !stageCandidates.isEmpty() && !stageFieldMapping.isEmpty()) {
-            for (Map.Entry<String, List<String>> entry : stageCandidates.entrySet()) {
-                String stage = entry.getKey();
-                String fieldName = stageFieldMapping.get(stage);
-                if (fieldName == null || fieldName.isBlank()) {
-                    log.warn("Kissflow approval stage '{}' has no field mapping, skipping", stage);
-                    continue;
-                }
-                List<String> emails = entry.getValue();
-                if (emails == null || emails.isEmpty()) {
-                    log.warn("Kissflow approval stage '{}' has empty candidates", stage);
-                    continue;
-                }
-                body.put(fieldName, emails);
-            }
-        }
-
-        String json = JsonUtils.toJson(body);
-        log.debug("Kissflow create process instance request: {}", json);
-
-        String resp = HttpUtils.postJson(url, json,
-                Map.of("Authorization", "Bearer " + apiKey));
-
-        Map<String, Object> result = JsonUtils.fromJson(resp, Map.class);
-        String instanceId = (String) result.get("_id");
-        if (instanceId == null) {
-            instanceId = (String) result.get("Id");
-        }
-        if (instanceId == null) {
+        String instanceId = firstString(created, "InstanceId", "_id");
+        String activityInstanceId = firstString(created, "ActivityInstanceId", "_activity_instance_id");
+        if (instanceId == null || activityInstanceId == null) {
             throw new RuntimeException(
-                    "Failed to create Kissflow process instance: " + resp);
+                    "Kissflow create instance returned no InstanceId/ActivityInstanceId: " + createResp);
         }
 
-        log.info("Created Kissflow process instance: {}", instanceId);
+        String submitUrl = String.format("%s/process/2/%s/%s/%s/%s/submit",
+                baseUrl(), accountId, processId, instanceId, activityInstanceId);
+        HttpUtils.postJson(submitUrl, "{}", authHeaders());
+
+        log.info("Submitted Kissflow process instance: {}", instanceId);
         return instanceId;
     }
 
@@ -141,40 +103,93 @@ public class KissflowApprovalNotifier implements ApprovalNotifier {
             return ApprovalCallbackResult.empty();
         }
 
-        String instanceId = (String) event.get("_id");
-        if (instanceId == null) {
-            instanceId = (String) event.get("Id");
-        }
-        String status = (String) event.get("_current_step");
-        if (status == null) {
-            status = (String) event.get("Status");
-        }
-        String approver = (String) event.get("_last_action_performed_by");
-
-        if (instanceId == null || status == null) {
-            log.debug("Ignoring Kissflow event: missing instanceId or status");
+        // Kissflow 无固定审批结果 webhook，回调由流程内 HTTP connector 按约定 body 外发。
+        String instanceId = firstString(event, "instanceId", "InstanceId", "_id");
+        String approver = firstString(event, "approver", "_last_action_performed_by");
+        String signal = firstString(event, "action", "status", "Status");
+        if (instanceId == null || signal == null) {
+            log.debug("Ignoring Kissflow event: missing instanceId or action");
             return ApprovalCallbackResult.empty();
         }
 
-        ApprovalAction action;
-        String normalizedStatus = status.toUpperCase();
-        if (normalizedStatus.contains("APPROVED") || normalizedStatus.contains("COMPLETED")) {
-            action = ApprovalAction.APPROVED;
-        } else if (normalizedStatus.contains("REJECTED") || normalizedStatus.contains("DENIED")) {
-            action = ApprovalAction.REJECTED;
-        } else {
-            log.debug("Ignoring Kissflow status: {}", status);
+        ApprovalAction action = toAction(signal);
+        if (action == null) {
+            log.debug("Ignoring Kissflow signal: {}", signal);
             return ApprovalCallbackResult.empty();
         }
 
         ApprovalCallback callback = new ApprovalCallback();
-        callback.setChannel("KISSFLOW");
+        callback.setChannel(CHANNEL);
         callback.setExternalApprovalId(instanceId);
         callback.setAction(action);
         callback.setApprover(approver);
 
-        log.info("Kissflow approval callback: instance={}, status={}, approver={}",
-                instanceId, status, approver);
+        log.info("Kissflow approval callback: instance={}, signal={}, approver={}",
+                instanceId, signal, approver);
         return ApprovalCallbackResult.ofCallback(callback);
+    }
+
+    private Map<String, Object> buildFields(ApprovalRequest request) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put(FIELD_TITLE, request.getTitle());
+        if (request.getContent() != null) {
+            fields.put(FIELD_CONTENT, request.getContent());
+        }
+
+        String email = applicantEmail(request);
+        if (email != null) {
+            fields.put(FIELD_APPLICANT, email);
+        }
+
+        // 约定：阶段候选人字段 ID 等于阶段标识（ApprovalLevel.name()），key 直接作字段名写入。
+        Map<String, List<String>> stageCandidates = request.getStageCandidates();
+        if (stageCandidates != null) {
+            stageCandidates.forEach((stage, emails) -> {
+                if (emails == null || emails.isEmpty()) {
+                    log.warn("Kissflow approval stage '{}' has empty candidates", stage);
+                } else {
+                    fields.put(stage, emails);
+                }
+            });
+        }
+        return fields;
+    }
+
+    private static String applicantEmail(ApprovalRequest request) {
+        String email = request.getApplicantEmail();
+        if (email == null || email.isBlank()) {
+            Map<String, String> extra = request.getExtra();
+            email = extra != null ? extra.get(INITIATOR_EMAIL) : null;
+        }
+        return (email == null || email.isBlank()) ? null : email;
+    }
+
+    private String baseUrl() {
+        return "https://" + accountId + ".kissflow.com";
+    }
+
+    private Map<String, String> authHeaders() {
+        return Map.of(HEADER_ACCESS_KEY_ID, accessKeyId, HEADER_ACCESS_KEY_SECRET, accessKeySecret);
+    }
+
+    private static String firstString(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof String s && !s.isBlank()) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    private static ApprovalAction toAction(String signal) {
+        String s = signal.toUpperCase();
+        if (s.contains("APPROV") || s.contains("COMPLETED") || s.contains("DONE")) {
+            return ApprovalAction.APPROVED;
+        }
+        if (s.contains("REJECT") || s.contains("DENIED")) {
+            return ApprovalAction.REJECTED;
+        }
+        return null;
     }
 }

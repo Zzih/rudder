@@ -145,56 +145,52 @@ https://your-rudder-host/api/approvals/callback
 
 ### 步骤 2：表单字段（Form Fields）
 
-| Field Name（建议）| 类型 | 说明 |
+Kissflow 的 Field ID 可在创建时自定，因此采用**约定命名**——字段 ID 须与下列完全一致（系统直接按这些 ID 写入；字段 ID 发布后不可更改、不能含空格，显示名可另取）：
+
+| Field ID（必须一致）| 类型 | 说明 |
 |---|---|---|
 | `Title` | Text | 审批标题 |
 | `Description` | Long Text | 审批描述 |
-| `Applicant` | User Picker (single) | 申请人（可选）|
-| `Approver_Level_1` | User Picker (multi) | 项目级候选审批人 |
-| `Approver_Level_2` | User Picker (multi) | 工作空间级候选审批人 |
+| `Applicant` | User Picker (single) | 申请人（用于 `Applicant.Manager` 等引用）|
+| `PROJECT_OWNER` | User Picker (multi) | 项目级候选审批人 |
+| `WORKSPACE_OWNER` | User Picker (multi) | 工作空间级候选审批人 |
+| `SUPER_ADMIN` | User Picker (multi) | 平台管理员（高敏申请二级审批）|
 
-Kissflow 的 Field Name 是用户自己起的可读字符串（不像飞书是自动生成的乱码），所以**配置非常直观**。
+只需为流程实际会触发的阶段创建对应字段；用不到的阶段无需创建。
 
 ### 步骤 3：Workflow Steps
 
+每个阶段一个审批节点，按 `PROJECT_OWNER → WORKSPACE_OWNER → SUPER_ADMIN` 顺序排列，审批人动态取自同名字段，并加「字段为空则跳过」条件：
+
 ```
-┌──────────────────────────────────┐
-│ Step 1: Approval                 │
-│   Approver = Dynamic → From Field│
-│              → "Approver_Level_1"│
-│   Decision = Anyone Can Approve  │
-└──────────────────────────────────┘
-                 ↓
-┌──────────────────────────────────┐
-│ Step 2: Approval                 │
-│   Approver = Dynamic → From Field│
-│              → "Approver_Level_2"│
-│   Decision = Anyone Can Approve  │
-└──────────────────────────────────┘
+┌────────────────────────────────────┐
+│ Step: Approval                     │
+│   Approver = Dynamic → From Field  │
+│              → "PROJECT_OWNER"     │
+│   Skip if "PROJECT_OWNER" is empty │
+└────────────────────────────────────┘
+                 ↓  (WORKSPACE_OWNER, SUPER_ADMIN 同理)
 ```
 
 ### 步骤 4：Rudder Admin 配置
 
 ```
-渠道类型：     KISSFLOW
-API Key：      ********
-Account ID：   your-account
-Process ID：   PUBLISH_APPROVAL
-标题字段名：    Title              (默认 Title 可不填)
-内容字段名：    Description        (默认 Description 可不填)
-申请人字段名：  Applicant          (可选)
-阶段→字段名 JSON 映射：
-{
-  "PROJECT_OWNER":   "Approver_Level_1",
-  "WORKSPACE_OWNER": "Approver_Level_2"
-}
+渠道类型：          KISSFLOW
+Access Key ID：     ********   (Service Account 的 access key)
+Access Key Secret： ********
+Account ID：        your-account
+Process ID：        PUBLISH_APPROVAL
 ```
 
-### 步骤 5：Webhook 回调
+无字段名 / 阶段映射配置——字段命名走约定（见步骤 2）。
 
-进 Kissflow Process settings → Webhooks → 添加：
-- URL：`https://your-rudder-host/api/approvals/callback`
-- Events：Process Submission Status Changes
+### 步骤 5：结果回调（HTTP connector）
+
+Kissflow 无固定格式的审批结果 Webhook，需在流程内通过 Integration 的 HTTP connector 外发：
+
+- 触发器：Kissflow Process（本流程），事件为审批通过 / 拒绝
+- 动作：Make an HTTP call (POST) → `https://your-rudder-host/api/approvals/callback/KISSFLOW`
+- Body（raw JSON）：`{"instanceId": "<Instance ID>", "action": "APPROVED", "approver": "<审批人>"}`（拒绝事件 `action` 填 `REJECTED`）
 
 ---
 
@@ -239,7 +235,7 @@ Rudder 已经按阶段链精确填充：
 | 阶段没配 widget mapping | log warn `stage 'X' has no widget mapping, skipping` | 检查 admin 后台的 `stageFieldMapping` JSON |
 | stageFieldMapping JSON 解析失败 | JSON 格式错（缺引号 / 多余逗号） | log debug 后回退空 Map → 候选人不填 → 飞书报错 |
 | 飞书审批通过后 Rudder 单子没终结 | 回调没收到 | 检查飞书事件订阅状态；检查 Rudder `/api/approvals/callback` 是否可达 |
-| Kissflow Webhook 没触发 | Process 设置 → Webhook 没配 | 在 Kissflow 后台加 Webhook |
+| Kissflow 审批完成后无回调 | 未配结果回调的 HTTP connector 集成 | 建 Process 触发的 Integration，HTTP POST 到 `/api/approvals/callback/KISSFLOW`，body 含 `instanceId` + `action` |
 | Rudder 用户邮箱跟外部账户不一致 | user.email != 飞书/Kissflow 账户邮箱 | 一期不支持映射表，需保证一致 |
 
 ---

@@ -43,8 +43,12 @@ public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory<
     public List<PluginParamDefinition> params() {
         return List.of(
                 PluginParamDefinition.builder()
-                        .name("apiKey").label("API Key").type("password")
-                        .required(true).placeholder("Kissflow API Key")
+                        .name("accessKeyId").label("Access Key ID").type("input")
+                        .required(true).placeholder("Kissflow Access Key ID")
+                        .build(),
+                PluginParamDefinition.builder()
+                        .name("accessKeySecret").label("Access Key Secret").type("password")
+                        .required(true).placeholder("Kissflow Access Key Secret")
                         .build(),
                 PluginParamDefinition.builder()
                         .name("accountId").label("Account ID").type("input")
@@ -53,33 +57,12 @@ public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory<
                 PluginParamDefinition.builder()
                         .name("processId").label("Process ID").type("input")
                         .required(true).placeholder("spi.approval.kissflow.processId.placeholder")
-                        .build(),
-                PluginParamDefinition.builder()
-                        .name("titleField").label("spi.approval.kissflow.titleField.label").type("input")
-                        .required(false).placeholder("spi.approval.kissflow.titleField.placeholder")
-                        .build(),
-                PluginParamDefinition.builder()
-                        .name("contentField").label("spi.approval.kissflow.contentField.label").type("input")
-                        .required(false).placeholder("spi.approval.kissflow.contentField.placeholder")
-                        .build(),
-                PluginParamDefinition.builder()
-                        .name("applicantField").label("spi.approval.kissflow.applicantField.label").type("input")
-                        .required(false).placeholder("spi.approval.kissflow.applicantField.placeholder")
-                        .build(),
-                PluginParamDefinition.builder()
-                        .name("stageFieldMapping").label("spi.approval.kissflow.stageFieldMapping.label")
-                        .type("textarea")
-                        .required(false)
-                        .placeholder(
-                                "{\"PROJECT_OWNER\":\"Approver_Level_1\",\"WORKSPACE_OWNER\":\"Approver_Level_2\"}")
                         .build());
     }
 
     @Override
     public ApprovalNotifier create(ProviderContext ctx, KissflowApprovalProperties props) {
         return new KissflowApprovalNotifier(
-                props.apiKey(), props.accountId(), props.processId(),
-                props.titleField(), props.contentField(), props.applicantField(),
-                props.stageFieldMapping());
+                props.accessKeyId(), props.accessKeySecret(), props.accountId(), props.processId());
     }
 }

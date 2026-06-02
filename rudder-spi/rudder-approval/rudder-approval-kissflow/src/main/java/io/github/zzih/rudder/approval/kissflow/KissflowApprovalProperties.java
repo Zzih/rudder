@@ -17,38 +17,24 @@
 
 package io.github.zzih.rudder.approval.kissflow;
 
-import java.util.Map;
-
 public record KissflowApprovalProperties(
-        String apiKey,
+        String accessKeyId,
+        String accessKeySecret,
         String accountId,
-        String processId,
-        String titleField,
-        String contentField,
-        String applicantField,
-        Map<String, String> stageFieldMapping) {
+        String processId) {
 
     public KissflowApprovalProperties {
-        if (apiKey == null) {
-            apiKey = "";
+        if (accessKeyId == null) {
+            accessKeyId = "";
+        }
+        if (accessKeySecret == null) {
+            accessKeySecret = "";
         }
         if (accountId == null) {
             accountId = "";
         }
         if (processId == null) {
             processId = "";
-        }
-        if (titleField == null || titleField.isBlank()) {
-            titleField = "Title";
-        }
-        if (contentField == null || contentField.isBlank()) {
-            contentField = "Description";
-        }
-        if (applicantField == null) {
-            applicantField = "";
-        }
-        if (stageFieldMapping == null) {
-            stageFieldMapping = Map.of();
         }
     }
 }
