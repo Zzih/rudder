@@ -27,6 +27,10 @@ import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.common.utils.net.HttpUtils;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -147,9 +151,15 @@ public class KissflowApprovalNotifier implements ApprovalNotifier {
             fields.put(FIELD_CONTENT, request.getContent());
         }
 
+        // Kissflow 人员字段要求 {_id} 对象，且 _id 是用户内部 ID 非邮箱，须先按邮箱解析。
+        Map<String, String> userIdCache = new HashMap<>();
+
         String email = applicantEmail(request);
         if (email != null) {
-            fields.put(FIELD_APPLICANT, email);
+            List<Map<String, String>> refs = resolveRefs(List.of(email), userIdCache);
+            if (!refs.isEmpty()) {
+                fields.put(FIELD_APPLICANT, refs.get(0));
+            }
         }
 
         // 约定：阶段候选人字段 ID 等于阶段标识（ApprovalLevel.name()），key 直接作字段名写入。
@@ -158,12 +168,53 @@ public class KissflowApprovalNotifier implements ApprovalNotifier {
             stageCandidates.forEach((stage, emails) -> {
                 if (emails == null || emails.isEmpty()) {
                     log.warn("Kissflow approval stage '{}' has empty candidates", stage);
+                    return;
+                }
+                List<Map<String, String>> refs = resolveRefs(emails, userIdCache);
+                if (refs.isEmpty()) {
+                    log.warn("Kissflow approval stage '{}' has no resolvable candidates", stage);
                 } else {
-                    fields.put(stage, emails);
+                    fields.put(stage, refs);
                 }
             });
         }
         return fields;
+    }
+
+    // 邮箱列表 → Kissflow 人员字段值 [{_id}]；解析不到的邮箱跳过并 warn。
+    private List<Map<String, String>> resolveRefs(List<String> emails, Map<String, String> cache) {
+        List<Map<String, String>> refs = new ArrayList<>();
+        for (String email : emails) {
+            String userId = cache.computeIfAbsent(email.toLowerCase(), k -> resolveUserId(email));
+            if (userId == null) {
+                log.warn("Kissflow user not found for email '{}', skipping", email);
+            } else {
+                refs.add(Map.of("_id", userId));
+            }
+        }
+        return refs;
+    }
+
+    // Kissflow 人员字段的 _id 是用户内部 ID（非邮箱），按邮箱搜 user list 解析。
+    private String resolveUserId(String email) {
+        String url = String.format("%s/user/2/%s/?q=%s&page_size=2",
+                baseUrl(), accountId, URLEncoder.encode(email, StandardCharsets.UTF_8));
+        try {
+            List<Map> users = JsonUtils.toList(HttpUtils.get(url, authHeaders()), Map.class);
+            if (users.isEmpty()) {
+                return null;
+            }
+            for (Map user : users) {
+                if (user.get("Email") instanceof String e && e.equalsIgnoreCase(email)) {
+                    return (String) user.get("_id");
+                }
+            }
+            // 响应不含 Email 字段时，完整邮箱搜索应只命中目标用户。
+            return users.size() == 1 ? (String) users.get(0).get("_id") : null;
+        } catch (RuntimeException ex) {
+            log.warn("Kissflow user lookup failed for '{}': {}", email, ex.getMessage());
+            return null;
+        }
     }
 
     private static String applicantEmail(ApprovalRequest request) {
