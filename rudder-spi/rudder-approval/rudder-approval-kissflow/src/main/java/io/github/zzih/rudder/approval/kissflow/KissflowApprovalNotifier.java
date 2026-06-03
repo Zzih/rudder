@@ -56,13 +56,24 @@ public class KissflowApprovalNotifier implements ApprovalNotifier {
     private final String accessKeyId;
     private final String accessKeySecret;
     private final String accountId;
+    private final String domain;
     private final String processId;
 
-    public KissflowApprovalNotifier(String accessKeyId, String accessKeySecret, String accountId, String processId) {
+    public KissflowApprovalNotifier(String accessKeyId, String accessKeySecret, String accountId, String domain,
+                                    String processId) {
         this.accessKeyId = accessKeyId;
         this.accessKeySecret = accessKeySecret;
         this.accountId = accountId;
+        // 账户域名独立于 accountId：API 主机用登录子域名，路径用 account_id，两者可不同。
+        this.domain = normalizeDomain(domain);
         this.processId = processId;
+    }
+
+    private static String normalizeDomain(String domain) {
+        if (domain == null) {
+            return "";
+        }
+        return domain.trim().replaceFirst("^https?://", "").replaceAll("/+$", "");
     }
 
     @Override
@@ -165,7 +176,7 @@ public class KissflowApprovalNotifier implements ApprovalNotifier {
     }
 
     private String baseUrl() {
-        return "https://" + accountId + ".kissflow.com";
+        return "https://" + domain;
     }
 
     private Map<String, String> authHeaders() {

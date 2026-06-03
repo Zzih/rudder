@@ -52,7 +52,11 @@ public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory<
                         .build(),
                 PluginParamDefinition.builder()
                         .name("accountId").label("Account ID").type("input")
-                        .required(true).placeholder("Kissflow Account ID")
+                        .required(true).placeholder("Kissflow Account ID (My settings → API authentication)")
+                        .build(),
+                PluginParamDefinition.builder()
+                        .name("domain").label("Account Domain").type("input")
+                        .required(true).placeholder("xxx.kissflow.com")
                         .build(),
                 PluginParamDefinition.builder()
                         .name("processId").label("Process ID").type("input")
@@ -63,6 +67,6 @@ public class KissflowApprovalNotifierFactory implements ApprovalNotifierFactory<
     @Override
     public ApprovalNotifier create(ProviderContext ctx, KissflowApprovalProperties props) {
         return new KissflowApprovalNotifier(
-                props.accessKeyId(), props.accessKeySecret(), props.accountId(), props.processId());
+                props.accessKeyId(), props.accessKeySecret(), props.accountId(), props.domain(), props.processId());
     }
 }

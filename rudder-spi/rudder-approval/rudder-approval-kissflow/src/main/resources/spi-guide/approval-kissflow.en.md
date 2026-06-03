@@ -12,9 +12,12 @@ The Kissflow API authenticates with an Access Key (an ID + Secret pair) sent in 
 2. Under the Service Account's **Access keys** tab, click **Create access key**, name it, and set an expiry (6 months to 2 years)
 3. Copy the **Access Key ID** and **Access Key Secret**; the secret is shown only at creation time
 
-### 2. Get the Account ID
+### 2. Get the Account ID and Account Domain
 
-Your Kissflow URL has the form `https://{account_id}.kissflow.com/`. The `{account_id}` segment is the Account ID.
+These are two different values, both required:
+
+- **Account ID**: copy it from **My settings → API authentication → Account ID** (an alphanumeric string). It is used in the API path and is **not** the subdomain in your login URL.
+- **Account Domain**: your login host, in the form `your-company.kissflow.com` (the `xxx.kissflow.com` part of `https://xxx.kissflow.com/`). It is used as the API host.
 
 ### 3. Create the approval process
 
