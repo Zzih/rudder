@@ -20,6 +20,7 @@ package io.github.zzih.rudder.service.workflow;
 import io.github.zzih.rudder.approval.api.model.ApprovalAction;
 import io.github.zzih.rudder.approval.api.model.ApprovalCallback;
 import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
+import io.github.zzih.rudder.approval.api.model.StageDecision;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.approval.ApprovalStatus;
 import io.github.zzih.rudder.common.enums.approval.DecisionRule;
@@ -378,6 +379,15 @@ public class ApprovalService {
                     callback.getExternalApprovalId(), record.getStatus());
             return;
         }
+
+        // 外部渠道回传逐级明细时，按各级自带的 stage 落库（每级谁批、何时），再 finalize。
+        List<StageDecision> stageDecisions = callback.getStageDecisions();
+        if (stageDecisions != null && !stageDecisions.isEmpty()) {
+            recordStageDecisions(record, stageDecisions);
+            finalize(record, statusOf(callback.getAction()));
+            return;
+        }
+
         String stage = record.getCurrentStage();
         Long deciderUserId = lookupUserIdByUsername(callback.getApprover());
         boolean approve = callback.getAction() == ApprovalAction.APPROVED;
@@ -394,7 +404,11 @@ public class ApprovalService {
         // 外部渠道（LARK / KISSFLOW / ...）的多阶段流转由外部模板内部完成,
         // 回调到达时整单已全部走完 → 直接 finalize, 不走 advance。
         // 仅 LOCAL 渠道需要 Rudder 控制 advance（但 LOCAL 不会走到此回调路径）。
-        finalize(record, approve ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED);
+        finalize(record, statusOf(callback.getAction()));
+    }
+
+    private static ApprovalStatus statusOf(ApprovalAction action) {
+        return action == ApprovalAction.APPROVED ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED;
     }
 
     /**
@@ -456,15 +470,35 @@ public class ApprovalService {
         }
     }
 
+    /** 逐级决议落库：approver 为外部渠道身份邮箱，按邮箱关联 Rudder 用户填真实 userId/username。 */
+    private void recordStageDecisions(ApprovalRecord record, List<StageDecision> decisions) {
+        for (StageDecision d : decisions) {
+            User decider = d.approver() == null ? null : userDao.selectByEmail(d.approver());
+            Long deciderUserId = decider != null ? decider.getId() : null;
+            String deciderUsername = decider != null ? decider.getUsername() : d.approver();
+            try {
+                recordDecision(record.getId(), d.stage(), deciderUserId, deciderUsername,
+                        d.action() == ApprovalAction.APPROVED, null, d.decidedAt());
+            } catch (DuplicateKeyException e) {
+                log.info("Duplicate stage decision ignored: id={}, stage={}", record.getId(), d.stage());
+            }
+        }
+    }
+
     private void recordDecision(Long approvalId, String stage, Long deciderUserId,
                                 String deciderUsername, boolean approve, String remark) {
+        recordDecision(approvalId, stage, deciderUserId, deciderUsername, approve, remark, LocalDateTime.now());
+    }
+
+    private void recordDecision(Long approvalId, String stage, Long deciderUserId, String deciderUsername,
+                                boolean approve, String remark, LocalDateTime decidedAt) {
         ApprovalDecision d = new ApprovalDecision();
         d.setApprovalId(approvalId);
         d.setStage(stage);
         d.setDeciderUserId(deciderUserId == null ? 0L : deciderUserId);
         d.setDeciderUsername(deciderUsername == null ? "unknown" : deciderUsername);
         d.setDecision(approve ? DecisionType.APPROVE : DecisionType.REJECT);
-        d.setDecidedAt(LocalDateTime.now());
+        d.setDecidedAt(decidedAt == null ? LocalDateTime.now() : decidedAt);
         d.setRemark(remark);
         approvalDecisionDao.insert(d);
     }

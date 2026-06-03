@@ -63,15 +63,21 @@ Kissflow does not provide a fixed-format approval-result webhook. Send the resul
 2. Add an **HTTP → Make an HTTP call (POST)** action:
    - URL: `https://your-domain/api/approvals/callback/KISSFLOW`
    - Header: `Content-Type: application/json`
-   - Body (raw / JSON), mapping `instanceId` to the item's Instance ID variable and `approver` to the approver (optional):
+   - Body (raw / JSON), mapping `instanceId` to the item's Instance ID variable:
 
    ```json
-   {"instanceId": "<Instance ID variable>", "action": "APPROVED", "approver": "<approver>"}
+   {"instanceId": "<Instance ID variable>", "action": "APPROVED"}
    ```
-3. Create a second integration triggered by the rejection event, with `action` set to the fixed value `REJECTED`
-4. Save and activate the integrations
+3. Create a second integration with the trigger pointing at the same process and the event set to **item rejected**. Use the same HTTP action, with `action` set to the fixed value `REJECTED`:
+
+   ```json
+   {"instanceId": "<Instance ID variable>", "action": "REJECTED"}
+   ```
+4. Save and activate both integrations
 
 Rudder looks up the approval record by `instanceId` and resolves the outcome from `action` (`APPROVED` / `REJECTED`). The `instanceId` must match the Instance ID returned when the instance was created. Ensure the callback fires when the process reaches a terminal state.
+
+On either callback, Rudder reverse-pulls the instance's progress and records each stage's actual actor and timestamp: on rejection, the rejector's stage is recorded as rejected and the stages approved before it as approved. No per-stage data needs to be passed in the integration.
 
 ### 7. Fill in the configuration
 

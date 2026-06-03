@@ -24,11 +24,15 @@ import io.github.zzih.rudder.approval.api.model.ApprovalAction;
 import io.github.zzih.rudder.approval.api.model.ApprovalCallback;
 import io.github.zzih.rudder.approval.api.model.ApprovalCallbackResult;
 import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
+import io.github.zzih.rudder.approval.api.model.StageDecision;
 import io.github.zzih.rudder.common.utils.json.JsonUtils;
 import io.github.zzih.rudder.common.utils.net.HttpUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -47,6 +51,10 @@ import lombok.extern.slf4j.Slf4j;
 public class KissflowApprovalNotifier implements ApprovalNotifier {
 
     static final String CHANNEL = "KISSFLOW";
+
+    // Kissflow 流程的固定审批节点顺序；反查 progress 时按位置把 UserTask 步骤映射到阶段标识，
+    // 未用到的级在流程中被跳过但仍以 Skipped 步骤占位，故位置始终对齐。
+    private static final List<String> STAGES = List.of("PROJECT_OWNER", "WORKSPACE_OWNER", "SUPER_ADMIN");
 
     // Kissflow access key 鉴权：key id 明文 + secret 成对走 header，非 Bearer。
     private static final String HEADER_ACCESS_KEY_ID = "X-Access-Key-Id";
@@ -138,10 +146,88 @@ public class KissflowApprovalNotifier implements ApprovalNotifier {
         callback.setExternalApprovalId(instanceId);
         callback.setAction(action);
         callback.setApprover(approver);
+        // 回调只带 instanceId+action；逐级审批人+时间反查 progress 时间线（连接器无法转发嵌套数组）。
+        callback.setStageDecisions(fetchStageDecisions(instanceId, action));
 
         log.info("Kissflow approval callback: instance={}, signal={}, approver={}",
                 instanceId, signal, approver);
         return ApprovalCallbackResult.ofCallback(callback);
+    }
+
+    // 反查 progress：UserTask 步骤按顺序对应 STAGES（被跳过的占位但不产生决议），取实际操作过步骤的操作人+时间。
+    // 流程仅在批准时推进，故除终态级外每级均为批准；终态级承载整单结果（驳回时即驳回人那一级）。
+    @SuppressWarnings("unchecked")
+    private List<StageDecision> fetchStageDecisions(String instanceId, ApprovalAction outcome) {
+        String url = String.format("%s/process/2/%s/%s/%s/progress", baseUrl(), accountId, processId, instanceId);
+        List<StageDecision> decisions = new ArrayList<>();
+        try {
+            Map<String, Object> progress = JsonUtils.fromJson(HttpUtils.get(url, authHeaders()), Map.class);
+            if (progress == null || !(progress.get("Steps") instanceof List<?> steps)) {
+                return decisions;
+            }
+            int stageIdx = 0;
+            for (Object item : steps) {
+                if (!(item instanceof Map<?, ?> step) || !"UserTask".equals(step.get("NodeType"))) {
+                    continue;
+                }
+                String stage = stageIdx < STAGES.size() ? STAGES.get(stageIdx) : null;
+                stageIdx++;
+                // 被跳过的级无 ActedBy；有操作人才算一级真实决议（批准或驳回皆有人操作）。
+                String approver = actedByEmail(step.get("ActedBy"));
+                if (stage != null && approver != null) {
+                    decisions.add(new StageDecision(stage, approver,
+                            parseActedAt(step.get("ActedAt")), ApprovalAction.APPROVED));
+                }
+            }
+            if (outcome == ApprovalAction.REJECTED && !decisions.isEmpty()) {
+                StageDecision terminal = decisions.get(decisions.size() - 1);
+                decisions.set(decisions.size() - 1, new StageDecision(terminal.stage(),
+                        terminal.approver(), terminal.decidedAt(), ApprovalAction.REJECTED));
+            }
+        } catch (RuntimeException ex) {
+            log.warn("Kissflow progress fetch failed for instance '{}': {}", instanceId, ex.getMessage());
+        }
+        return decisions;
+    }
+
+    // 操作人身份取邮箱供 Rudder 关联用户：ActedBy 直接带 Email 则用，否则按 _id 反查用户详情，均无则回退显示名。
+    private String actedByEmail(Object actedBy) {
+        if (!(actedBy instanceof List<?> actors) || actors.isEmpty()
+                || !(actors.get(0) instanceof Map<?, ?> actor)) {
+            return null;
+        }
+        if (actor.get("Email") instanceof String email && !email.isBlank()) {
+            return email;
+        }
+        if (actor.get("_id") instanceof String userId && !userId.isBlank()) {
+            String email = resolveEmailByUserId(userId);
+            if (email != null) {
+                return email;
+            }
+        }
+        return actor.get("Name") instanceof String name ? name : null;
+    }
+
+    private String resolveEmailByUserId(String userId) {
+        String url = String.format("%s/user/2/%s/%s", baseUrl(), accountId, userId);
+        try {
+            String email = JsonUtils.extractValue(HttpUtils.get(url, authHeaders()), "Email");
+            return email == null || email.isBlank() ? null : email;
+        } catch (RuntimeException ex) {
+            log.warn("Kissflow user email lookup failed for id '{}': {}", userId, ex.getMessage());
+            return null;
+        }
+    }
+
+    private static LocalDateTime parseActedAt(Object actedAt) {
+        if (actedAt instanceof String s && !s.isBlank()) {
+            try {
+                return LocalDateTime.ofInstant(Instant.parse(s), ZoneId.systemDefault());
+            } catch (RuntimeException ignored) {
+                // Kissflow ActedAt 偶发缺失或非 ISO，缺时间不应阻断结单。
+            }
+        }
+        return LocalDateTime.now();
     }
 
     private Map<String, Object> buildFields(ApprovalRequest request) {

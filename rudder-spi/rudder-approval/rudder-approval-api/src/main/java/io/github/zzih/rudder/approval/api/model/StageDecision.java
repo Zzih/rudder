@@ -17,25 +17,11 @@
 
 package io.github.zzih.rudder.approval.api.model;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
-import lombok.Data;
-
-@Data
-public class ApprovalCallback {
-
-    private String channel;
-
-    private String externalApprovalId;
-
-    private ApprovalAction action;
-
-    private String approver;
-
-    private String comment;
-
-    /**
-     * 逐级决议明细（外部渠道回传，可空）。每条自带 stage，非空时上层逐条落库；为空时走单决议兜底（如飞书）。
-     */
-    private List<StageDecision> stageDecisions;
+/**
+ * 外部渠道回传的单级决议：stage 为阶段标识（如 PROJECT_OWNER），approver 为该级审批人身份邮箱
+ * （供上层按邮箱关联 Rudder 用户；渠道无邮箱时退化为显示名），decidedAt 为决议时间。
+ */
+public record StageDecision(String stage, String approver, LocalDateTime decidedAt, ApprovalAction action) {
 }
