@@ -12,9 +12,12 @@ Kissflow API 使用 Access Key（ID + Secret 成对）鉴权，须在请求头�
 2. 在该 Service Account 的 **Access keys** 标签下点击 **Create access key**，填写名称并设置有效期（6 个月至 2 年）
 3. 记录 **Access Key ID** 与 **Access Key Secret**，Secret 仅在创建时可见
 
-### 2. 获取 Account ID
+### 2. 获取 Account ID 与 Account Domain
 
-Kissflow 访问地址形如 `https://{account_id}.kissflow.com/`，地址中 `{account_id}` 即为 Account ID。
+这是两个不同的值，都要填：
+
+- **Account ID**：进 **My settings → API authentication → Account ID** 复制（一串字母数字）。它用于 API 路径，**不等于**登录地址里的子域名。
+- **Account Domain**：你的登录主机名，形如 `your-company.kissflow.com`（即浏览器地址栏 `https://xxx.kissflow.com/` 里的 `xxx.kissflow.com`）。它用作 API 主机。
 
 ### 3. 创建审批流程
 

@@ -21,6 +21,7 @@ public record KissflowApprovalProperties(
         String accessKeyId,
         String accessKeySecret,
         String accountId,
+        String domain,
         String processId) {
 
     public KissflowApprovalProperties {
@@ -32,6 +33,9 @@ public record KissflowApprovalProperties(
         }
         if (accountId == null) {
             accountId = "";
+        }
+        if (domain == null) {
+            domain = "";
         }
         if (processId == null) {
             processId = "";
