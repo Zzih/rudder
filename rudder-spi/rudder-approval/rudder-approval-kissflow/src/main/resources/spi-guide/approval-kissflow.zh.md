@@ -63,15 +63,21 @@ Kissflow 不提供固定格式的审批结果 Webhook，需在流程内通过 HT
 2. 添加 **HTTP → Make an HTTP call (POST)** 动作：
    - URL：`https://你的域名/api/approvals/callback/KISSFLOW`
    - Header：`Content-Type: application/json`
-   - Body（raw / JSON），其中 `instanceId` 映射流程项的 Instance ID 变量、`approver` 映射审批人（可选）：
+   - Body（raw / JSON），`instanceId` 映射流程项的 Instance ID 变量：
 
    ```json
-   {"instanceId": "<Instance ID 变量>", "action": "APPROVED", "approver": "<审批人>"}
+   {"instanceId": "<Instance ID 变量>", "action": "APPROVED"}
    ```
-3. 再建一个由拒绝事件触发的集成，Body 中 `action` 改为固定值 `REJECTED`
-4. 保存并激活集成
+3. 再建一个集成，触发器同样指向本流程，触发事件选择**被拒绝**（item rejected）。HTTP 动作同上，Body 中 `action` 改为固定值 `REJECTED`：
+
+   ```json
+   {"instanceId": "<Instance ID 变量>", "action": "REJECTED"}
+   ```
+4. 保存并激活两个集成
 
 系统按 `instanceId` 反查审批记录，按 `action`（`APPROVED` / `REJECTED`）判定结果并结单。`instanceId` 须与创建实例时返回的 Instance ID 一致。请确保回调在流程到达终态时发出。
+
+收到任一回调后，系统会反查该实例的流程进度，逐级落库各阶段实际操作人与时间：驳回时，驳回人所在阶段记为驳回，其之前已通过的阶段记为通过。无需在集成中传递逐级信息。
 
 ### 7. 填写配置
 
