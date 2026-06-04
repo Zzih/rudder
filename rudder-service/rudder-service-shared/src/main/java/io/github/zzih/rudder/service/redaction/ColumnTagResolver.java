@@ -31,7 +31,7 @@ public interface ColumnTagResolver {
      * @param datasourceName Rudder 里配置的数据源名(可为 null,例如 Worker 结果文件场景)
      * @param database       库名
      * @param table          表名
-     * @param column         列名(Calcite 解析出的原始列名)
+     * @param column         列名(SQL AST 解析出的原始列名)
      * @return tag 字符串列表(如 "PII.Phone"),未打 tag 或查询失败返回空 list,不抛
      */
     List<String> getTags(String datasourceName, String database, String table, String column);

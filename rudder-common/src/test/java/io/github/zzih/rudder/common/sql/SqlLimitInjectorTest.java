@@ -137,14 +137,14 @@ class SqlLimitInjectorTest {
         assertThat(out).isEqualTo("SELECT * FROM users\n-- last line\nLIMIT 100");
     }
 
-    /** MySQL `#` 行注释:Calcite babel 不识别,inject fail-open 返回原 SQL,靠 setMaxRows 兜底。 */
+    /** MySQL `#` 行注释 Druid 能识别;LIMIT 前置换行落到下一行,不被注释吞掉。 */
     @Test
-    void mysqlHashCommentFailsOpenReturnsOriginal() {
-        String sql = "SELECT * FROM users # mysql comment";
-        assertThat(SqlLimitInjector.inject(sql, 100, SqlDialect.MYSQL)).isEqualTo(sql);
+    void mysqlHashCommentAppendsLimitOnNewLine() {
+        String out = SqlLimitInjector.inject("SELECT * FROM users # mysql comment", 100, SqlDialect.MYSQL);
+        assertThat(out).isEqualTo("SELECT * FROM users # mysql comment\nLIMIT 100");
     }
 
-    /** 括号包裹的顶层 SELECT:Calcite 剥离外层括号,LIMIT 追加在括号外,主流方言都接受。 */
+    /** 括号包裹的顶层 SELECT:解析剥离外层括号,LIMIT 追加在括号外,主流方言都接受。 */
     @Test
     void parenthesizedSelectAppendsLimitOutsideParens() {
         String out = SqlLimitInjector.inject("(SELECT * FROM users)", 100, SqlDialect.MYSQL);

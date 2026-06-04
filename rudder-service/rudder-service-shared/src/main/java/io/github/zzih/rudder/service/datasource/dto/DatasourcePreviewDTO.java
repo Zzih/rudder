@@ -36,7 +36,7 @@ public class DatasourcePreviewDTO {
     private List<Map<String, Object>> rows;
 
     /**
-     * 列元信息,包含 Calcite SQL AST 解析出的原始表/列追溯。
+     * 列元信息,包含 SQL AST 解析出的原始表/列追溯。
      * 由 DatasourceService 构造;{@code rows} 已经过 sink 内部字段脱敏,调用方直接消费即可。
      */
     private List<ColumnMeta> columnMetas;

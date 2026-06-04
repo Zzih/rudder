@@ -46,9 +46,9 @@ public enum PluginType {
             List.of("select", "update", "create", "drop", "alter", "all"),
             List.of(ResourceLevel.DATABASE, ResourceLevel.TABLE, ResourceLevel.COLUMN)),
 
-    /** StarRocks 原生 servicedef,资源 catalog/database/table/column。 */
+    /** StarRocks 原生 servicedef,资源 catalog/database/table/column。create_table 挂 database 层。 */
     STARROCKS("starrocks",
-            List.of("select", "insert", "update", "delete", "drop", "alter", "export", "refresh"),
+            List.of("select", "insert", "update", "delete", "create_table", "drop", "alter", "export", "refresh"),
             List.of(ResourceLevel.CATALOG, ResourceLevel.DATABASE, ResourceLevel.TABLE, ResourceLevel.COLUMN)),
 
     /** Trino 原生 servicedef,资源 catalog/schema/table/column。 */
@@ -105,7 +105,9 @@ public enum PluginType {
                 case DELETE -> "delete";
                 case DROP -> "drop";
                 case ALTER -> "alter";
-                case CREATE -> null; // StarRocks 无裸 create(细分为 create table/database/...),DDL 当前不解析
+                // StarRocks create 按对象类型细分;解析层只产 CREATE TABLE,映射到挂在 database 层的 create_table。
+                // CREATE VIEW / DATABASE / MV 需各自的 access 与解析,未实装。
+                case CREATE -> "create_table";
             };
             case TRINO -> switch (action) {
                 case READ -> "select";

@@ -123,6 +123,34 @@ class SqlAccessResolverTest {
     }
 
     @Test
+    void hiveInsertIntoTablePartition_targetInsertSourceRead() {
+        // Hive 特有 `INSERT INTO TABLE t PARTITION(...)` 写语句必须解析出 INSERT 目标 + READ 源,否则整条绕过鉴权。
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "INSERT INTO TABLE lb_bi_quality.dwd_label_err_detail_hf PARTITION (pt='20250531') "
+                        + "SELECT t, business FROM lb_bi_quality.dwd_label_err_detail_hf WHERE pt='20250415'",
+                SqlDialect.HIVE);
+        TableAccess target = out.stream()
+                .filter(a -> a.action() == TableAccess.Action.INSERT)
+                .findFirst().orElseThrow();
+        assertThat(target.database()).isEqualToIgnoringCase("lb_bi_quality");
+        assertThat(target.table()).isEqualToIgnoringCase("dwd_label_err_detail_hf");
+        TableAccess source = out.stream()
+                .filter(a -> a.action() == TableAccess.Action.READ)
+                .findFirst().orElseThrow();
+        assertThat(source.table()).isEqualToIgnoringCase("dwd_label_err_detail_hf");
+    }
+
+    @Test
+    void hiveInsertOverwriteTable_targetInsert() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "INSERT OVERWRITE TABLE t PARTITION (dt='1') SELECT id FROM src", SqlDialect.HIVE);
+        assertThat(out).extracting(TableAccess::table).extracting(String::toLowerCase)
+                .containsExactlyInAnyOrder("t", "src");
+        assertThat(out).filteredOn(a -> a.table().equalsIgnoreCase("t"))
+                .extracting(TableAccess::action).containsExactly(TableAccess.Action.INSERT);
+    }
+
+    @Test
     void insertValues_targetOnly() {
         List<TableAccess> out = SqlAccessResolver.resolve(
                 "INSERT INTO users(id, name) VALUES (1, 'a')",
@@ -175,14 +203,52 @@ class SqlAccessResolverTest {
     }
 
     @Test
-    void unsupportedSyntax_failsOpenEmpty() {
-        // CREATE TABLE / 自定义 DDL Calcite default parser 不识别 → 整条 fail-open
+    void ddl_createDropAlter_gated() {
+        assertThat(SqlAccessResolver.resolve("CREATE TABLE foo (id INT)", SqlDialect.HIVE))
+                .singleElement()
+                .satisfies(a -> {
+                    assertThat(a.table()).isEqualToIgnoringCase("foo");
+                    assertThat(a.action()).isEqualTo(TableAccess.Action.CREATE);
+                });
+        assertThat(SqlAccessResolver.resolve("DROP TABLE foo", SqlDialect.HIVE))
+                .singleElement()
+                .satisfies(a -> assertThat(a.action()).isEqualTo(TableAccess.Action.DROP));
+        assertThat(SqlAccessResolver.resolve("ALTER TABLE foo ADD COLUMNS (c INT)", SqlDialect.HIVE))
+                .singleElement()
+                .satisfies(a -> assertThat(a.action()).isEqualTo(TableAccess.Action.ALTER));
+    }
+
+    @Test
+    void starrocksCreateTable_gatedAsCreate() {
+        // StarRocks CREATE 经 accessFor 映射到 create_table(挂 database 层)
         List<TableAccess> out = SqlAccessResolver.resolve(
-                "CREATE TABLE foo (id INT); SELECT id FROM bar",
-                SqlDialect.MYSQL);
-        // CREATE 那条 fail-open 跳过,bar 仍被识别为 READ
-        assertThat(out).extracting(TableAccess::table).extracting(String::toLowerCase)
-                .containsExactly("bar");
+                "CREATE TABLE db.t (id INT)", SqlDialect.STARROCKS);
+        assertThat(out).singleElement().satisfies(a -> {
+            assertThat(a.database()).isEqualToIgnoringCase("db");
+            assertThat(a.table()).isEqualToIgnoringCase("t");
+            assertThat(a.action()).isEqualTo(TableAccess.Action.CREATE);
+        });
+    }
+
+    @Test
+    void ctas_targetCreateSourceRead() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "CREATE TABLE dst AS SELECT id FROM src", SqlDialect.HIVE);
+        TableAccess dst = out.stream().filter(a -> a.action() == TableAccess.Action.CREATE)
+                .findFirst().orElseThrow();
+        assertThat(dst.table()).isEqualToIgnoringCase("dst");
+        TableAccess src = out.stream().filter(a -> a.action() == TableAccess.Action.READ)
+                .findFirst().orElseThrow();
+        assertThat(src.table()).isEqualToIgnoringCase("src");
+    }
+
+    @Test
+    void ddlMixedWithDml_bothGated() {
+        // CREATE 与后续 SELECT 都产出 intent
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "CREATE TABLE foo (id INT); SELECT id FROM bar", SqlDialect.MYSQL);
+        assertThat(out).extracting(a -> a.table().toLowerCase() + ":" + a.action())
+                .containsExactlyInAnyOrder("foo:CREATE", "bar:READ");
     }
 
     @Test
@@ -314,6 +380,97 @@ class SqlAccessResolverTest {
         TableAccess orders = out.stream().filter(a -> a.table().equalsIgnoreCase("orders")).findFirst().orElseThrow();
         // 内部 SELECT 在 orders 上加 amount, user_id;外层 o.amount 找不到 alias(o 是子查询不是真表) → fail-open
         assertThat(lower(orders.columns())).containsExactlyInAnyOrder("amount", "user_id");
+    }
+
+    @Test
+    void reservedWordColumn_fallbackParsesNotFailOpen() {
+        // Druid 的 hive/trino parser 把 `comment` 当保留字会整句失败 → 回退 MySQL 方言恢复,避免 fail-open 绕过
+        List<TableAccess> out = SqlAccessResolver.resolve("SELECT comment FROM sensitive_t", SqlDialect.HIVE);
+        assertThat(out).singleElement().satisfies(a -> {
+            assertThat(a.table()).isEqualToIgnoringCase("sensitive_t");
+            assertThat(a.action()).isEqualTo(TableAccess.Action.READ);
+        });
+    }
+
+    @Test
+    void multiTableUpdate_gatesAllTargets() {
+        // 多表 UPDATE 目标是 JOIN,旧实现产出空 intent → 写绕过;现各目标表表级 UPDATE
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "UPDATE a JOIN b ON a.id = b.id SET a.x = 1", SqlDialect.MYSQL);
+        assertThat(out).extracting(a -> a.table().toLowerCase() + ":" + a.action())
+                .containsExactlyInAnyOrder("a:UPDATE", "b:UPDATE");
+    }
+
+    @Test
+    void updateFromSource_capturesRead() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "UPDATE t SET x = s.y FROM src s WHERE t.id = s.id", SqlDialect.POSTGRES);
+        assertThat(out).filteredOn(a -> a.table().equalsIgnoreCase("t"))
+                .extracting(TableAccess::action).containsExactly(TableAccess.Action.UPDATE);
+        assertThat(out).filteredOn(a -> a.table().equalsIgnoreCase("src"))
+                .extracting(TableAccess::action).containsExactly(TableAccess.Action.READ);
+    }
+
+    @Test
+    void merge_targetWriteSourceRead() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "MERGE INTO t USING s ON t.id = s.id "
+                        + "WHEN MATCHED THEN UPDATE SET t.v = s.v "
+                        + "WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id)",
+                SqlDialect.TRINO);
+        assertThat(out).filteredOn(a -> a.table().equalsIgnoreCase("t"))
+                .extracting(TableAccess::action)
+                .containsExactlyInAnyOrder(TableAccess.Action.UPDATE, TableAccess.Action.INSERT);
+        assertThat(out).filteredOn(a -> a.table().equalsIgnoreCase("s"))
+                .extracting(TableAccess::action).containsExactly(TableAccess.Action.READ);
+    }
+
+    @Test
+    void replace_targetInsert() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "REPLACE INTO t(id, name) VALUES (1, 'a')", SqlDialect.MYSQL);
+        assertThat(out).singleElement().satisfies(a -> {
+            assertThat(a.table()).isEqualToIgnoringCase("t");
+            assertThat(a.action()).isEqualTo(TableAccess.Action.INSERT);
+            assertThat(lower(a.columns())).containsExactlyInAnyOrder("id", "name");
+        });
+    }
+
+    @Test
+    void hiveMultiInsert_sourceReadTargetsInsert() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "FROM src INSERT OVERWRITE TABLE a SELECT x INSERT OVERWRITE TABLE b SELECT y",
+                SqlDialect.HIVE);
+        assertThat(out).filteredOn(a -> a.action() == TableAccess.Action.INSERT)
+                .extracting(TableAccess::table).extracting(String::toLowerCase)
+                .containsExactlyInAnyOrder("a", "b");
+        assertThat(out).filteredOn(a -> a.table().equalsIgnoreCase("src"))
+                .extracting(TableAccess::action).containsExactly(TableAccess.Action.READ);
+    }
+
+    @Test
+    void loadData_targetInsert() {
+        List<TableAccess> out = SqlAccessResolver.resolve(
+                "LOAD DATA INPATH '/tmp/x' INTO TABLE t", SqlDialect.HIVE);
+        assertThat(out).singleElement().satisfies(a -> {
+            assertThat(a.table()).isEqualToIgnoringCase("t");
+            assertThat(a.action()).isEqualTo(TableAccess.Action.INSERT);
+        });
+    }
+
+    @Test
+    void allDialects_basicSelectAndInsertResolve() {
+        for (SqlDialect d : SqlDialect.values()) {
+            List<TableAccess> sel = SqlAccessResolver.resolve("SELECT col FROM db.t WHERE x = 1", d);
+            assertThat(sel).as("select on %s", d).hasSize(1);
+            assertThat(sel.get(0).table()).isEqualToIgnoringCase("t");
+            assertThat(sel.get(0).action()).isEqualTo(TableAccess.Action.READ);
+            assertThat(lower(sel.get(0).columns())).containsExactlyInAnyOrder("col", "x");
+
+            List<TableAccess> ins = SqlAccessResolver.resolve("INSERT INTO t SELECT a FROM s", d);
+            assertThat(ins).as("insert on %s", d).extracting(TableAccess::table)
+                    .extracting(String::toLowerCase).containsExactlyInAnyOrder("t", "s");
+        }
     }
 
     private static List<String> lower(List<String> in) {

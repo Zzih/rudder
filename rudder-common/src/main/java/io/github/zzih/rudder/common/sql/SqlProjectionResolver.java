@@ -25,19 +25,30 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
-import org.apache.calcite.sql.SqlBasicCall;
-import org.apache.calcite.sql.SqlCall;
-import org.apache.calcite.sql.SqlIdentifier;
-import org.apache.calcite.sql.SqlJoin;
-import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.SqlNode;
-import org.apache.calcite.sql.SqlNodeList;
-import org.apache.calcite.sql.SqlOrderBy;
-import org.apache.calcite.sql.SqlSelect;
-import org.apache.calcite.sql.SqlWith;
-import org.apache.calcite.sql.SqlWithItem;
-import org.apache.calcite.sql.parser.SqlParser;
+import org.apache.commons.lang3.StringUtils;
+
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.expr.SQLAggregateExpr;
+import com.alibaba.druid.sql.ast.expr.SQLAllColumnExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
+import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.ast.statement.SQLExprTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLSelect;
+import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQuery;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
+import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
+import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLUnionQuery;
+import com.alibaba.druid.sql.ast.statement.SQLUnionQueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLWithSubqueryClause;
+import com.alibaba.druid.sql.visitor.SQLASTVisitorAdapter;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,10 +66,9 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>计算列 / 函数 / 聚合(收集涉及的原始列到 derivedFrom)</li>
  * </ul>
  * <p>
- * 解析失败(语法错误 / 不支持的语法)返回空 list,调用方按"未追溯到"处理即可。
+ * 解析失败(语法错误 / 非 query)返回空 list,调用方按"未追溯到"处理即可。
  * <p>
- * 调用方按字符串传 dialect(对齐 {@code DataSourceInfo.type} 的取值,如 "MYSQL"/"TRINO"),
- * 解析器内部映射到 Calcite Lex。未识别的 dialect 走默认 MYSQL lex。
+ * null / 未知 dialect 走默认 MySQL 方言。
  */
 @Slf4j
 public final class SqlProjectionResolver {
@@ -66,20 +76,21 @@ public final class SqlProjectionResolver {
     private SqlProjectionResolver() {
     }
 
-    /** 解析 SQL,返回投影列列表。解析失败返回空 list(不抛)。null/未知 dialect 走默认 MySQL lex。 */
+    /** 解析 SQL,返回投影列列表。解析失败返回空 list(不抛)。null/未知 dialect 走默认 MySQL。 */
     public static List<ResolvedColumn> resolve(String sql, SqlDialect dialect) {
         if (sql == null || sql.isBlank()) {
             return Collections.emptyList();
         }
-        // parseQuery 不接受末尾分号(当成多语句脚本会抛)。脚本里写 ";" 是常态,直接剥掉。
         String trimmed = sql.strip();
         while (trimmed.endsWith(";")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1).strip();
         }
         try {
-            SqlParser parser = SqlParser.create(trimmed, RudderSqlParser.babelConfig(dialect));
-            SqlNode root = parser.parseQuery();
-            return resolveQuery(root, Collections.emptyMap());
+            List<SQLStatement> stmts = DruidSqlParser.parse(trimmed, dialect);
+            if (stmts.isEmpty() || !(stmts.get(0) instanceof SQLSelectStatement sel)) {
+                return Collections.emptyList();
+            }
+            return resolveSelect(sel.getSelect(), Collections.emptyMap());
         } catch (Exception e) {
             log.debug("SQL projection resolve failed ({}): {}", e.getClass().getSimpleName(), e.getMessage());
             return Collections.emptyList();
@@ -88,203 +99,215 @@ public final class SqlProjectionResolver {
 
     // ==================== 递归解析 ====================
 
-    private static List<ResolvedColumn> resolveQuery(SqlNode query, Map<String, List<ResolvedColumn>> cte) {
-        if (query == null) {
+    private static List<ResolvedColumn> resolveSelect(SQLSelect select, Map<String, List<ResolvedColumn>> outerCte) {
+        if (select == null) {
             return Collections.emptyList();
         }
-        if (query instanceof SqlOrderBy ob) {
-            return resolveQuery(ob.query, cte);
+        Map<String, List<ResolvedColumn>> cte = new LinkedHashMap<>(outerCte);
+        SQLWithSubqueryClause with = select.getWithSubQuery();
+        if (with != null) {
+            for (SQLWithSubqueryClause.Entry e : with.getEntries()) {
+                List<ResolvedColumn> body = resolveSelect(e.getSubQuery(), cte);
+                body = applyColumnList(body, e.getColumns());
+                if (e.getAlias() != null) {
+                    cte.put(SqlAst.normalize(e.getAlias()).toLowerCase(Locale.ROOT), body);
+                }
+            }
         }
-        if (query instanceof SqlWith with) {
-            return resolveWith(with, cte);
-        }
-        if (query instanceof SqlSelect sel) {
-            return resolveSelect(sel, cte);
-        }
-        if (query instanceof SqlCall call && isSetOp(call.getKind())) {
-            return resolveSetOp(call, cte);
-        }
-        return Collections.emptyList();
+        return resolveQuery(select.getQuery(), cte);
     }
 
-    private static List<ResolvedColumn> resolveWith(SqlWith with, Map<String, List<ResolvedColumn>> outerCte) {
-        Map<String, List<ResolvedColumn>> scope = new LinkedHashMap<>(outerCte);
-        for (SqlNode item : with.withList) {
-            if (!(item instanceof SqlWithItem wi)) {
-                continue;
-            }
-            String name = unqualifiedName(wi.name);
-            List<ResolvedColumn> body = resolveQuery(wi.query, scope);
-            // WITH u(x, y) AS (...) 显式列名
-            if (wi.columnList != null && !wi.columnList.isEmpty()) {
-                List<ResolvedColumn> aliased = new ArrayList<>(body.size());
-                for (int i = 0; i < body.size(); i++) {
-                    ResolvedColumn rc = cloneCol(body.get(i));
-                    if (i < wi.columnList.size()) {
-                        rc.setResultName(unqualifiedName(wi.columnList.get(i)));
-                    }
-                    aliased.add(rc);
-                }
-                body = aliased;
-            }
-            scope.put(name.toLowerCase(Locale.ROOT), body);
+    /** WITH u(x, y) AS (...) 显式列名:按位置重命名 body 的 resultName。 */
+    private static List<ResolvedColumn> applyColumnList(List<ResolvedColumn> body, List<SQLName> columnList) {
+        if (columnList == null || columnList.isEmpty()) {
+            return body;
         }
-        return resolveQuery(with.body, scope);
-    }
-
-    private static List<ResolvedColumn> resolveSetOp(SqlCall setOp, Map<String, List<ResolvedColumn>> cte) {
-        List<List<ResolvedColumn>> arms = new ArrayList<>();
-        for (SqlNode operand : setOp.getOperandList()) {
-            arms.add(resolveQuery(operand, cte));
-        }
-        if (arms.isEmpty()) {
-            return Collections.emptyList();
-        }
-        // 以第一个 arm 的列名为准;每列把其他 arm 同位置的 sources 合并进 derivedFrom
-        List<ResolvedColumn> first = arms.get(0);
-        List<ResolvedColumn> out = new ArrayList<>(first.size());
-        for (int i = 0; i < first.size(); i++) {
-            ResolvedColumn rc = cloneCol(first.get(i));
-            for (int a = 1; a < arms.size(); a++) {
-                List<ResolvedColumn> arm = arms.get(a);
-                if (i >= arm.size()) {
-                    continue;
-                }
-                ResolvedColumn other = arm.get(i);
-                // 若任一 arm 在同列位置不是简单引用,整列退化为派生
-                if (!sameSimpleRef(rc, other)) {
-                    mergeIntoDerived(rc, other);
-                }
+        List<ResolvedColumn> out = new ArrayList<>(body.size());
+        for (int i = 0; i < body.size(); i++) {
+            ResolvedColumn rc = cloneCol(body.get(i));
+            if (i < columnList.size()) {
+                rc.setResultName(SqlAst.normalize(columnList.get(i).getSimpleName()));
             }
             out.add(rc);
         }
         return out;
     }
 
-    private static List<ResolvedColumn> resolveSelect(SqlSelect sel, Map<String, List<ResolvedColumn>> cte) {
-        FromScope scope = buildFromScope(sel.getFrom(), cte);
-        List<ResolvedColumn> out = new ArrayList<>();
-        SqlNodeList list = sel.getSelectList();
-        if (list == null) {
-            return out;
+    private static List<ResolvedColumn> resolveQuery(SQLSelectQuery query, Map<String, List<ResolvedColumn>> cte) {
+        if (query instanceof SQLSelectQueryBlock block) {
+            return resolveBlock(block, cte);
         }
-        for (SqlNode item : list) {
+        if (query instanceof SQLUnionQuery union) {
+            return resolveSetOp(union, cte);
+        }
+        return Collections.emptyList();
+    }
+
+    private static List<ResolvedColumn> resolveSetOp(SQLUnionQuery union, Map<String, List<ResolvedColumn>> cte) {
+        List<ResolvedColumn> left = resolveQuery(union.getLeft(), cte);
+        List<ResolvedColumn> right = resolveQuery(union.getRight(), cte);
+        // 以 left(可能本身是嵌套 union 的合并结果)的列名为准,每列把 right 同位置 sources 合并进 derivedFrom
+        List<ResolvedColumn> out = new ArrayList<>(left.size());
+        for (int i = 0; i < left.size(); i++) {
+            ResolvedColumn rc = cloneCol(left.get(i));
+            if (i < right.size() && !sameSimpleRef(rc, right.get(i))) {
+                mergeIntoDerived(rc, right.get(i));
+            }
+            out.add(rc);
+        }
+        return out;
+    }
+
+    private static List<ResolvedColumn> resolveBlock(SQLSelectQueryBlock block,
+                                                     Map<String, List<ResolvedColumn>> cte) {
+        FromScope scope = new FromScope();
+        addFromItem(block.getFrom(), scope, cte);
+        List<ResolvedColumn> out = new ArrayList<>();
+        for (SQLSelectItem item : block.getSelectList()) {
             out.addAll(resolveSelectItem(item, scope));
         }
         return out;
     }
 
-    private static List<ResolvedColumn> resolveSelectItem(SqlNode item, FromScope scope) {
-        String alias = null;
-        SqlNode expr = item;
-        if (item instanceof SqlBasicCall call && call.getKind() == SqlKind.AS) {
-            alias = unqualifiedName(call.operand(1));
-            expr = call.operand(0);
-        }
+    private static List<ResolvedColumn> resolveSelectItem(SQLSelectItem item, FromScope scope) {
+        String alias = item.getAlias() != null ? SqlAst.normalize(item.getAlias()) : null;
+        SQLExpr expr = item.getExpr();
         // 星号展开
-        if (expr instanceof SqlIdentifier id && id.isStar()) {
-            if (id.names.size() == 1) {
-                // * 全部
-                List<ResolvedColumn> all = new ArrayList<>();
-                for (List<ResolvedColumn> t : scope.byAlias.values()) {
-                    all.addAll(t);
-                }
-                return all;
-            }
-            // t.* 指定表
-            String tableAlias = id.names.get(id.names.size() - 2).toLowerCase(Locale.ROOT);
-            List<ResolvedColumn> tcols = scope.byAlias.get(tableAlias);
-            return tcols == null ? Collections.emptyList() : new ArrayList<>(tcols);
+        if (expr instanceof SQLAllColumnExpr star) {
+            return expandStar(star.getOwner(), scope);
         }
-        // 简单标识符
-        if (expr instanceof SqlIdentifier id) {
-            ResolvedColumn rc = scope.resolveIdentifier(id);
+        if (expr instanceof SQLPropertyExpr p && SqlAst.STAR.equals(p.getName())) {
+            return expandStar(p.getOwner(), scope);
+        }
+        // 简单列引用
+        if (expr instanceof SQLIdentifierExpr || expr instanceof SQLPropertyExpr) {
+            ResolvedColumn rc = scope.resolveIdentifier(expr);
             if (rc == null) {
-                rc = ResolvedColumn.simple(alias != null ? alias : simpleName(id), null, simpleName(id));
-            } else if (alias != null) {
+                String col = SqlAst.lastName(expr);
+                return List.of(ResolvedColumn.simple(alias != null ? alias : col, null, col));
+            }
+            if (alias != null) {
                 rc = cloneCol(rc);
                 rc.setResultName(alias);
             }
             return List.of(rc);
         }
         // 表达式 / 函数 / 聚合
-        List<SourceRef> sources = new ArrayList<>();
-        boolean[] isAgg = {false};
-        collectColumnRefs(expr, scope, sources, isAgg);
+        ColumnRefCollector collector = new ColumnRefCollector(scope);
+        expr.accept(collector);
         String name = alias != null ? alias : "__expr";
-        return List.of(ResolvedColumn.derived(name, sources, isAgg[0]));
+        return List.of(ResolvedColumn.derived(name, collector.sources, collector.aggregate));
+    }
+
+    /** {@code *}(owner==null)展开 scope 全部列;{@code t.*} 展开该别名列。 */
+    private static List<ResolvedColumn> expandStar(SQLExpr owner, FromScope scope) {
+        if (owner == null) {
+            List<ResolvedColumn> all = new ArrayList<>();
+            for (List<ResolvedColumn> t : scope.byAlias.values()) {
+                all.addAll(t);
+            }
+            return all;
+        }
+        String tableAlias = SqlAst.lastName(owner);
+        List<ResolvedColumn> cols = tableAlias == null ? null
+                : scope.byAlias.get(tableAlias.toLowerCase(Locale.ROOT));
+        return cols == null ? Collections.emptyList() : new ArrayList<>(cols);
     }
 
     // ==================== FROM 作用域构建 ====================
 
-    /** 构建 FROM 子树的列可见性。byAlias 保序(star 展开时用到)。 */
-    private static FromScope buildFromScope(SqlNode from, Map<String, List<ResolvedColumn>> cte) {
-        FromScope s = new FromScope();
-        if (from == null) {
-            return s;
-        }
-        addFromItem(s, from, cte);
-        return s;
-    }
-
-    private static void addFromItem(FromScope s, SqlNode node, Map<String, List<ResolvedColumn>> cte) {
-        if (node instanceof SqlJoin join) {
-            addFromItem(s, join.getLeft(), cte);
-            addFromItem(s, join.getRight(), cte);
+    private static void addFromItem(SQLTableSource node, FromScope s, Map<String, List<ResolvedColumn>> cte) {
+        if (node == null) {
             return;
         }
-        // 处理 AS
-        String alias = null;
-        SqlNode source = node;
-        if (node instanceof SqlBasicCall call && call.getKind() == SqlKind.AS) {
-            alias = unqualifiedName(call.operand(1));
-            source = call.operand(0);
+        if (node instanceof SQLJoinTableSource join) {
+            addFromItem(join.getLeft(), s, cte);
+            addFromItem(join.getRight(), s, cte);
+            return;
         }
-        // 表引用 / CTE 引用
-        if (source instanceof SqlIdentifier id) {
-            String tableName = simpleName(id);
-            List<ResolvedColumn> cols;
-            List<ResolvedColumn> cteCols = cte.get(tableName.toLowerCase(Locale.ROOT));
+        if (node instanceof SQLExprTableSource ets) {
+            String tableName = SqlAst.normalize(ets.getTableName());
+            String effectiveAlias =
+                    (ets.getAlias() != null ? SqlAst.normalize(ets.getAlias()) : tableName).toLowerCase(Locale.ROOT);
+            List<ResolvedColumn> cteCols = ets.getSchema() == null && ets.getCatalog() == null
+                    ? cte.get(tableName == null ? null : tableName.toLowerCase(Locale.ROOT))
+                    : null;
             if (cteCols != null) {
-                cols = cloneList(cteCols);
-                // 用 CTE 的 resultName 作为可引用列名
+                s.byAlias.put(effectiveAlias, cloneList(cteCols));
             } else {
-                // 真实表;列未知,这里先挂个 unknown 标记
-                cols = Collections.emptyList();
-            }
-            String effectiveAlias = (alias != null ? alias : tableName).toLowerCase(Locale.ROOT);
-            s.byAlias.put(effectiveAlias, cols);
-            // 真实表存一份 originalTable 提示(供 * 解析填充)
-            if (cteCols == null) {
+                s.byAlias.put(effectiveAlias, Collections.emptyList());
                 s.realTableByAlias.put(effectiveAlias, tableName);
             }
             return;
         }
-        // 子查询(SELECT / WITH / SetOp)
-        List<ResolvedColumn> sub = resolveQuery(source, cte);
-        String effective = alias != null ? alias.toLowerCase(Locale.ROOT) : "__sub" + s.byAlias.size();
-        s.byAlias.put(effective, sub);
+        if (node instanceof SQLSubqueryTableSource sub) {
+            putDerived(s, sub.getAlias(), resolveSelect(sub.getSelect(), cte));
+            return;
+        }
+        if (node instanceof SQLUnionQueryTableSource union) {
+            putDerived(s, union.getAlias(), resolveQuery(union.getUnion(), cte));
+        }
+    }
+
+    /** 子查询 / 派生表入 scope:有 alias 用 alias,否则给个稳定的占位名。 */
+    private static void putDerived(FromScope s, String alias, List<ResolvedColumn> cols) {
+        String effective = alias != null
+                ? SqlAst.normalize(alias).toLowerCase(Locale.ROOT)
+                : "__sub" + s.byAlias.size();
+        s.byAlias.put(effective, cols);
+    }
+
+    // ==================== 列引用收集(计算列 / 聚合) ====================
+
+    /** 遍历表达式收集所有列引用,顺便标注是否含聚合;子查询不下钻。 */
+    private static final class ColumnRefCollector extends SQLASTVisitorAdapter {
+
+        private final FromScope scope;
+        private final List<SourceRef> sources = new ArrayList<>();
+        private boolean aggregate;
+
+        ColumnRefCollector(FromScope scope) {
+            this.scope = scope;
+        }
+
+        @Override
+        public boolean visit(SQLAggregateExpr x) {
+            aggregate = true;
+            return true;
+        }
+
+        @Override
+        public boolean visit(SQLIdentifierExpr x) {
+            record(x);
+            return false;
+        }
+
+        @Override
+        public boolean visit(SQLPropertyExpr x) {
+            if (!SqlAst.STAR.equals(x.getName())) {
+                record(x);
+            }
+            return false;
+        }
+
+        @Override
+        public boolean visit(SQLAllColumnExpr x) {
+            return false;
+        }
+
+        private void record(SQLExpr ref) {
+            ResolvedColumn rc = scope.resolveIdentifier(ref);
+            if (rc == null) {
+                sources.add(new SourceRef(null, null, SqlAst.lastName(ref)));
+            } else if (rc.isSimpleRef()) {
+                sources.add(new SourceRef(null, rc.getOriginalTable(), rc.getOriginalColumn()));
+            } else {
+                sources.addAll(rc.getDerivedFrom());
+            }
+        }
     }
 
     // ==================== 辅助 ====================
-
-    private static boolean isSetOp(SqlKind k) {
-        return k == SqlKind.UNION || k == SqlKind.INTERSECT || k == SqlKind.EXCEPT;
-    }
-
-    private static String simpleName(SqlNode n) {
-        if (n instanceof SqlIdentifier id) {
-            return id.names.get(id.names.size() - 1);
-        }
-        return n == null ? null : n.toString();
-    }
-
-    private static String unqualifiedName(SqlNode n) {
-        if (n instanceof SqlIdentifier id) {
-            return id.getSimple();
-        }
-        return n == null ? null : n.toString();
-    }
 
     private static ResolvedColumn cloneCol(ResolvedColumn c) {
         return ResolvedColumn.builder()
@@ -308,8 +331,8 @@ public final class SqlProjectionResolver {
         if (!a.isSimpleRef() || !b.isSimpleRef()) {
             return false;
         }
-        return java.util.Objects.equals(a.getOriginalTable(), b.getOriginalTable())
-                && java.util.Objects.equals(a.getOriginalColumn(), b.getOriginalColumn());
+        return Objects.equals(a.getOriginalTable(), b.getOriginalTable())
+                && Objects.equals(a.getOriginalColumn(), b.getOriginalColumn());
     }
 
     private static void mergeIntoDerived(ResolvedColumn target, ResolvedColumn other) {
@@ -319,101 +342,56 @@ public final class SqlProjectionResolver {
             target.getDerivedFrom().addAll(other.getDerivedFrom());
         }
         if (target.isSimpleRef()) {
-            // 原是简单列,现在要退化为派生 —— 把自身也塞进 derivedFrom
             target.getDerivedFrom().add(0, new SourceRef(null, target.getOriginalTable(), target.getOriginalColumn()));
             target.setOriginalTable(null);
             target.setOriginalColumn(null);
         }
     }
 
-    /** 常见聚合函数名。纯解析阶段(未 validate)operator.isAggregator() 不可靠,靠名字兜。 */
-    private static final java.util.Set<String> AGGREGATE_FUNCTIONS = java.util.Set.of(
-            "COUNT", "SUM", "AVG", "MIN", "MAX", "STDDEV", "VARIANCE", "STDDEV_POP", "STDDEV_SAMP",
-            "VAR_POP", "VAR_SAMP", "ANY_VALUE", "FIRST_VALUE", "LAST_VALUE", "LISTAGG", "ARRAY_AGG",
-            "GROUP_CONCAT", "STRING_AGG", "PERCENTILE_CONT", "PERCENTILE_DISC", "APPROX_COUNT_DISTINCT",
-            "APPROX_DISTINCT", "BIT_AND", "BIT_OR", "BIT_XOR", "CORR", "COVAR_POP", "COVAR_SAMP");
-
-    /** 遍历表达式收集所有列引用,顺便标注是否含聚合。 */
-    private static void collectColumnRefs(SqlNode expr, FromScope scope, List<SourceRef> out, boolean[] isAgg) {
-        if (expr == null) {
-            return;
-        }
-        if (expr instanceof SqlIdentifier id) {
-            if (id.isStar()) {
-                return;
-            }
-            ResolvedColumn rc = scope.resolveIdentifier(id);
-            if (rc != null) {
-                if (rc.isSimpleRef()) {
-                    out.add(new SourceRef(null, rc.getOriginalTable(), rc.getOriginalColumn()));
-                } else {
-                    out.addAll(rc.getDerivedFrom());
-                }
-            } else {
-                out.add(new SourceRef(null, null, simpleName(id)));
-            }
-            return;
-        }
-        if (expr instanceof SqlCall call) {
-            if (call.getOperator() != null) {
-                if (call.getOperator().isAggregator()
-                        || AGGREGATE_FUNCTIONS.contains(call.getOperator().getName().toUpperCase(Locale.ROOT))) {
-                    isAgg[0] = true;
-                }
-            }
-            for (SqlNode operand : call.getOperandList()) {
-                collectColumnRefs(operand, scope, out, isAgg);
-            }
-        }
-        // 字面量等不含列引用
-    }
-
-    /** FROM 后各个表/子查询提供的列的并集,带表别名维度。 */
-    private static class FromScope {
+    /** FROM 后各表/子查询提供的列,带表别名维度。 */
+    private static final class FromScope {
 
         /** 别名(小写)→ 该别名暴露的列列表(按 select 顺序)。 */
-        Map<String, List<ResolvedColumn>> byAlias = new LinkedHashMap<>();
+        final Map<String, List<ResolvedColumn>> byAlias = new LinkedHashMap<>();
         /** 真实表(非 CTE、非子查询)的别名 → 原始表名。 */
-        Map<String, String> realTableByAlias = new LinkedHashMap<>();
+        final Map<String, String> realTableByAlias = new LinkedHashMap<>();
 
-        /** 按标识符查:支持 `col` / `t.col`。返回 null 表示 scope 里没 match(可能 col 来自未追溯的真实表)。 */
-        ResolvedColumn resolveIdentifier(SqlIdentifier id) {
-            if (id.names.size() == 1) {
-                // 不带前缀;遍历所有别名找 resultName 匹配
-                String col = id.names.get(0);
+        /** 按标识符查:支持 `col` / `t.col`。返回 null 表示 scope 里没 match。 */
+        ResolvedColumn resolveIdentifier(SQLExpr expr) {
+            if (expr instanceof SQLPropertyExpr p && !SqlAst.STAR.equals(p.getName())) {
+                String tableAlias = SqlAst.ownerAlias(p);
+                String col = SqlAst.normalize(p.getName());
+                if (tableAlias != null) {
+                    String key = tableAlias.toLowerCase(Locale.ROOT);
+                    List<ResolvedColumn> cols = byAlias.get(key);
+                    if (cols != null) {
+                        for (ResolvedColumn rc : cols) {
+                            if (StringUtils.equalsIgnoreCase(rc.getResultName(), col)) {
+                                return rc;
+                            }
+                        }
+                    }
+                    String realTbl = realTableByAlias.get(key);
+                    return ResolvedColumn.simple(col, realTbl != null ? realTbl : tableAlias, col);
+                }
+                return ResolvedColumn.simple(col, null, col);
+            }
+            if (expr instanceof SQLIdentifierExpr id) {
+                String col = SqlAst.normalize(id.getName());
                 for (var entry : byAlias.entrySet()) {
                     for (ResolvedColumn rc : entry.getValue()) {
-                        if (equalsIgnoreCase(rc.getResultName(), col)) {
+                        if (StringUtils.equalsIgnoreCase(rc.getResultName(), col)) {
                             return rc;
                         }
                     }
                 }
-                // 若不在任一子查询/CTE 的 scope,但有真实表 —— 拼 "table.col" 返回简单引用
                 if (realTableByAlias.size() == 1) {
                     String tbl = realTableByAlias.values().iterator().next();
                     return ResolvedColumn.simple(col, tbl, col);
                 }
-                // 多表 join 且列名不带前缀,返回 column-only simple ref
                 return ResolvedColumn.simple(col, null, col);
             }
-            // t.col 或 schema.t.col
-            String tableAlias = id.names.get(id.names.size() - 2).toLowerCase(Locale.ROOT);
-            String col = id.names.get(id.names.size() - 1);
-            List<ResolvedColumn> cols = byAlias.get(tableAlias);
-            if (cols != null) {
-                for (ResolvedColumn rc : cols) {
-                    if (equalsIgnoreCase(rc.getResultName(), col)) {
-                        return rc;
-                    }
-                }
-            }
-            // 未在 scope(真实表且未追溯到具体列)—— 用真实表名兜底
-            String realTbl = realTableByAlias.get(tableAlias);
-            return ResolvedColumn.simple(col, realTbl != null ? realTbl : tableAlias, col);
-        }
-
-        private static boolean equalsIgnoreCase(String a, String b) {
-            return a != null && a.equalsIgnoreCase(b);
+            return null;
         }
     }
 }

@@ -45,8 +45,8 @@ class SqlProjectionResolverTest {
 
     @Test
     void trailingSemicolonAndCatalogPrefix() {
-        // 用户从脚本里粘出来的 SQL 通常带末尾分号 + 联邦三段式表名,Calcite parseQuery 会因分号当多语句而抛。
-        // 不修复就丢掉所有 originalColumn,COLUMN 规则只能用 result name 兜底,redaction 直接漏。
+        // 用户从脚本里粘出来的 SQL 通常带末尾分号 + 联邦三段式表名,解析前须剥末尾分号。
+        // 不剥就丢掉所有 originalColumn,COLUMN 规则只能用 result name 兜底,redaction 直接漏。
         String sql = "SELECT ds.name AS a FROM mysql.rudder.t_r_datasource ds ORDER BY ds.id;";
         List<ResolvedColumn> out = SqlProjectionResolver.resolve(sql, SqlDialect.TRINO);
         assertThat(out).hasSize(1);
@@ -57,8 +57,7 @@ class SqlProjectionResolverTest {
 
     @Test
     void unknownDialectFallsBackToMysql() {
-        // 老 API 接受字符串方言,unknown 时退化 MYSQL Lex。enum 化后调用方需自己 SqlDialect.of(...)
-        // 拿到 null 再传入,这里直接传 null 验证 null 的 fallback 行为。
+        // 调用方 SqlDialect.of(...) 未知方言拿到 null 再传入,这里直接传 null 验证 fallback 到 MySQL。
         List<ResolvedColumn> out = SqlProjectionResolver.resolve("SELECT phone AS a FROM users", null);
         assertThat(out).hasSize(1);
         assertThat(out.get(0).getOriginalColumn()).isEqualToIgnoringCase("phone");
@@ -166,6 +165,15 @@ class SqlProjectionResolverTest {
         assertThat(out).hasSize(2);
         assertThat(out.get(0).getOriginalColumn()).isEqualToIgnoringCase("phone");
         assertThat(out.get(1).getOriginalColumn()).isEqualToIgnoringCase("email");
+    }
+
+    @Test
+    void reservedWordColumnTracesLineage() {
+        // `comment` 在 hive parser 下是保留字会整句解析失败 → 回退 MySQL 恢复,否则血缘丢失导致脱敏漏过
+        List<ResolvedColumn> out = SqlProjectionResolver.resolve("SELECT comment FROM users", SqlDialect.HIVE);
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0).getOriginalTable()).isEqualToIgnoringCase("users");
+        assertThat(out.get(0).getOriginalColumn()).isEqualToIgnoringCase("comment");
     }
 
     @Test

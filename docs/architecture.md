@@ -39,7 +39,7 @@ rudder/
 ├── rudder-common            纯工具 / POJO / 常量。无 Spring bean、无基础设施
 ├── rudder-dao               MyBatis-Plus DAO + 实体 + 枚举 + Mapper XML
 ├── rudder-rpc               自研 Netty RPC 框架 + 服务契约接口（IXxxService）
-├── rudder-datasource        数据源连接池 + JDBC 客户端 + Calcite SQL AST 解析
+├── rudder-datasource        数据源连接池 + JDBC 客户端 + Druid SQL AST 解析
 ├── rudder-spi/              所有可扩展的 SPI（每个 SPI 一个子目录）
 │   ├── rudder-spi-api       SPI 通用基础设施（AbstractPluginRegistry / ProviderContext / ...）
 │   └── rudder-{xxx}/        每个 SPI 一个目录，下含 -api + 多个 -{provider}
