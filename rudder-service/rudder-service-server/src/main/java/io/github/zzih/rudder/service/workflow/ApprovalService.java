@@ -120,11 +120,26 @@ public class ApprovalService {
         record.setTitle(request.getTitle());
         record.setDescription(request.getContent());
         record.setSubmitRemark(submitRemark);
-        record.setStatus(ApprovalStatus.PENDING);
         record.setDecisionRule(DecisionRule.ANY_1);
         record.setRequiredCount(DecisionRule.ANY_1.defaultRequiredCount());
         // BaseEntity.created_by 由现有审计切面写；此处先显式 set 防止 stage flow 提前用到
         record.setCreatedBy(UserContext.getUserId());
+        if (request.getExtra() != null && !request.getExtra().isEmpty()) {
+            record.setExtData(JsonUtils.toJson(request.getExtra()));
+        }
+
+        // 审批未启用(无启用中的 approval 配置)→ 不解析阶段、不调外部渠道,直接自动通过并发终态事件。
+        // 收口于此:所有经 submit 的审批接入点(含未来新增)都无需各自处理"审批关闭"的分支。
+        if (!approvalConfigService.enabled()) {
+            record.setStatus(ApprovalStatus.APPROVED);
+            record.setResolvedAt(LocalDateTime.now());
+            approvalRecordDao.insert(record);
+            log.info("Approval auto-approved (approval disabled): id={}, resourceType={}, resourceCode={}",
+                    record.getId(), resourceType, resourceCode);
+            publishFinalized(record, ApprovalStatus.APPROVED.name(), record.getCreatedBy());
+            return record.getId();
+        }
+        record.setStatus(ApprovalStatus.PENDING);
 
         List<String> stageChain = stageFlowRegistry.require(resourceType).resolveStageChain(record);
         if (stageChain == null || stageChain.isEmpty()) {
@@ -168,9 +183,6 @@ public class ApprovalService {
         String externalId = approvalConfigService.required().submitApproval(request);
         record.setChannel(channel);
         record.setExternalApprovalId(externalId);
-        if (request.getExtra() != null && !request.getExtra().isEmpty()) {
-            record.setExtData(JsonUtils.toJson(request.getExtra()));
-        }
 
         approvalRecordDao.insert(record);
         log.info("Approval submitted: id={}, resourceType={}, resourceCode={}, stageChain={}, channel={}, "

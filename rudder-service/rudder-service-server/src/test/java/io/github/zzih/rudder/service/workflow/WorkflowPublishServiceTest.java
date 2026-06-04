@@ -19,7 +19,6 @@ package io.github.zzih.rudder.service.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -38,13 +37,10 @@ import io.github.zzih.rudder.dao.entity.PublishRecord;
 import io.github.zzih.rudder.dao.entity.WorkflowDefinition;
 import io.github.zzih.rudder.dao.enums.PublishStatus;
 import io.github.zzih.rudder.publish.api.Publisher;
-import io.github.zzih.rudder.publish.api.bundle.WorkflowPublishBundle;
 import io.github.zzih.rudder.service.config.PublishConfigService;
 import io.github.zzih.rudder.service.notification.NotificationService;
 import io.github.zzih.rudder.service.version.VersionService;
 import io.github.zzih.rudder.version.api.model.VersionRecord;
-
-import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -87,8 +83,8 @@ class WorkflowPublishServiceTest {
     private WorkflowPublishService service;
 
     @Test
-    @DisplayName("submitPublish: SUPER_ADMIN → 跳审批，直接通过 Publisher SPI 发布")
-    void submitPublishAsSuperAdminBypassesApproval() {
+    @DisplayName("submitPublish: SUPER_ADMIN → 不跳审批,同样走审批流(SuperAdmin 的特权是能审批任意流程,而非提交时绕过)")
+    void submitPublishAsSuperAdminStillTriggersApproval() {
         WorkflowDefinition workflow = new WorkflowDefinition();
         workflow.setCode(11L);
         workflow.setName("daily_etl");
@@ -99,19 +95,15 @@ class WorkflowPublishServiceTest {
         VersionRecord versionRecord = new VersionRecord();
         versionRecord.setVersionNo(3);
         when(workflowVersionService.saveWorkflowVersion(any(), any(), anyString())).thenReturn(versionRecord);
-        when(taskDefinitionDao.selectByWorkflowDefinitionCode(11L)).thenReturn(List.of());
-        when(publishConfigService.required()).thenReturn(publisher);
 
         var admin = new UserContext.UserInfo(100L, "admin", 5L, null, RoleType.SUPER_ADMIN.name());
         var result = UserContext.runWith(admin, () -> service.submitPublish(11L, null, 7L, "release"));
 
         assertThat(result).isNotNull();
-        // 通过 Publisher SPI 发布
-        verify(publisher).publishWorkflow(any(WorkflowPublishBundle.class));
-        // 不再走审批
-        verify(approvalService, never()).submit(any(), anyString(), anyLong(), anyLong(), any(), anyString());
-        // 状态推到 PUBLISHED
-        verify(publishRecordDao).updateById(any());
+        // 提交审批,不直接发布
+        verify(approvalService).submit(any(), anyString(), any(), eq(5L), any(), anyString());
+        verify(publisher, never()).publishWorkflow(any());
+        verify(publishRecordDao, never()).updateById(any());
     }
 
     @Test

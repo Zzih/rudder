@@ -83,6 +83,14 @@ public abstract class AbstractConfigService<T> {
         return c != null ? c.getProvider() : null;
     }
 
+    /**
+     * 是否存在启用中的 active 配置。
+     * 区别于 {@link #active()}:后者在无配置时可能 fallback 到默认 provider,故不能用它判断"是否启用"。
+     */
+    public boolean enabled() {
+        return activeProvider() != null;
+    }
+
     public ProviderConfigDTO getActiveDetail() {
         return toDto(spiConfigDao.selectActive(spiType));
     }

@@ -392,6 +392,8 @@ export default {
     statusPending: '待审批',
     statusApproved: '待发布',
     statusRejected: '已拒绝',
+    statusWithdrawn: '已撤回',
+    statusExpired: '已过期',
     statusPublished: '已发布',
     statusFailed: '发布失败',
     recordCount: '{count} 条记录',
@@ -734,8 +736,8 @@ export default {
     configTitle: '审批配置',
     providerConfig: '渠道参数',
     enableApproval: '启用审批',
-    enabledHint: '发布工作流时需要审批',
-    disabledHint: '发布工作流时无需审批',
+    enabledHint: '开启后,工作流发布、数据权限申请等操作需经审批通过后生效',
+    disabledHint: '关闭后相关操作无需审批即可推进(工作流发布仍需手动执行发布);审批中心入口隐藏',
   },
 
   ai: {

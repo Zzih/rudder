@@ -1,5 +1,8 @@
 import request from '@/utils/request'
 
+/** 平台是否启用审批,前端审批中心 Tab 可见性判断用。 */
+export const getApprovalEnabled = () => request.get<{ enabled: boolean }>('/config/approval/enabled')
+
 // --- Approval Records ---
 
 export interface ApprovalDecision {

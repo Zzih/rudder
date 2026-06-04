@@ -78,6 +78,8 @@ const statusMeta: Record<string, { color: string; bg: string; border: string; gl
   APPROVED:         { color: 'var(--r-accent-hover)', bg: 'var(--r-accent-bg)', border: 'var(--r-accent)', glow: 'rgba(37,99,235,0.08)', label: 'project.statusApproved' },
   PENDING_APPROVAL: { color: 'var(--r-warning)', bg: 'var(--r-warning-bg)', border: 'var(--r-warning-border)', glow: 'rgba(217,119,6,0.08)', label: 'project.statusPending' },
   REJECTED:         { color: 'var(--r-danger)', bg: 'var(--r-danger-bg)', border: 'var(--r-danger-border)', glow: 'rgba(220,38,38,0.08)', label: 'project.statusRejected' },
+  WITHDRAWN:        { color: 'var(--r-text-tertiary)', bg: 'var(--r-bg-panel)', border: 'var(--r-border)', glow: 'transparent', label: 'project.statusWithdrawn' },
+  EXPIRED:          { color: 'var(--r-text-tertiary)', bg: 'var(--r-bg-panel)', border: 'var(--r-border)', glow: 'transparent', label: 'project.statusExpired' },
   PUBLISH_FAILED:   { color: 'var(--r-danger)', bg: 'var(--r-danger-bg)', border: 'var(--r-danger-border)', glow: 'rgba(220,38,38,0.08)', label: 'project.statusFailed' },
 }
 
