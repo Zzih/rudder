@@ -35,7 +35,8 @@ public class PublishBatchDTO {
     private Long batchCode;
 
     private PublishType publishType;
-    private PublishStatus status;
+    /** 展示用合并状态:已执行取 PublishStatus(PUBLISHED/PUBLISH_FAILED),否则取审批态(APPROVED/REJECTED/PENDING_APPROVAL/...)。 */
+    private String status;
     private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime publishedAt;

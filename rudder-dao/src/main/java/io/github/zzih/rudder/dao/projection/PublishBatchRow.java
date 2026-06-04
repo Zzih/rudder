@@ -17,7 +17,6 @@
 
 package io.github.zzih.rudder.dao.projection;
 
-import io.github.zzih.rudder.dao.enums.PublishStatus;
 import io.github.zzih.rudder.dao.enums.PublishType;
 
 import java.time.LocalDateTime;
@@ -35,7 +34,8 @@ public class PublishBatchRow {
 
     private PublishType publishType;
 
-    private PublishStatus status;
+    /** 派生的合并展示状态(执行态或审批态),由 queryBatchPage 的 CASE 计算。 */
+    private String status;
 
     private String remark;
 

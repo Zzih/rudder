@@ -203,6 +203,13 @@ public class ConfigController {
         return Result.ok();
     }
 
+    /** 任意登录用户可读的功能开关,前端审批中心 Tab 可见性判断用。 */
+    @GetMapping("/approval/enabled")
+    @RequireLoggedIn
+    public Result<Map<String, Boolean>> approvalEnabled() {
+        return Result.ok(Map.of("enabled", approvalConfigService.enabled()));
+    }
+
     // ==================== 元数据平台配置 ====================
 
     @GetMapping("/metadata/providers")

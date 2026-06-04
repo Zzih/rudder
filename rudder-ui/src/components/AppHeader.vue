@@ -10,6 +10,7 @@ import { setLocale } from '@/locales'
 import AboutDialog from '@/components/AboutDialog.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useDataPermEnabled } from '@/composables/useDataPermEnabled'
+import { useApprovalEnabled } from '@/composables/useApprovalEnabled'
 import type { Role } from '@/stores/user'
 
 const { t, locale } = useI18n()
@@ -31,8 +32,12 @@ const workspaceName = computed(() => workspaceStore.currentWorkspace?.name ?? ''
 const username = computed(() => userStore.userInfo?.username ?? 'User')
 
 const { enabled: dataPermEnabled, ensureLoaded } = useDataPermEnabled()
+const { enabled: approvalEnabled, ensureLoaded: ensureApprovalLoaded } = useApprovalEnabled()
 onMounted(() => {
-  if (userStore.token) ensureLoaded()
+  if (userStore.token) {
+    ensureLoaded()
+    ensureApprovalLoaded()
+  }
 })
 
 type NavKey = 'ide' | 'projects' | 'jobs' | 'files' | 'approvals' | 'mcp' | 'data-perm' | 'admin'
@@ -54,8 +59,11 @@ const navItems = computed<NavItem[]>(() => {
     }
     items.push(
       { key: 'mcp', label: t('nav.mcp'), icon: 'Connection', target: `${wsBase}/mcp`, requireRole: 'VIEWER' },
-      { key: 'approvals', label: t('nav.approvals'), icon: 'Stamp', target: `${wsBase}/approvals`, requireRole: 'VIEWER' },
     )
+    if (approvalEnabled.value) {
+      items.push({ key: 'approvals', label: t('nav.approvals'), icon: 'Stamp',
+        target: `${wsBase}/approvals`, requireRole: 'VIEWER' })
+    }
   }
   // admin tab 一直在:在 workspace 里走 ws-scoped 嵌套 URL,否则走顶层 /admin
   const adminTarget = inWorkspace.value ? `/workspaces/${workspaceId.value}/admin` : '/admin'

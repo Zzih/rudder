@@ -388,6 +388,8 @@ export default {
     statusPending: 'Pending',
     statusApproved: 'Ready to Publish',
     statusRejected: 'Rejected',
+    statusWithdrawn: 'Withdrawn',
+    statusExpired: 'Expired',
     statusPublished: 'Published',
     statusFailed: 'Failed',
     recordCount: '{count} records',
@@ -732,8 +734,8 @@ export default {
     configTitle: 'Approval Configuration',
     providerConfig: 'Channel Parameters',
     enableApproval: 'Enable Approval',
-    enabledHint: 'Approval is required for publishing',
-    disabledHint: 'Publishing without approval',
+    enabledHint: 'When on, workflow publishing, data permission requests, etc. require approval before taking effect',
+    disabledHint: 'When off, those actions proceed without approval (workflow publishing still needs a manual execute); the Approvals entry is hidden',
   },
 
   ai: {

@@ -11,20 +11,46 @@
     </select>
 
     <!-- 按 batchCode 分页：先查出分页后的批次，再关联明细 -->
+    <!--
+      批次展示状态 = 已执行(PUBLISHED/PUBLISH_FAILED)以执行态为准,否则现拉最新审批单状态派生
+      (PENDING→PENDING_APPROVAL / APPROVED / REJECTED / WITHDRAWN / EXPIRED;无审批单视为 PENDING_APPROVAL)。
+      审批结果不回写 PublishRecord,故在此 join 派生;筛选 status 也按派生值,保证 DB 分页正确。
+    -->
     <select id="queryBatchPage" resultType="io.github.zzih.rudder.dao.projection.PublishBatchRow">
-        select batch_code as batchCode,
-               max(publish_type) as publishType,
-               max(status) as status,
-               max(remark) as remark,
-               max(created_at) as createdAt,
-               max(published_at) as publishedAt
-        from t_r_publish_record
-        where project_code = #{projectCode}
-        <if test="status != null and status != ''">
-            and status = #{status}
-        </if>
-        group by batch_code
-        order by max(created_at) desc
+        select f.batchCode, f.publishType, f.status, f.remark, f.createdAt, f.publishedAt
+        from (
+            select g.batch_code as batchCode,
+                   g.publish_type as publishType,
+                   g.remark as remark,
+                   g.created_at as createdAt,
+                   g.published_at as publishedAt,
+                   case
+                       when g.publish_status in ('PUBLISHED', 'PUBLISH_FAILED') then g.publish_status
+                       when g.approval_status is null or g.approval_status = 'PENDING' then 'PENDING_APPROVAL'
+                       else g.approval_status
+                   end as status
+            from (
+                select pr.batch_code,
+                       max(pr.publish_type) as publish_type,
+                       max(pr.status) as publish_status,
+                       max(pr.remark) as remark,
+                       max(pr.created_at) as created_at,
+                       max(pr.published_at) as published_at,
+                       (select ar.status from t_r_approval_record ar
+                         where ar.resource_code = pr.batch_code
+                           and ar.resource_type in ('WORKFLOW_PUBLISH', 'PROJECT_PUBLISH')
+                         order by ar.id desc limit 1) as approval_status
+                from t_r_publish_record pr
+                where pr.project_code = #{projectCode}
+                group by pr.batch_code
+            ) g
+        ) f
+        <where>
+            <if test="status != null and status != ''">
+                f.status = #{status}
+            </if>
+        </where>
+        order by f.createdAt desc
     </select>
 
     <select id="queryDetailsByBatchCodes" resultType="io.github.zzih.rudder.dao.projection.PublishBatchDetailRow">
