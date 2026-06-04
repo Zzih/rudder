@@ -95,7 +95,7 @@ public interface DatasourceTypeProvider<P> extends ConfigurablePluginProviderFac
     /** true = catalog.database.table 三层引擎(StarRocks/Trino);false = database.table。 */
     boolean isHasCatalog();
 
-    /** Calcite SQL 血缘解析用,与驱动行为无关。 */
+    /** SQL 血缘 / access intent 解析用的方言,与驱动行为无关。 */
     SqlDialect dialect();
 
     /**

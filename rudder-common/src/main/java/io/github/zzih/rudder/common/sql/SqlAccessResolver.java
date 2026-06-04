@@ -26,21 +26,38 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.calcite.sql.SqlBasicCall;
-import org.apache.calcite.sql.SqlCall;
-import org.apache.calcite.sql.SqlDelete;
-import org.apache.calcite.sql.SqlIdentifier;
-import org.apache.calcite.sql.SqlInsert;
-import org.apache.calcite.sql.SqlJoin;
-import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.SqlNode;
-import org.apache.calcite.sql.SqlNodeList;
-import org.apache.calcite.sql.SqlOrderBy;
-import org.apache.calcite.sql.SqlSelect;
-import org.apache.calcite.sql.SqlUpdate;
-import org.apache.calcite.sql.SqlWith;
-import org.apache.calcite.sql.SqlWithItem;
-import org.apache.calcite.sql.parser.SqlParser;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.expr.SQLAllColumnExpr;
+import com.alibaba.druid.sql.ast.expr.SQLExistsExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
+import com.alibaba.druid.sql.ast.expr.SQLInSubQueryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.ast.expr.SQLQueryExpr;
+import com.alibaba.druid.sql.ast.statement.SQLAlterTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLDeleteStatement;
+import com.alibaba.druid.sql.ast.statement.SQLDropTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLExprTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLInsertInto;
+import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLMergeStatement;
+import com.alibaba.druid.sql.ast.statement.SQLReplaceStatement;
+import com.alibaba.druid.sql.ast.statement.SQLSelect;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQuery;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
+import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
+import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLUnionQuery;
+import com.alibaba.druid.sql.ast.statement.SQLUnionQueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLUpdateSetItem;
+import com.alibaba.druid.sql.ast.statement.SQLUpdateStatement;
+import com.alibaba.druid.sql.ast.statement.SQLWithSubqueryClause;
+import com.alibaba.druid.sql.dialect.hive.ast.HiveInsert;
+import com.alibaba.druid.sql.dialect.hive.ast.HiveMultiInsertStatement;
+import com.alibaba.druid.sql.dialect.hive.stmt.HiveLoadDataStatement;
+import com.alibaba.druid.sql.visitor.SQLASTVisitorAdapter;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,28 +67,27 @@ import lombok.extern.slf4j.Slf4j;
  * <p>覆盖语法:
  * <ul>
  *   <li>SELECT / WITH / UNION/INTERSECT/EXCEPT / 子查询 / JOIN → READ on 真实表</li>
- *   <li>INSERT INTO ... [SELECT ...] → 目标表 INSERT + 子查询表 READ</li>
- *   <li>UPDATE ... [FROM/WHERE ...] → 目标表 UPDATE + 子查询表 READ</li>
+ *   <li>INSERT INTO ... [SELECT ...] → 目标表 INSERT + 子查询表 READ(含 Hive {@code INSERT [INTO|OVERWRITE] TABLE t PARTITION(...)})</li>
+ *   <li>UPDATE ... [WHERE ...] → 目标表 UPDATE + 子查询表 READ</li>
  *   <li>DELETE FROM ... [WHERE ...] → 目标表 DELETE + 子查询表 READ</li>
+ *   <li>MERGE INTO ... USING ... → 目标表 UPDATE/INSERT(按子句)+ 源表 READ</li>
+ *   <li>REPLACE INTO ... → 目标表 INSERT + 子查询表 READ</li>
+ *   <li>Hive multi-insert({@code FROM s INSERT ... INSERT ...})→ 各目标表 INSERT + 源表 READ</li>
+ *   <li>LOAD DATA ... INTO TABLE t → 目标表 INSERT</li>
  * </ul>
  *
- * <p>列粒度:
- * <ul>
- *   <li>SELECT-list / WHERE / HAVING / GROUP BY / JOIN ON 中的限定列(prefix.col)按 FROM 子句的 alias→table 映射归属</li>
- *   <li>未限定列在单表作用域内归属唯一 FROM 表;多表作用域(JOIN)下整条 SELECT 的列被降级为表级(columns 清空)</li>
- *   <li>SELECT * / t.* 不收集任何具名列(等价于表级访问)</li>
- *   <li>INSERT INTO t(c1,c2) 与 UPDATE t SET c1=?,c2=? 显式列直接归属目标表</li>
- *   <li>外部 schema metadata 不可用,因此 ORDER BY 子句、CTE 内部列引用以 fail-open 处理(归属不确定时降级)</li>
- * </ul>
+ * <p>列粒度:SELECT-list / WHERE / HAVING / GROUP BY / JOIN ON 中的限定列(prefix.col)按 FROM 子句的
+ * alias→table 映射归属;未限定列在单表作用域内归属唯一 FROM 表,多表作用域(JOIN)下整条 SELECT 的列降级为表级
+ * (columns 清空);{@code SELECT *} / {@code t.*} 不收集任何具名列(等价表级)。INSERT 目标列表与 UPDATE SET
+ * 列直接归属目标表。
  *
- * <p>CTE 名(WITH 内定义的临时表)从输出剥除,避免误把临时表当真实表去鉴权。
+ * <p>CTE 名(WITH 内定义)从输出剥除,避免误把临时表当真实表鉴权。
  *
- * <p>DDL (CREATE/DROP/ALTER ...) 本地有意不鉴权:resolveStmt 只处理 DML/查询节点,不产出 DDL intent
- * (babel 仅能解析部分 DDL 如 CREATE TABLE,DROP/ALTER 等直接 parse 失败),两种情况都落 fail-open。
- * 作为低成本实现,DDL 的管控交由下游 DB 引擎或 Ranger 兜底。
+ * <p>DDL:CREATE → 目标表 CREATE(CTAS 另把源表当 READ);DROP → 各表 DROP;ALTER → 目标表 ALTER。
+ * access 名由 {@code PluginType.accessFor} 按 plugin 映射。
  *
- * <p>解析失败统一 fail-open(返当前已收集结果),调用方按"未追溯到"处理。
- * 多语句脚本按 {@code ;} 拆分,逐条独立解析,单条失败不影响其他。
+ * <p>多语句脚本按 {@code ;} 拆分(字符串内 {@code ;} 保留),逐条独立解析,单条解析失败 fail-open(跳过),
+ * 不影响其他语句。
  */
 @Slf4j
 public final class SqlAccessResolver {
@@ -85,19 +101,15 @@ public final class SqlAccessResolver {
             return Collections.emptyList();
         }
         Accumulator acc = new Accumulator();
-        SqlParser.Config cfg = RudderSqlParser.babelConfig(dialect);
         for (String stmt : splitStatements(sql)) {
             if (stmt.isBlank()) {
                 continue;
             }
             try {
-                SqlNode root = SqlParser.create(stmt, cfg).parseStmt();
-                Set<String> cteNames = new LinkedHashSet<>();
-                collectCteNames(root, cteNames);
-                resolveStmt(root, cteNames, acc);
+                for (SQLStatement s : DruidSqlParser.parse(stmt, dialect)) {
+                    resolveStmt(s, acc);
+                }
             } catch (Exception e) {
-                // Calcite SqlParseException.getMessage 自带一大段 "Was expecting one of:" grammar 候选,
-                // 截到第一行就够定位 — 输出的是 "Encountered ... at line X, column Y" 这条核心信息。
                 String msg = e.getMessage() == null ? "" : e.getMessage().split("\n", 2)[0];
                 log.debug("SqlAccessResolver parse failed ({}): {}", e.getClass().getSimpleName(), msg);
             }
@@ -140,310 +152,305 @@ public final class SqlAccessResolver {
 
     // ==================== stmt 分发 ====================
 
-    private static void resolveStmt(SqlNode root, Set<String> cteNames, Accumulator acc) {
-        if (root == null) {
-            return;
-        }
-        if (root instanceof SqlOrderBy ob) {
-            resolveStmt(ob.query, cteNames, acc);
-            return;
-        }
-        if (root instanceof SqlWith with) {
-            for (SqlNode item : with.withList) {
-                if (item instanceof SqlWithItem wi) {
-                    resolveQuery(wi.query, cteNames, acc);
+    private static void resolveStmt(SQLStatement stmt, Accumulator acc) {
+        if (stmt instanceof SQLSelectStatement sel) {
+            resolveSelect(sel.getSelect(), Collections.emptySet(), acc);
+        } else if (stmt instanceof SQLInsertInto ins) {
+            MutableAccess target = addTableAccess(ins.getTableSource(), TableAccess.Action.INSERT, acc);
+            if (target != null) {
+                addExplicitColumns(ins.getColumns(), target);
+            }
+            if (ins.getQuery() != null) {
+                resolveSelect(ins.getQuery(), Collections.emptySet(), acc);
+            }
+        } else if (stmt instanceof SQLUpdateStatement upd) {
+            if (upd.getTableSource() instanceof SQLExprTableSource) {
+                MutableAccess target = addTableAccess(upd.getTableSource(), TableAccess.Action.UPDATE, acc);
+                if (target != null) {
+                    for (SQLUpdateSetItem item : upd.getItems()) {
+                        addColumnExpr(item.getColumn(), target);
+                    }
+                }
+            } else {
+                // 多表 UPDATE(JOIN / 逗号形式):各目标表表级 UPDATE
+                addWriteTargets(upd.getTableSource(), TableAccess.Action.UPDATE, acc);
+            }
+            addSourceRead(upd.getFrom(), acc); // UPDATE ... FROM/USING 源表 READ(Postgres 等)
+            collectSubqueryReads(upd.getWhere(), acc);
+        } else if (stmt instanceof SQLDeleteStatement del) {
+            // getTableSource 而非 getExprTableSource:多表 DELETE 目标是 JOIN,后者会 ClassCastException → fail-open
+            addWriteTargets(del.getTableSource(), TableAccess.Action.DELETE, acc);
+            addSourceRead(del.getUsing(), acc);
+            collectSubqueryReads(del.getWhere(), acc);
+        } else if (stmt instanceof SQLCreateTableStatement create) {
+            addTableAccess(create.getTableSource(), TableAccess.Action.CREATE, acc);
+            if (create.getSelect() != null) {
+                resolveSelect(create.getSelect(), Collections.emptySet(), acc);
+            }
+        } else if (stmt instanceof SQLDropTableStatement drop) {
+            for (SQLExprTableSource t : drop.getTableSources()) {
+                addTableAccess(t, TableAccess.Action.DROP, acc);
+            }
+        } else if (stmt instanceof SQLAlterTableStatement alter) {
+            addTableAccess(alter.getTableSource(), TableAccess.Action.ALTER, acc);
+        } else if (stmt instanceof SQLMergeStatement merge) {
+            // 目标按出现的子句产出写动作(UPDATE / INSERT);两者皆无时按 UPDATE 兜底。源(USING)按 READ。
+            var updClause = merge.getUpdateClause();
+            var insClause = merge.getInsertClause();
+            if (updClause != null || insClause == null) {
+                addTableAccess(merge.getInto(), TableAccess.Action.UPDATE, acc);
+            }
+            if (insClause != null) {
+                addTableAccess(merge.getInto(), TableAccess.Action.INSERT, acc);
+            }
+            addSourceRead(merge.getUsing(), acc);
+            // ON 条件及 WHEN 子句条件里可能含对其他表的相关子查询,按 READ 收
+            collectSubqueryReads(merge.getOn(), acc);
+            if (updClause != null) {
+                collectSubqueryReads(updClause.getWhere(), acc);
+            }
+            if (insClause != null) {
+                collectSubqueryReads(insClause.getWhere(), acc);
+            }
+        } else if (stmt instanceof SQLReplaceStatement replace) {
+            MutableAccess target = addTableAccess(replace.getTableSource(), TableAccess.Action.INSERT, acc);
+            if (target != null) {
+                addExplicitColumns(replace.getColumns(), target);
+            }
+            if (replace.getQuery() != null) {
+                resolveSelect(replace.getQuery().getSubQuery(), Collections.emptySet(), acc);
+            }
+        } else if (stmt instanceof HiveMultiInsertStatement multi) {
+            addSourceRead(multi.getFrom(), acc);
+            for (HiveInsert item : multi.getItems()) {
+                MutableAccess target = addTableAccess(item.getTableSource(), TableAccess.Action.INSERT, acc);
+                if (target != null) {
+                    addExplicitColumns(item.getColumns(), target);
+                }
+                // 各分支 SELECT 的 WHERE 子查询可能引用其他表,按 READ 收
+                if (item.getQuery() != null) {
+                    resolveSelect(item.getQuery(), Collections.emptySet(), acc);
                 }
             }
-            resolveStmt(with.body, cteNames, acc);
-            return;
+        } else if (stmt instanceof HiveLoadDataStatement load) {
+            addTableAccess(load.getInto(), TableAccess.Action.INSERT, acc);
         }
-        if (root instanceof SqlInsert ins) {
-            MutableAccess target = addTableAccess(ins.getTargetTable(), TableAccess.Action.INSERT, cteNames, acc);
-            if (target != null) {
-                addExplicitColumns(ins.getTargetColumnList(), target);
-            }
-            resolveQuery(ins.getSource(), cteNames, acc);
-            return;
-        }
-        if (root instanceof SqlUpdate upd) {
-            MutableAccess target = addTableAccess(upd.getTargetTable(), TableAccess.Action.UPDATE, cteNames, acc);
-            if (target != null) {
-                addExplicitColumns(upd.getTargetColumnList(), target);
-            }
-            // UPDATE 的 WHERE/SET 表达式子查询里可能引用其他表,沿用原 fail-open 处理(无 scope, 表级 read)。
-            collectReadFromExprBareTables(upd.getCondition(), cteNames, acc);
-            return;
-        }
-        if (root instanceof SqlDelete del) {
-            addTableAccess(del.getTargetTable(), TableAccess.Action.DELETE, cteNames, acc);
-            collectReadFromExprBareTables(del.getCondition(), cteNames, acc);
-            return;
-        }
-        // SELECT / UNION / 子查询 走 READ
-        resolveQuery(root, cteNames, acc);
     }
 
-    // ==================== CTE 名收集 ====================
+    /** 把一个源 table source(USING / multi-insert FROM)按 READ 收集,复用 FROM 项解析。 */
+    private static void addSourceRead(SQLTableSource src, Accumulator acc) {
+        addFromItem(src, new SelectScope(), Collections.emptySet(), acc);
+    }
 
-    private static void collectCteNames(SqlNode node, Set<String> out) {
-        if (node == null) {
-            return;
-        }
-        if (node instanceof SqlWith with) {
-            for (SqlNode item : with.withList) {
-                if (item instanceof SqlWithItem wi) {
-                    out.add(unqualifiedName(wi.name).toLowerCase(Locale.ROOT));
-                    collectCteNames(wi.query, out);
-                }
-            }
-            collectCteNames(with.body, out);
-            return;
-        }
-        if (node instanceof SqlOrderBy ob) {
-            collectCteNames(ob.query, out);
-            return;
-        }
-        if (node instanceof SqlSelect sel) {
-            collectCteNames(sel.getFrom(), out);
-            return;
-        }
-        if (node instanceof SqlInsert ins) {
-            collectCteNames(ins.getSource(), out);
-            return;
-        }
-        if (node instanceof SqlCall call) {
-            for (SqlNode op : call.getOperandList()) {
-                collectCteNames(op, out);
-            }
+    /** 写目标可能是 JOIN(多表 UPDATE/DELETE):递归到各基表,逐个产出写动作(表级)。 */
+    private static void addWriteTargets(SQLTableSource src, TableAccess.Action action, Accumulator acc) {
+        if (src instanceof SQLJoinTableSource join) {
+            addWriteTargets(join.getLeft(), action, acc);
+            addWriteTargets(join.getRight(), action, acc);
+        } else {
+            addTableAccess(src, action, acc);
         }
     }
 
-    // ==================== query 解析(带 scope 用于列归属) ====================
+    // ==================== READ 查询解析(带 scope 列归属) ====================
 
-    private static void resolveQuery(SqlNode query, Set<String> cteNames, Accumulator acc) {
-        if (query == null) {
+    private static void resolveSelect(SQLSelect select, Set<String> outerCte, Accumulator acc) {
+        if (select == null) {
             return;
         }
-        if (query instanceof SqlOrderBy ob) {
-            // ORDER BY 在 SELECT 外层,内层 scope 不可见,ORDER BY 列引用 fail-open(不收集列)。
-            resolveQuery(ob.query, cteNames, acc);
-            return;
-        }
-        if (query instanceof SqlWith with) {
-            for (SqlNode item : with.withList) {
-                if (item instanceof SqlWithItem wi) {
-                    resolveQuery(wi.query, cteNames, acc);
-                }
+        Set<String> cte = new LinkedHashSet<>(outerCte);
+        cte.addAll(collectCteNames(select.getWithSubQuery()));
+        if (select.getWithSubQuery() != null) {
+            for (SQLWithSubqueryClause.Entry e : select.getWithSubQuery().getEntries()) {
+                resolveSelect(e.getSubQuery(), cte, acc);
             }
-            resolveQuery(with.body, cteNames, acc);
-            return;
         }
-        if (query instanceof SqlSelect sel) {
+        resolveQuery(select.getQuery(), cte, acc);
+    }
+
+    private static void resolveQuery(SQLSelectQuery query, Set<String> cte, Accumulator acc) {
+        if (query instanceof SQLSelectQueryBlock block) {
             SelectScope scope = new SelectScope();
-            resolveFromItem(sel.getFrom(), scope, cteNames, acc);
-            collectColumnsFromExpr(sel.getSelectList(), scope, cteNames, acc);
-            collectColumnsFromExpr(sel.getWhere(), scope, cteNames, acc);
-            collectColumnsFromExpr(sel.getHaving(), scope, cteNames, acc);
-            collectColumnsFromExpr(sel.getGroup(), scope, cteNames, acc);
-            return;
-        }
-        if (query instanceof SqlCall call && isSetOp(call.getKind())) {
-            for (SqlNode operand : call.getOperandList()) {
-                resolveQuery(operand, cteNames, acc);
+            addFromItem(block.getFrom(), scope, cte, acc);
+            ColumnCollector cc = new ColumnCollector(scope, cte, acc);
+            for (var item : block.getSelectList()) {
+                acceptExpr(item.getExpr(), cc);
             }
+            acceptExpr(block.getWhere(), cc);
+            if (block.getGroupBy() != null) {
+                acceptExpr(block.getGroupBy().getHaving(), cc);
+                for (SQLExpr g : block.getGroupBy().getItems()) {
+                    acceptExpr(g, cc);
+                }
+            }
+        } else if (query instanceof SQLUnionQuery union) {
+            resolveQuery(union.getLeft(), cte, acc);
+            resolveQuery(union.getRight(), cte, acc);
         }
     }
 
-    /**
-     * 处理 FROM 项,递归 JOIN / AS / 子查询 / 真实表;给 scope 添加 alias 映射,JOIN ON 内列引用收集到 scope。
-     */
-    private static void resolveFromItem(SqlNode node, SelectScope scope, Set<String> cteNames, Accumulator acc) {
+    /** WITH 内定义的 CTE 名(小写),引用这些名字的 FROM 项不当真实表。Entry 名即其 alias。 */
+    private static Set<String> collectCteNames(SQLWithSubqueryClause with) {
+        if (with == null) {
+            return Collections.emptySet();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (SQLWithSubqueryClause.Entry e : with.getEntries()) {
+            if (e.getAlias() != null) {
+                names.add(SqlAst.normalize(e.getAlias()).toLowerCase(Locale.ROOT));
+            }
+            // 嵌套 WITH:CTE 子查询里可能再定义 CTE
+            if (e.getSubQuery() != null) {
+                names.addAll(collectCteNames(e.getSubQuery().getWithSubQuery()));
+            }
+        }
+        return names;
+    }
+
+    /** 处理 FROM 项,递归 JOIN / 子查询 / 真实表;给 scope 添加 alias 映射,JOIN ON 内列引用收集到 scope。 */
+    private static void addFromItem(SQLTableSource node, SelectScope scope, Set<String> cte, Accumulator acc) {
         if (node == null) {
             return;
         }
-        if (node instanceof SqlJoin join) {
-            resolveFromItem(join.getLeft(), scope, cteNames, acc);
-            resolveFromItem(join.getRight(), scope, cteNames, acc);
-            collectColumnsFromExpr(join.getCondition(), scope, cteNames, acc);
+        if (node instanceof SQLJoinTableSource join) {
+            addFromItem(join.getLeft(), scope, cte, acc);
+            addFromItem(join.getRight(), scope, cte, acc);
+            acceptExpr(join.getCondition(), new ColumnCollector(scope, cte, acc));
             return;
         }
-        SqlNode source = node;
-        String alias = null;
-        if (node instanceof SqlBasicCall call && call.getKind() == SqlKind.AS) {
-            source = call.operand(0);
-            if (call.getOperandList().size() >= 2) {
-                alias = unqualifiedName(call.operand(1));
+        if (node instanceof SQLExprTableSource ets) {
+            String table = SqlAst.normalize(ets.getTableName());
+            if (table == null || table.isEmpty()) {
+                return;
             }
-        }
-        if (source instanceof SqlIdentifier id) {
-            MutableAccess access = addTableAccess(id, TableAccess.Action.READ, cteNames, acc);
-            if (access != null) {
-                String aliasKey = alias != null && !alias.isEmpty() ? alias : lastName(id);
-                scope.addTable(access, aliasKey);
+            String aliasKey =
+                    (ets.getAlias() != null ? SqlAst.normalize(ets.getAlias()) : table).toLowerCase(Locale.ROOT);
+            // 单段名命中 CTE → 不是真实表;CTE 的真实底表已由其子查询解析覆盖
+            if (ets.getSchema() == null && ets.getCatalog() == null
+                    && cte.contains(table.toLowerCase(Locale.ROOT))) {
+                return;
             }
+            MutableAccess access = acc.add(
+                    SqlAst.normalize(ets.getCatalog()), SqlAst.normalize(ets.getSchema()), table,
+                    TableAccess.Action.READ);
+            scope.addTable(access, aliasKey);
             return;
         }
-        // 子查询(SqlSelect / SqlWith / SetOp):递归处理但其内部 scope 独立;
-        // 外层引用其 alias.col 由于我们无 schema 反查列归属,fail-open(不收集到列粒度,表级 grant 通过)。
-        resolveQuery(source, cteNames, acc);
+        if (node instanceof SQLSubqueryTableSource sub) {
+            resolveSelect(sub.getSelect(), cte, acc);
+            return;
+        }
+        if (node instanceof SQLUnionQueryTableSource union) {
+            resolveQuery(union.getUnion(), cte, acc);
+        }
+    }
+
+    /** WHERE/SET 表达式里的子查询表收集 READ(UPDATE/DELETE 主体不构造 scope,只到表级)。 */
+    private static void collectSubqueryReads(SQLExpr expr, Accumulator acc) {
+        if (expr == null) {
+            return;
+        }
+        SelectScope empty = new SelectScope();
+        acceptExpr(expr, new ColumnCollector(empty, Collections.emptySet(), acc));
+    }
+
+    private static void acceptExpr(SQLExpr expr, ColumnCollector cc) {
+        if (expr != null) {
+            expr.accept(cc);
+        }
     }
 
     // ==================== 列引用 visitor ====================
 
-    /** 把表达式内所有 SqlIdentifier 当作列引用,按 scope 归属。SELECT 子句嵌套时进入子作用域。 */
-    private static void collectColumnsFromExpr(SqlNode node, SelectScope scope, Set<String> cteNames, Accumulator acc) {
-        if (node == null) {
-            return;
-        }
-        // 嵌套子查询/CTE/SetOp:独立作用域,递归 resolveQuery,不污染当前 scope。
-        if (node instanceof SqlSelect || node instanceof SqlWith || node instanceof SqlOrderBy
-                || (node instanceof SqlCall sc && isSetOp(sc.getKind()))) {
-            resolveQuery(node, cteNames, acc);
-            return;
-        }
-        if (node instanceof SqlIdentifier id) {
-            resolveColumn(id, scope);
-            return;
-        }
-        if (node instanceof SqlBasicCall call && call.getKind() == SqlKind.AS) {
-            // SELECT expr AS alias — 仅处理 expr,丢弃 alias
-            if (!call.getOperandList().isEmpty()) {
-                collectColumnsFromExpr(call.operand(0), scope, cteNames, acc);
-            }
-            return;
-        }
-        if (node instanceof SqlCall call) {
-            for (SqlNode op : call.getOperandList()) {
-                collectColumnsFromExpr(op, scope, cteNames, acc);
-            }
-            return;
-        }
-        if (node instanceof SqlNodeList list) {
-            for (SqlNode n : list) {
-                collectColumnsFromExpr(n, scope, cteNames, acc);
-            }
-        }
-        // 其它 literal/字面量 直接忽略
-    }
-
-    /** 解析一个 SqlIdentifier 列引用并归属到 scope 内对应 MutableAccess。SELECT * / t.* 不收集。 */
-    private static void resolveColumn(SqlIdentifier id, SelectScope scope) {
-        List<String> names = id.names;
-        String last = lastName(id);
-        if (!isConcreteColumnName(last)) {
-            return;
-        }
-        if (names.size() >= 2) {
-            String prefix = names.get(names.size() - 2);
-            MutableAccess target = scope.lookupAlias(prefix);
-            if (target != null) {
-                target.addColumn(last);
-            }
-            // 找不到 alias = outer scope / 未知,忽略(fail-open)
-            return;
-        }
-        // 未限定列
-        if (scope.singleTable()) {
-            scope.singleAccess().addColumn(last);
-        } else if (!scope.isEmpty()) {
-            scope.degradeAll();
-        }
-        // scope 空(子查询?):不归属,fail-open
-    }
-
-    /** INSERT/UPDATE 显式列直接写到目标表 access。SqlNodeList 内每项应为 SqlIdentifier。 */
-    private static void addExplicitColumns(SqlNodeList cols, MutableAccess target) {
-        if (cols == null || cols.size() == 0) {
-            return;
-        }
-        for (SqlNode n : cols) {
-            if (n instanceof SqlIdentifier id) {
-                String last = lastName(id);
-                if (isConcreteColumnName(last)) {
-                    target.addColumn(last);
-                }
-            }
-        }
-    }
-
     /**
-     * UPDATE/DELETE 的 WHERE/SET 子查询里出现的真实表收集 READ(只到表级,不参与 scope 列归属)。
-     * 沿用原 fail-open 行为:UPDATE/DELETE 主体不构造 scope,子查询表的列在子查询自己的 scope 内解析。
+     * 收集表达式内的列引用,按 scope 归属;遇子查询独立解析其 READ 表,不把子查询的列归属到当前 scope。
      */
-    private static void collectReadFromExprBareTables(SqlNode expr, Set<String> cteNames, Accumulator acc) {
-        if (expr == null) {
-            return;
+    private static final class ColumnCollector extends SQLASTVisitorAdapter {
+
+        private final SelectScope scope;
+        private final Set<String> cte;
+        private final Accumulator acc;
+
+        ColumnCollector(SelectScope scope, Set<String> cte, Accumulator acc) {
+            this.scope = scope;
+            this.cte = cte;
+            this.acc = acc;
         }
-        if (expr instanceof SqlSelect || expr instanceof SqlWith || expr instanceof SqlOrderBy
-                || (expr instanceof SqlCall call && isSetOp(call.getKind()))) {
-            resolveQuery(expr, cteNames, acc);
-            return;
+
+        @Override
+        public boolean visit(SQLIdentifierExpr x) {
+            scope.routeColumn(null, SqlAst.normalize(x.getName()));
+            return false;
         }
-        if (expr instanceof SqlCall call) {
-            for (SqlNode operand : call.getOperandList()) {
-                collectReadFromExprBareTables(operand, cteNames, acc);
+
+        @Override
+        public boolean visit(SQLPropertyExpr x) {
+            if (SqlAst.STAR.equals(x.getName())) {
+                return false;
             }
-            return;
+            scope.routeColumn(SqlAst.ownerAlias(x), SqlAst.normalize(x.getName()));
+            return false;
         }
-        if (expr instanceof SqlNodeList list) {
-            for (SqlNode n : list) {
-                collectReadFromExprBareTables(n, cteNames, acc);
-            }
+
+        @Override
+        public boolean visit(SQLAllColumnExpr x) {
+            return false;
+        }
+
+        @Override
+        public boolean visit(SQLQueryExpr x) {
+            resolveSelect(x.getSubQuery(), cte, acc);
+            return false;
+        }
+
+        @Override
+        public boolean visit(SQLInSubQueryExpr x) {
+            acceptExpr(x.getExpr(), this);
+            resolveSelect(x.getSubQuery(), cte, acc);
+            return false;
+        }
+
+        @Override
+        public boolean visit(SQLExistsExpr x) {
+            resolveSelect(x.getSubQuery(), cte, acc);
+            return false;
         }
     }
 
     // ==================== 表 access 入口 ====================
 
-    /**
-     * 给定 FROM/目标表的 SqlIdentifier,加入 accumulator(同 cat/db/table/action 合并),返 MutableAccess 句柄供列归属;
-     * 命中 CTE 名时返 null(不当真实表)。
-     */
-    private static MutableAccess addTableAccess(SqlNode tableNode,
-                                                TableAccess.Action action,
-                                                Set<String> cteNames,
-                                                Accumulator acc) {
-        if (!(tableNode instanceof SqlIdentifier id)) {
+    /** FROM/目标表 → accumulator(同 cat/db/table/action 合并),返 MutableAccess 句柄供列归属。 */
+    private static MutableAccess addTableAccess(SQLTableSource src, TableAccess.Action action, Accumulator acc) {
+        if (!(src instanceof SQLExprTableSource ets)) {
             return null;
         }
-        List<String> names = id.names;
-        String table = lastName(id);
+        String table = SqlAst.normalize(ets.getTableName());
         if (table == null || table.isEmpty()) {
             return null;
         }
-        // CTE 名(WITH 内定义)不算真实表;只有 1 段且匹配时认为是 CTE。
-        if (names.size() == 1 && cteNames.contains(table.toLowerCase(Locale.ROOT))) {
-            return null;
+        return acc.add(SqlAst.normalize(ets.getCatalog()), SqlAst.normalize(ets.getSchema()), table, action);
+    }
+
+    /** INSERT 目标列表 / 列引用直接写到目标表 access。 */
+    private static void addExplicitColumns(List<SQLExpr> cols, MutableAccess target) {
+        if (cols == null) {
+            return;
         }
-        String database = names.size() >= 2 ? names.get(names.size() - 2) : null;
-        String catalog = names.size() >= 3 ? names.get(names.size() - 3) : null;
-        return acc.add(catalog, database, table, action);
-    }
-
-    private static boolean isSetOp(SqlKind k) {
-        return k == SqlKind.UNION || k == SqlKind.INTERSECT || k == SqlKind.EXCEPT;
-    }
-
-    private static String unqualifiedName(SqlNode n) {
-        if (n instanceof SqlIdentifier id) {
-            return id.getSimple();
+        for (SQLExpr c : cols) {
+            addColumnExpr(c, target);
         }
-        return n == null ? "" : n.toString();
     }
 
-    /** 取多段标识符的末段(table / column 名);空标识符返 null。 */
-    private static String lastName(SqlIdentifier id) {
-        List<String> names = id.names;
-        return names.isEmpty() ? null : names.get(names.size() - 1);
-    }
-
-    /** 列名是否为具体值(非 null/空/"*" 通配)。 */
-    private static boolean isConcreteColumnName(String col) {
-        return col != null && !col.isEmpty() && !"*".equals(col);
+    private static void addColumnExpr(SQLExpr col, MutableAccess target) {
+        String name = SqlAst.lastName(col);
+        if (SqlAst.isConcreteColumnName(name)) {
+            target.addColumn(name);
+        }
     }
 
     // ==================== Accumulator + 状态对象 ====================
 
-    /** 同 (catalog, database, table, action) 在多次访问间合并 columns 与顺序。 */
+    /** 同 (catalog, database, table, action) 在多次访问间合并 columns。 */
     private static final class Accumulator {
 
         private final Map<String, MutableAccess> map = new LinkedHashMap<>();
@@ -494,7 +501,7 @@ public final class SqlAccessResolver {
             columns.add(col);
         }
 
-        /** 降级到表级:清空已收集列且后续 addColumn 无效。一旦多表作用域出现未限定列,该 access 不再适合列粒度判定。 */
+        /** 降级到表级:清空已收集列且后续 addColumn 无效。多表作用域出现未限定列时该 access 不再适合列粒度。 */
         void degrade() {
             degraded = true;
             columns.clear();
@@ -504,9 +511,7 @@ public final class SqlAccessResolver {
     /** 单个 SELECT 作用域:alias→access 映射 + 此作用域直接出现的 READ 表集合。 */
     private static final class SelectScope {
 
-        /** alias / 真实表名(均小写) → 对应 MutableAccess。 */
         private final Map<String, MutableAccess> aliasToAccess = new LinkedHashMap<>();
-        /** 此作用域内直接出现的 READ entries(去重 — Self-join 同表名时只一份),用于未限定列归属判定。 */
         private final List<MutableAccess> directReads = new ArrayList<>();
 
         void addTable(MutableAccess access, String alias) {
@@ -518,28 +523,24 @@ public final class SqlAccessResolver {
             }
         }
 
-        MutableAccess lookupAlias(String prefix) {
-            if (prefix == null || prefix.isEmpty()) {
-                return null;
+        /** 路由一个列引用:限定列按 alias 归属;未限定列单表归属、多表降级。找不到 alias = 子查询/未知,忽略。 */
+        void routeColumn(String alias, String col) {
+            if (!SqlAst.isConcreteColumnName(col)) {
+                return;
             }
-            return aliasToAccess.get(prefix.toLowerCase(Locale.ROOT));
-        }
-
-        boolean isEmpty() {
-            return directReads.isEmpty();
-        }
-
-        boolean singleTable() {
-            return directReads.size() == 1;
-        }
-
-        MutableAccess singleAccess() {
-            return directReads.get(0);
-        }
-
-        void degradeAll() {
-            for (MutableAccess m : directReads) {
-                m.degrade();
+            if (alias != null && !alias.isEmpty()) {
+                MutableAccess target = aliasToAccess.get(alias.toLowerCase(Locale.ROOT));
+                if (target != null) {
+                    target.addColumn(col);
+                }
+                return;
+            }
+            if (directReads.size() == 1) {
+                directReads.get(0).addColumn(col);
+            } else if (directReads.size() > 1) {
+                for (MutableAccess m : directReads) {
+                    m.degrade();
+                }
             }
         }
     }

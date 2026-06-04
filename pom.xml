@@ -72,7 +72,7 @@
         <unboundid-ldapsdk.version>7.0.1</unboundid-ldapsdk.version>
         <lark-oapi-sdk.version>2.4.14</lark-oapi-sdk.version>
         <slack-api.version>1.44.2</slack-api.version>
-        <calcite.version>1.37.0</calcite.version>
+        <druid.version>1.2.24</druid.version>
         <poi.version>5.2.5</poi.version>
         <jsonschema-generator.version>4.38.0</jsonschema-generator.version>
     </properties>
@@ -692,27 +692,13 @@
                 <version>1.3.0</version>
                 <scope>test</scope>
             </dependency>
-            <!-- Apache Calcite: SQL AST 解析(alias / subquery / CTE → 原始列) -->
+            <!-- Alibaba Druid SQL parser: 多方言 SQL AST 解析(鉴权 access intent / 投影血缘 / LIMIT 注入) -->
             <dependency>
-                <groupId>org.apache.calcite</groupId>
-                <artifactId>calcite-core</artifactId>
-                <version>${calcite.version}</version>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid</artifactId>
+                <version>${druid.version}</version>
                 <exclusions>
                     <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></exclusion>
-                    <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></exclusion>
-                    <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-core</artifactId></exclusion>
-                    <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-annotations</artifactId></exclusion>
-                    <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
-                </exclusions>
-            </dependency>
-            <!-- Calcite Babel parser: 兼容方言 DDL / 扩展语法,失败 fallback 到 base parser -->
-            <dependency>
-                <groupId>org.apache.calcite</groupId>
-                <artifactId>calcite-babel</artifactId>
-                <version>${calcite.version}</version>
-                <exclusions>
-                    <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></exclusion>
-                    <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
                 </exclusions>
             </dependency>
             <!-- Apache POI: Excel 结果格式 (xlsx 流式读写) -->

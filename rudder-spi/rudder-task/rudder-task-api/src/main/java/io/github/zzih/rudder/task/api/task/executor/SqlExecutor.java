@@ -72,7 +72,7 @@ public final class SqlExecutor {
         for (int si = 0; si < statements.length; si++) {
             String rawSql = statements[si];
             SqlPreprocessor.Prepared prep = SqlPreprocessor.preprocess(rawSql, paramMap);
-            // preprocess 后 ${var}/!{var} 已变 ?,Calcite babel 能解析;LIMIT 必须下推 SQL 文本,setMaxRows 仅 client 截断
+            // preprocess 后 ${var}/!{var} 已变 ?,parser 能解析;LIMIT 必须下推 SQL 文本,setMaxRows 仅 client 截断
             String sql = SqlLimitInjector.inject(prep.sql(), maxRows, dialect);
             if (statements.length > 1) {
                 log.info("Executing ({}/{}): {}", si + 1, statements.length,
@@ -159,8 +159,8 @@ public final class SqlExecutor {
      * 在给定的 Statement 上执行可能包含多条语句的 SQL 文本。结果通过 {@link ResultSink} 流式喂出。
      *
      * @param provider 数据源类型 Provider。给 {@link #applyStreamingFetch} 选 JDBC fetch 策略,
-     *                 给 {@link SqlProjectionResolver} 喂 dialect 选 Calcite Lex。null 表示未知,
-     *                 走默认 lex + 兜底 fetchSize(1000)。
+     *                 给 {@link SqlProjectionResolver} 喂 dialect 选解析方言。null 表示未知,
+     *                 走默认 MySQL 方言 + 兜底 fetchSize(1000)。
      * @param datasourceName Rudder 数据源名,写进 ColumnMeta 给元数据 tag 解析用。可空。
      * @param expectResultSet {@code true}:要求调用方提供 sink,每行 {@code sink.write} 喂出;
      *                返回结果集前先 {@code sink.init(columnMetas)}。
