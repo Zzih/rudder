@@ -48,8 +48,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -74,11 +72,12 @@ public class ProjectController {
     @GetMapping
     public PageResult<ProjectResponse> list(@PathVariable Long workspaceId,
                                             @RequestParam(required = false) String searchVal,
+                                            @RequestParam(required = false) Long createdBy,
                                             @RequestParam(defaultValue = "1") int pageNum,
                                             @RequestParam(defaultValue = "20") int pageSize) {
-        IPage<ProjectDTO> page = projectService.pageByWorkspaceId(workspaceId, searchVal, pageNum, pageSize);
-        return PageResult.of(BeanConvertUtils.convertList(page.getRecords(), ProjectResponse.class), page.getTotal(),
-                pageNum, pageSize);
+        return PageResult.of(
+                projectService.pageByWorkspaceId(workspaceId, searchVal, createdBy, pageNum, pageSize),
+                ProjectResponse.class);
     }
 
     @GetMapping("/{code}")

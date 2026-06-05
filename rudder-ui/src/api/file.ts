@@ -11,8 +11,22 @@ export interface StorageEntity {
   extension: string
 }
 
-export function listFiles(path = '') {
-  return request.get<StorageEntity[]>('/files', { params: { path } })
+export interface FileListResult {
+  entities: StorageEntity[]
+  nextCursor: string | null
+}
+
+/** 游标分页列举目录。cursor 为上一页 nextCursor(对前端不透明),首页传空。 */
+export function listFiles(path = '', cursor?: string, limit = 100) {
+  return request.get<FileListResult>('/files', { params: { path, cursor, limit } })
+}
+
+/** 目录条目展示排序:目录在前,同类按文件名 localeCompare。 */
+export function sortStorageEntities(items: StorageEntity[]): StorageEntity[] {
+  return [...items].sort((a, b) => {
+    if (a.directory !== b.directory) return a.directory ? -1 : 1
+    return a.fileName.localeCompare(b.fileName)
+  })
 }
 
 export function uploadFile(file: File, currentDir = '', fileName?: string) {

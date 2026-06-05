@@ -41,12 +41,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WorkflowInstanceMcpTools {
 
+    private static final int MCP_LIST_HARD_CAP = 200;
+
     private final WorkflowInstanceService workflowInstanceService;
 
-    @McpTool(name = "workflow_instance_list", description = "List workflow run instances in the current workspace (most recent first).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "workflow_instance_list", description = "List workflow run instances in the current workspace (most recent first). Returns up to 200; use workflow_instance_page_by_workflow to page through a specific workflow's runs.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("workflow.browse")
     public List<WorkflowInstanceDTO> list() {
-        return workflowInstanceService.listByWorkspaceIdDTO(UserContext.requireWorkspaceId());
+        return workflowInstanceService.listByWorkspaceIdDTO(UserContext.requireWorkspaceId())
+                .stream().limit(MCP_LIST_HARD_CAP).toList();
     }
 
     @McpTool(name = "workflow_instance_page_by_workflow", description = "Page through run instances of a specific workflow definition.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))

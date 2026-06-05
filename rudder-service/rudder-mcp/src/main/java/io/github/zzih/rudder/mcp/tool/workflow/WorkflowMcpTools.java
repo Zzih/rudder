@@ -47,6 +47,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WorkflowMcpTools {
 
+    private static final int MCP_LIST_HARD_CAP = 200;
+
     private final WorkflowDefinitionService workflowDefinitionService;
     private final WorkflowInstanceService workflowInstanceService;
     private final WorkflowPublishService workflowPublishService;
@@ -57,10 +59,11 @@ public class WorkflowMcpTools {
     public record WorkflowSummary(Long code, String name, Long projectCode, String description) {
     }
 
-    @McpTool(name = "workflow_list", description = "List workflow definitions in the current workspace (metadata only, no DAG).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "workflow_list", description = "List workflow definitions in the current workspace (metadata only, no DAG). Returns up to 200.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("workflow.browse")
     public List<WorkflowSummary> list() {
         return workflowDefinitionService.listByWorkspaceId(UserContext.requireWorkspaceId()).stream()
+                .limit(MCP_LIST_HARD_CAP)
                 .map(wf -> new WorkflowSummary(
                         wf.getCode(), wf.getName(), wf.getProjectCode(), wf.getDescription()))
                 .toList();

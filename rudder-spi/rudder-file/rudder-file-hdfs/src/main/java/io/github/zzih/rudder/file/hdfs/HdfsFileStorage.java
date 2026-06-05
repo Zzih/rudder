@@ -20,6 +20,7 @@ package io.github.zzih.rudder.file.hdfs;
 import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.file.api.FileStorageUtils;
 import io.github.zzih.rudder.file.api.StorageEntity;
+import io.github.zzih.rudder.file.api.StoragePage;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,6 +38,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -141,20 +143,26 @@ public class HdfsFileStorage implements FileStorage {
     }
 
     @Override
-    public List<StorageEntity> listEntities(String path) {
+    public StoragePage listEntities(String path, String cursor, int limit) {
         try {
             Path dir = resolve(path != null ? path : "");
-            FileStatus[] statuses = fs.listStatus(dir);
-            List<StorageEntity> result = new ArrayList<>(statuses.length);
-            for (FileStatus status : statuses) {
-                result.add(buildEntity(status));
+            long offset = FileStorageUtils.parseOffsetCursor(cursor);
+            // listStatusIterator 惰性、NameNode 分批拉,避免大目录一次性 listStatus 全量入内存。
+            // skip 是顺序扫,非随机定位(深翻页代价 O(offset)),文件浏览翻页深度可接受。
+            RemoteIterator<FileStatus> it = fs.listStatusIterator(dir);
+            for (long i = 0; i < offset && it.hasNext(); i++) {
+                it.next();
             }
-            return result;
+            List<StorageEntity> result = new ArrayList<>(Math.max(limit, 0));
+            while (result.size() < limit && it.hasNext()) {
+                result.add(buildEntity(it.next()));
+            }
+            return StoragePage.of(result, it.hasNext() ? String.valueOf(offset + limit) : null);
         } catch (FileNotFoundException e) {
-            return List.of();
+            return StoragePage.empty();
         } catch (IOException e) {
             log.warn("Failed to list entities under: {}", path, e);
-            return List.of();
+            return StoragePage.empty();
         }
     }
 

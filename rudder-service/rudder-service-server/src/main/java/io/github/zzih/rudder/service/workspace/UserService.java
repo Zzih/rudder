@@ -136,6 +136,11 @@ public class UserService {
         return BeanConvertUtils.convertList(listAll(), UserDTO.class);
     }
 
+    /** 候选加入成员:不在该 workspace 成员表中的用户(后端 SQL 排除 + keyword 搜索),供添加成员选择器用。 */
+    public List<UserDTO> listNonMembersDetail(Long workspaceId, String keyword, int limit) {
+        return BeanConvertUtils.convertList(userDao.selectNonMembers(workspaceId, keyword, limit), UserDTO.class);
+    }
+
     public List<UserDTO> listByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();

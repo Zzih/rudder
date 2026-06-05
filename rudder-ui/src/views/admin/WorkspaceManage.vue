@@ -5,11 +5,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import {
   listWorkspaces, deleteWorkspace,
-  listMembers, addMember, updateMemberRole, removeMember,
+  listMembers, listNonMembers, addMember, updateMemberRole, removeMember,
   listProjects, updateProjectOwner,
 } from '@/api/workspace'
-import { listUsersSimple } from '@/api/admin'
 import { usePagination } from '@/composables/usePagination'
+import { debounce as debounced } from '@/utils/debounce'
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm'
 import { usePermission } from '@/composables/usePermission'
 
@@ -38,36 +38,65 @@ const drawerVisible = ref(false)
 const drawerTab = ref('members')
 const currentWs = ref<WorkspaceRow | null>(null)
 
-const members = ref<MemberRow[]>([])
-const membersLoading = ref(false)
-const memberCount = computed(() => members.value.length)
 const memberSearch = ref('')
-const filteredMembers = computed(() => {
-  const q = memberSearch.value.trim().toLowerCase()
-  if (!q) return members.value
-  return members.value.filter(m => m.username.toLowerCase().includes(q))
+const {
+  data: members, loading: membersLoading,
+  pageNum: memberPageNum, pageSize: memberPageSize, total: memberTotal,
+  fetch: fetchMembersPage, handlePageChange: handleMemberPageChange, resetAndFetch: resetMembers,
+} = usePagination<MemberRow>({
+  fetchApi: (params) => listMembers(currentWs.value!.id, { ...params, keyword: memberSearch.value.trim() || undefined }),
 })
+const memberCount = computed(() => memberTotal.value)
 
-const projects = ref<ProjectRow[]>([])
-const projectsLoading = ref(false)
+// 项目 owner 选择器走成员后端搜索(remote),不预拉全量;当前 owner 名由 project.createdByUsername 直接显示。
+const memberSearchResults = ref<MemberRow[]>([])
+const memberSearchLoading = ref(false)
+async function searchMembersRemote(keyword: string) {
+  if (!currentWs.value) return
+  memberSearchLoading.value = true
+  try {
+    const { data } = await listMembers(currentWs.value.id, { keyword: keyword?.trim() || undefined, pageSize: 50 })
+    memberSearchResults.value = data ?? []
+  } finally {
+    memberSearchLoading.value = false
+  }
+}
+const onMemberRemoteSearch = debounced((keyword: string) => searchMembersRemote(keyword))
+
+const onMemberSearch = debounced(() => resetMembers())
+
 const projectSearch = ref('')
 const projectOwnerFilter = ref<number | null>(null)
-const filteredProjects = computed(() => {
-  let list = projects.value
-  const q = projectSearch.value.trim().toLowerCase()
-  if (q) {
-    list = list.filter(p => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q))
-  }
-  if (projectOwnerFilter.value) {
-    list = list.filter(p => p.createdBy === projectOwnerFilter.value)
-  }
-  return list
+const {
+  data: projects, loading: projectsLoading,
+  pageNum: projectPageNum, pageSize: projectPageSize, total: projectTotal,
+  fetch: fetchProjectsPage, handlePageChange: handleProjectPageChange, resetAndFetch: resetProjects,
+} = usePagination<ProjectRow>({
+  fetchApi: (params) => listProjects(currentWs.value!.id, {
+    ...params,
+    searchVal: projectSearch.value.trim() || undefined,
+    createdBy: projectOwnerFilter.value ?? undefined,
+  }),
 })
+const onProjectSearch = debounced(() => resetProjects())
 
-// Add member dialog
+// Add member dialog —— 候选用户走后端 SQL 排除已有成员 + 用户名搜索,不在前端拉全量过滤。
 const addDialogVisible = ref(false)
-const allUsers = ref<{ id: number; username: string }[]>([])
+const nonMemberOptions = ref<{ id: number; username: string }[]>([])
+const nonMembersLoading = ref(false)
 const addForm = ref({ userId: null as number | null, role: 'DEVELOPER' })
+
+async function fetchNonMembers(keyword?: string) {
+  if (!currentWs.value) return
+  nonMembersLoading.value = true
+  try {
+    const { data } = await listNonMembers(currentWs.value.id, keyword?.trim() || undefined)
+    nonMemberOptions.value = data ?? []
+  } finally {
+    nonMembersLoading.value = false
+  }
+}
+const searchNonMembers = debounced((keyword: string) => fetchNonMembers(keyword))
 
 // ==================== Fetch ====================
 
@@ -80,27 +109,23 @@ async function openDrawer(ws: WorkspaceRow) {
   projectSearch.value = ''
   projectOwnerFilter.value = null
   drawerVisible.value = true
-  await fetchMembers(ws.id)
-  fetchProjects(ws.id)
+  await resetMembers()
+  resetProjects()
 }
 
 // ==================== Members ====================
 
-async function fetchMembers(wsId: number) {
-  membersLoading.value = true
-  try {
-    const { data } = await listMembers(wsId)
-    members.value = data ?? []
-  } finally {
-    membersLoading.value = false
-  }
+/** 重拉当前页成员(角色变更 / 增删成员后调用)。 */
+async function refreshMembers() {
+  if (!currentWs.value) return
+  await fetchMembersPage()
 }
 
 async function handleRoleChange(member: MemberRow, newRole: string) {
   try {
     await updateMemberRole(member.workspaceId, member.userId, newRole)
     ElMessage.success(t('common.success'))
-    await fetchMembers(member.workspaceId)
+    await refreshMembers()
   } catch { /* interceptor */ }
 }
 
@@ -112,25 +137,15 @@ async function handleRemoveMember(member: MemberRow) {
   try {
     await removeMember(member.workspaceId, member.userId)
     ElMessage.success(t('common.success'))
-    await fetchMembers(member.workspaceId)
+    await refreshMembers()
   } catch { /* interceptor */ }
 }
 
 async function openAddMember() {
   addForm.value = { userId: null, role: 'DEVELOPER' }
-  if (!allUsers.value.length) {
-    try {
-      const { data } = await listUsersSimple()
-      allUsers.value = data ?? []
-    } catch { /* ignore */ }
-  }
+  await fetchNonMembers()
   addDialogVisible.value = true
 }
-
-const availableUsers = computed(() => {
-  const existingIds = new Set(members.value.map(m => m.userId))
-  return allUsers.value.filter(u => !existingIds.has(u.id))
-})
 
 async function handleAddMember() {
   if (!addForm.value.userId || !currentWs.value) return
@@ -138,25 +153,15 @@ async function handleAddMember() {
     await addMember(currentWs.value.id, { userId: addForm.value.userId, role: addForm.value.role })
     ElMessage.success(t('common.success'))
     addDialogVisible.value = false
-    await fetchMembers(currentWs.value.id)
+    await refreshMembers()
   } catch { /* interceptor */ }
 }
 
 // ==================== Projects ====================
 
-async function fetchProjects(wsId: number) {
-  projectsLoading.value = true
-  try {
-    const res: any = await listProjects(wsId, { pageSize: 200 })
-    projects.value = res.data ?? []
-  } finally {
-    projectsLoading.value = false
-  }
-}
-
 async function handleOwnerChange(project: ProjectRow, newUserId: number) {
   if (!currentWs.value) return
-  const newOwner = members.value.find(m => m.userId === newUserId)
+  const newOwner = memberSearchResults.value.find(m => m.userId === newUserId)
   await ElMessageBox.confirm(
     t('admin.confirmChangeOwner', { project: project.name, user: newOwner?.username ?? String(newUserId) }),
     t('common.confirm'), { type: 'warning' },
@@ -164,7 +169,7 @@ async function handleOwnerChange(project: ProjectRow, newUserId: number) {
   try {
     await updateProjectOwner(currentWs.value.id, project.code, newUserId)
     ElMessage.success(t('common.success'))
-    await fetchProjects(currentWs.value.id)
+    await fetchProjectsPage()
   } catch { /* interceptor */ }
 }
 
@@ -225,7 +230,7 @@ onMounted(fetchWorkspaces)
           </div>
           <div class="drawer-head__tags">
             <el-tag effect="plain" round>{{ t('admin.members') }} {{ memberCount }}</el-tag>
-            <el-tag effect="plain" round type="info">{{ t('admin.projects') }} {{ projects.length }}</el-tag>
+            <el-tag effect="plain" round type="info">{{ t('admin.projects') }} {{ projectTotal }}</el-tag>
           </div>
         </div>
 
@@ -239,12 +244,12 @@ onMounted(fetchWorkspaces)
 
             <div class="section-bar">
               <el-input v-model="memberSearch" :placeholder="t('admin.searchMember')" :prefix-icon="Search"
-                        clearable size="small" style="width: 180px" />
+                        clearable size="small" style="width: 180px" @input="onMemberSearch" @clear="onMemberSearch" />
               <el-button type="primary" size="small" :icon="Plus" @click="openAddMember">{{ t('admin.addMember') }}</el-button>
             </div>
 
             <div v-loading="membersLoading" class="card-list">
-              <div v-for="m in filteredMembers" :key="m.id" class="m-card">
+              <div v-for="m in members" :key="m.id" class="m-card">
                 <div class="m-card__left">
                   <el-avatar :size="34" class="m-avatar">{{ m.username.charAt(0).toUpperCase() }}</el-avatar>
                   <div>
@@ -267,27 +272,31 @@ onMounted(fetchWorkspaces)
                   </el-tooltip>
                 </div>
               </div>
-              <el-empty v-if="!membersLoading && !filteredMembers.length" :description="t('admin.noMembers')" :image-size="60" />
+              <el-empty v-if="!membersLoading && !members.length" :description="t('admin.noMembers')" :image-size="60" />
             </div>
+            <el-pagination v-if="memberTotal > memberPageSize" small layout="prev, pager, next"
+                           :total="memberTotal" :page-size="memberPageSize" :current-page="memberPageNum"
+                           @current-change="handleMemberPageChange" class="member-pagination" />
           </el-tab-pane>
 
           <!-- ===== Projects ===== -->
           <el-tab-pane name="projects">
             <template #label>
-              <span>{{ t('admin.projects') }}<em class="tab-num">{{ projects.length }}</em></span>
+              <span>{{ t('admin.projects') }}<em class="tab-num">{{ projectTotal }}</em></span>
             </template>
 
             <div class="section-bar">
               <el-input v-model="projectSearch" :placeholder="t('admin.searchProject')" :prefix-icon="Search"
-                        clearable size="small" style="width: 180px" />
+                        clearable size="small" style="width: 180px" @input="onProjectSearch" @clear="onProjectSearch" />
               <el-select v-model="projectOwnerFilter" :placeholder="t('admin.filterByOwner')" size="small"
-                         clearable filterable style="width: 140px">
-                <el-option v-for="m in members" :key="m.userId" :label="m.username" :value="m.userId" />
+                         clearable filterable remote :remote-method="onMemberRemoteSearch" :loading="memberSearchLoading"
+                         style="width: 140px" @change="resetProjects" @focus="searchMembersRemote('')">
+                <el-option v-for="m in memberSearchResults" :key="m.userId" :label="m.username" :value="m.userId" />
               </el-select>
             </div>
 
             <div v-loading="projectsLoading" class="card-list">
-              <div v-for="p in filteredProjects" :key="p.id" class="p-card">
+              <div v-for="p in projects" :key="p.id" class="p-card">
                 <div class="p-card__left">
                   <div class="p-icon"><el-icon :size="15" style="color: var(--r-accent)"><Folder /></el-icon></div>
                   <div class="p-meta">
@@ -296,14 +305,21 @@ onMounted(fetchWorkspaces)
                   </div>
                 </div>
                 <div class="p-card__right">
-                  <el-select :model-value="p.createdBy" size="small" filterable style="width: 130px"
-                             @change="(val: number) => handleOwnerChange(p, val)">
-                    <el-option v-for="m in members" :key="m.userId" :label="m.username" :value="m.userId" />
+                  <el-select :model-value="p.createdBy" size="small" filterable remote
+                             :remote-method="onMemberRemoteSearch" :loading="memberSearchLoading" style="width: 130px"
+                             @change="(val: number) => handleOwnerChange(p, val)" @focus="searchMembersRemote('')">
+                    <el-option v-if="p.createdBy != null" :key="p.createdBy"
+                               :label="p.createdByUsername || String(p.createdBy)" :value="p.createdBy" />
+                    <el-option v-for="m in memberSearchResults.filter(x => x.userId !== p.createdBy)"
+                               :key="m.userId" :label="m.username" :value="m.userId" />
                   </el-select>
                 </div>
               </div>
-              <el-empty v-if="!projectsLoading && !filteredProjects.length" :description="t('admin.noProjects')" :image-size="60" />
+              <el-empty v-if="!projectsLoading && !projects.length" :description="t('admin.noProjects')" :image-size="60" />
             </div>
+            <el-pagination v-if="projectTotal > projectPageSize" small layout="prev, pager, next"
+                           :total="projectTotal" :page-size="projectPageSize" :current-page="projectPageNum"
+                           @current-change="handleProjectPageChange" class="member-pagination" />
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -313,8 +329,10 @@ onMounted(fetchWorkspaces)
     <el-dialog v-model="addDialogVisible" :title="t('admin.addMember')" width="440" @submit.prevent>
       <el-form :model="addForm" label-position="top">
         <el-form-item :label="t('admin.user')">
-          <el-select v-model="addForm.userId" filterable :placeholder="t('admin.selectUser')" style="width: 100%">
-            <el-option v-for="u in availableUsers" :key="u.id" :label="u.username" :value="u.id" />
+          <el-select v-model="addForm.userId" filterable remote reserve-keyword
+                     :remote-method="searchNonMembers" :loading="nonMembersLoading"
+                     :placeholder="t('admin.selectUser')" style="width: 100%">
+            <el-option v-for="u in nonMemberOptions" :key="u.id" :label="u.username" :value="u.id" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('admin.role')">
@@ -381,6 +399,7 @@ onMounted(fetchWorkspaces)
 
 // ===== Member cards =====
 .card-list { display: flex; flex-direction: column; gap: 6px; }
+.member-pagination { justify-content: center; margin-top: 10px; }
 
 .m-card {
   display: flex; align-items: center; justify-content: space-between;

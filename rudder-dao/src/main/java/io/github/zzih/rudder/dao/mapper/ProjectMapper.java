@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.Project;
+import io.github.zzih.rudder.dao.entity.view.ProjectDetailView;
 
 import java.util.List;
 
@@ -37,9 +38,10 @@ public interface ProjectMapper extends BaseMapper<Project> {
 
     List<Project> queryByWorkspaceId(@Param("workspaceId") Long workspaceId);
 
-    IPage<Project> queryPageByWorkspaceId(IPage<Project> page,
-                                          @Param("workspaceId") Long workspaceId,
-                                          @Param("searchVal") String searchVal);
+    IPage<ProjectDetailView> queryPageByWorkspaceId(IPage<ProjectDetailView> page,
+                                                    @Param("workspaceId") Long workspaceId,
+                                                    @Param("searchVal") String searchVal,
+                                                    @Param("createdBy") Long createdBy);
 
     long countByWorkspaceIdAndName(@Param("workspaceId") Long workspaceId,
                                    @Param("name") String name);

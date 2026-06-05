@@ -48,6 +48,9 @@ public interface UserDao {
 
     List<User> selectAll();
 
+    /** 候选加入成员:不在该 workspace 成员表中的用户,可选 keyword 搜索,限 limit 条。 */
+    List<User> selectNonMembers(Long workspaceId, String keyword, int limit);
+
     /** 全部 SUPER_ADMIN 用户。MCP 高敏 capability 二级审批解析候选人用。 */
     List<User> selectSuperAdmins();
 }

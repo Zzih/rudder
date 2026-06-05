@@ -26,7 +26,10 @@
     </div>
 
     <!-- Messages -->
-    <div ref="messagesEl" class="ai-chat__body">
+    <div ref="messagesEl" class="ai-chat__body" @scroll="handleBodyScroll">
+      <div v-if="store.loadingOlder" class="ai-chat__load-older">
+        <el-icon class="is-loading"><Loading /></el-icon>
+      </div>
       <div v-if="!visibleMessages.length && !store.streaming" class="ai-chat__empty">
         <div class="empty-icon"><el-icon :size="20"><MagicStick /></el-icon></div>
         <p>{{ agentModeOn ? t('ide.agentHint') : t('ide.aiHint') }}</p>
@@ -252,7 +255,7 @@
 import { ref, reactive, inject, computed, nextTick, onMounted, onUnmounted, watch, h, defineComponent } from 'vue'
 import { IDE_STATE_KEY, buildTurnContext } from './ideState'
 import { useI18n } from 'vue-i18n'
-import { ChatDotRound, Promotion, Plus, Close, VideoPause, ArrowRight, MagicStick, User, CircleClose, Tools, Document } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, Plus, Close, VideoPause, ArrowRight, MagicStick, User, CircleClose, Tools, Document, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAiChatStore, type UiMessage } from '@/stores/aiChat'
 import { feedback as feedbackApi, type FeedbackSignal } from '@/api/ai'
@@ -533,12 +536,32 @@ onUnmounted(() => {
 
 // 滚动触发:消息条数变 或 最后一条流式消息长度变。
 // 不 join 所有 content —— 长会话下那是每 token 拼一次 MB 级字符串。
-watch(() => store.messages.length, () => scrollToBottom())
+// 前插更早消息时条数也变,但必须保持视口锚定而非弹到底,故 prepending 期间跳过。
+watch(() => store.messages.length, () => { if (!prepending) scrollToBottom() })
 watch(() => {
   const last = visibleMessages.value[visibleMessages.value.length - 1]
   if (!last) return 0
   return (last.content?.length ?? 0) + (last.thinking?.length ?? 0)
 }, () => scrollToBottom())
+
+// 反向无限滚动:接近顶部时拉更早一页,前插后把 scrollTop 加上高度增量,保持原可视消息不跳。
+let prepending = false
+async function handleBodyScroll() {
+  const el = messagesEl.value
+  if (!el || el.scrollTop > 40 || !store.hasMoreOlder || store.loadingOlder) return
+  const prevHeight = el.scrollHeight
+  const prevTop = el.scrollTop
+  prepending = true
+  try {
+    const added = await store.loadOlderMessages()
+    await nextTick()
+    if (added > 0 && messagesEl.value) {
+      messagesEl.value.scrollTop = messagesEl.value.scrollHeight - prevHeight + prevTop
+    }
+  } finally {
+    prepending = false
+  }
+}
 
 let scrollRaf: number | null = null
 function scrollToBottom() {
@@ -638,6 +661,11 @@ async function handleSend() {
 .ai-chat__body {
   flex: 1; overflow-y: auto; padding: 16px 12px;
   display: flex; flex-direction: column; gap: 16px;
+}
+
+.ai-chat__load-older {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--r-text-muted); font-size: 14px;
 }
 
 .ai-chat__empty {

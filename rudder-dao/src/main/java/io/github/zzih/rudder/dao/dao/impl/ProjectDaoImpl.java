@@ -19,6 +19,7 @@ package io.github.zzih.rudder.dao.dao.impl;
 
 import io.github.zzih.rudder.dao.dao.ProjectDao;
 import io.github.zzih.rudder.dao.entity.Project;
+import io.github.zzih.rudder.dao.entity.view.ProjectDetailView;
 import io.github.zzih.rudder.dao.mapper.ProjectMapper;
 
 import java.util.List;
@@ -57,8 +58,9 @@ public class ProjectDaoImpl implements ProjectDao {
     }
 
     @Override
-    public IPage<Project> selectPageByWorkspaceId(Long workspaceId, String searchVal, int pageNum, int pageSize) {
-        return projectMapper.queryPageByWorkspaceId(new Page<>(pageNum, pageSize), workspaceId, searchVal);
+    public IPage<ProjectDetailView> selectPageByWorkspaceId(Long workspaceId, String searchVal, Long createdBy,
+                                                            int pageNum, int pageSize) {
+        return projectMapper.queryPageByWorkspaceId(new Page<>(pageNum, pageSize), workspaceId, searchVal, createdBy);
     }
 
     @Override

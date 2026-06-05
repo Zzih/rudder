@@ -72,6 +72,22 @@
         order by created_at desc
     </select>
 
+    <select id="queryPageByWorkflowDefinitionCodes" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
+        select <include refid="baseSql"/>
+        from t_r_workflow_instance
+        where workflow_definition_code in
+        <foreach collection="workflowDefinitionCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        <if test="searchVal != null and searchVal != ''">
+            and name like concat('%', #{searchVal}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            and status = #{status}
+        </if>
+        order by created_at desc
+    </select>
+
     <select id="queryPageByProjectCode" resultType="io.github.zzih.rudder.dao.entity.WorkflowInstance">
         select <include refid="baseSql"/>
         from t_r_workflow_instance

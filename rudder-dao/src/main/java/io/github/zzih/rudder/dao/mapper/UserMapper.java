@@ -43,4 +43,8 @@ public interface UserMapper extends BaseMapper<User> {
                           @Param("searchVal") String searchVal);
 
     List<User> queryAll();
+
+    List<User> queryNonMembers(@Param("workspaceId") Long workspaceId,
+                               @Param("keyword") String keyword,
+                               @Param("limit") int limit);
 }

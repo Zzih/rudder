@@ -15,21 +15,19 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.dao.dao;
+package io.github.zzih.rudder.api.response;
 
-import io.github.zzih.rudder.dao.entity.AiEvalRun;
+import io.github.zzih.rudder.file.api.StorageEntity;
 
 import java.util.List;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
+import lombok.Data;
 
-public interface AiEvalRunDao {
+/** 目录游标分页列举结果:本页条目 + 下一页游标(null 表示末页)。 */
+@Data
+public class FileListResponse {
 
-    IPage<AiEvalRun> selectPageByBatch(String batchId, int pageNum, int pageSize);
+    private List<StorageEntity> entities;
 
-    List<AiEvalRun> selectByCase(Long caseId, int limit);
-
-    IPage<AiEvalRun> selectPageByCase(Long caseId, int pageNum, int pageSize);
-
-    int insert(AiEvalRun entity);
+    private String nextCursor;
 }

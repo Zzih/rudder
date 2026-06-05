@@ -100,6 +100,11 @@ public class UserDaoImpl implements UserDao {
     }
 
     @Override
+    public List<User> selectNonMembers(Long workspaceId, String keyword, int limit) {
+        return userMapper.queryNonMembers(workspaceId, keyword, limit);
+    }
+
+    @Override
     public List<User> selectSuperAdmins() {
         return userMapper.selectList(
                 new LambdaQueryWrapper<User>().eq(User::getIsSuperAdmin, Boolean.TRUE));

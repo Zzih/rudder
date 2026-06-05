@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.WorkspaceMember;
+import io.github.zzih.rudder.dao.entity.view.WorkspaceMemberDetailView;
 
 import java.util.List;
 
@@ -25,6 +26,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 @Mapper
 public interface WorkspaceMemberMapper extends BaseMapper<WorkspaceMember> {
@@ -33,6 +35,10 @@ public interface WorkspaceMemberMapper extends BaseMapper<WorkspaceMember> {
                                                 @Param("userId") Long userId);
 
     List<WorkspaceMember> queryByWorkspaceId(@Param("workspaceId") Long workspaceId);
+
+    IPage<WorkspaceMemberDetailView> queryDetailPageByWorkspaceId(IPage<WorkspaceMemberDetailView> page,
+                                                                  @Param("workspaceId") Long workspaceId,
+                                                                  @Param("keyword") String keyword);
 
     List<WorkspaceMember> queryByWorkspaceIdAndRole(@Param("workspaceId") Long workspaceId,
                                                     @Param("role") String role);

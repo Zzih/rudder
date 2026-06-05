@@ -38,12 +38,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ScriptMcpTools {
 
+    private static final int MCP_LIST_HARD_CAP = 200;
+
     private final ScriptService scriptService;
 
-    @McpTool(name = "script_list", description = "List all scripts in the current workspace.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "script_list", description = "List all scripts in the current workspace. Returns up to 200.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("script.browse")
     public List<ScriptDTO> list() {
-        return scriptService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId());
+        return scriptService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId())
+                .stream().limit(MCP_LIST_HARD_CAP).toList();
     }
 
     @McpResource(uri = "rudder://script/{code}", name = "rudder-script", description = "A script in the current workspace (SQL/Python/Shell/etc., addressed by stable code). Use script_list to discover available codes.", mimeType = "application/json")

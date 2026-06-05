@@ -30,7 +30,6 @@ import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.script.dto.TaskInstanceDTO;
 import io.github.zzih.rudder.service.workflow.WorkflowInstanceService;
-import io.github.zzih.rudder.service.workflow.dto.WorkflowInstanceDTO;
 
 import java.util.List;
 
@@ -40,8 +39,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import lombok.RequiredArgsConstructor;
 
@@ -63,21 +60,18 @@ public class WorkflowInstanceController {
                                                      @RequestParam(defaultValue = "1") int pageNum,
                                                      @RequestParam(defaultValue = "20") int pageSize) {
         if (workflowDefinitionCode != null) {
-            IPage<WorkflowInstanceDTO> page = workflowInstanceService
-                    .pageByWorkflowDefinitionCodeDTO(workflowDefinitionCode, searchVal, pageNum, pageSize);
-            return PageResult.of(BeanConvertUtils.convertList(page.getRecords(), WorkflowInstanceResponse.class),
-                    page.getTotal(), pageNum, pageSize);
+            return PageResult.of(workflowInstanceService
+                    .pageByWorkflowDefinitionCodeDTO(workflowDefinitionCode, searchVal, pageNum, pageSize),
+                    WorkflowInstanceResponse.class);
         }
         if (projectCode != null) {
-            IPage<WorkflowInstanceDTO> page =
-                    workflowInstanceService.pageByProjectCodeDTO(projectCode, searchVal, status, pageNum, pageSize);
-            return PageResult.of(BeanConvertUtils.convertList(page.getRecords(), WorkflowInstanceResponse.class),
-                    page.getTotal(), pageNum, pageSize);
+            return PageResult.of(
+                    workflowInstanceService.pageByProjectCodeDTO(projectCode, searchVal, status, pageNum, pageSize),
+                    WorkflowInstanceResponse.class);
         }
-        // fallback
-        List<WorkflowInstanceDTO> list = workflowInstanceService.listByWorkspaceIdDTO(workspaceId);
-        List<WorkflowInstanceResponse> responses = BeanConvertUtils.convertList(list, WorkflowInstanceResponse.class);
-        return PageResult.of(responses, responses.size(), 1, responses.size());
+        return PageResult.of(
+                workflowInstanceService.pageByWorkspaceIdDTO(workspaceId, searchVal, status, pageNum, pageSize),
+                WorkflowInstanceResponse.class);
     }
 
     @GetMapping("/{id}")

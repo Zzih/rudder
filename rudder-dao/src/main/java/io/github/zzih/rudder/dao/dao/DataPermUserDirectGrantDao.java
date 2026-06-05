@@ -53,7 +53,8 @@ public interface DataPermUserDirectGrantDao {
     /** 单个用户当前活跃直接授权展开后的单元组总数(各层数组长度乘积之和)。 */
     long sumFlattenedActiveByUser(Long userId, LocalDateTime asOf);
 
-    List<DataPermUserDirectGrant> selectInactiveByUser(Long userId, LocalDateTime now);
+    /** 按 id 批量拉 direct grant(历史分页补全用)。 */
+    List<DataPermUserDirectGrant> selectByIds(Collection<Long> ids);
 
     List<DataPermUserDirectGrant> selectByApprovalId(Long approvalId);
 

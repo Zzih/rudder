@@ -14,7 +14,9 @@ import {
   readFileContent,
   updateFileContent,
   getEditableSuffixes,
+  sortStorageEntities,
   type StorageEntity,
+  type FileListResult,
 } from '@/api/file'
 import { useUserStore } from '@/stores/user'
 import { relativeTime as relativeTimeUtil } from '@/utils/dateFormat'
@@ -22,7 +24,11 @@ import { relativeTime as relativeTimeUtil } from '@/utils/dateFormat'
 const { t } = useI18n()
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const files = ref<StorageEntity[]>([])
+const nextCursor = ref<string | null>(null)
+const hasMore = computed(() => nextCursor.value != null)
+const FILE_PAGE_SIZE = 100
 const currentPath = ref('')
 const editableSuffixes = ref<Set<string>>(new Set())
 const MAX_EDITABLE_SIZE = 1024 * 1024
@@ -89,15 +95,26 @@ async function fetchFiles() {
   loading.value = true
   appeared.value = false
   try {
-    const res = await listFiles(currentPath.value)
-    files.value = ((res as unknown as { data: StorageEntity[] }).data ?? [])
-      .sort((a, b) => {
-        if (a.directory !== b.directory) return a.directory ? -1 : 1
-        return a.fileName.localeCompare(b.fileName)
-      })
+    const res = await listFiles(currentPath.value, undefined, FILE_PAGE_SIZE)
+    const data = (res as unknown as { data: FileListResult }).data
+    files.value = sortStorageEntities(data?.entities ?? [])
+    nextCursor.value = data?.nextCursor ?? null
     appeared.value = true
   } catch { /* interceptor */ } finally {
     loading.value = false
+  }
+}
+
+async function loadMoreFiles() {
+  if (!nextCursor.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const res = await listFiles(currentPath.value, nextCursor.value, FILE_PAGE_SIZE)
+    const data = (res as unknown as { data: FileListResult }).data
+    files.value = sortStorageEntities([...files.value, ...(data?.entities ?? [])])
+    nextCursor.value = data?.nextCursor ?? null
+  } catch { /* interceptor */ } finally {
+    loadingMore.value = false
   }
 }
 
@@ -361,7 +378,8 @@ function relativeTime(d: string) {
   return relativeTimeUtil(d, t('project.justNow'))
 }
 
-const isEmpty = computed(() => !loading.value && filteredFiles.value.length === 0)
+// 仅当无更多页可加载时才算空:否则搜索词的匹配项可能在尚未加载的游标页上,不能误报"无结果"。
+const isEmpty = computed(() => !loading.value && filteredFiles.value.length === 0 && !hasMore.value)
 
 onMounted(() => {
   fetchEditableSuffixes()
@@ -612,6 +630,11 @@ onMounted(() => {
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Load more (cursor pagination):有更多页就显示,即便当前搜索在已加载页无匹配,也让用户继续翻取。 -->
+    <div v-if="hasMore" class="fm-load-more">
+      <el-button text :loading="loadingMore" @click="loadMoreFiles">{{ t('file.loadMore') }}</el-button>
     </div>
 
     <!-- Empty state -->
@@ -1342,6 +1365,12 @@ onMounted(() => {
 }
 
 /* ── Empty state ── */
+.fm-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
 .fm-empty {
   display: flex;
   flex-direction: column;

@@ -73,8 +73,11 @@ export function getExecutionResult(id: number, offset = 0, limit = 500) {
   return request.get(`/executions/${id}/result`, { params: { offset, limit } })
 }
 
-export function listExecutionsByScript(scriptId: number | string) {
-  return request.get(`/executions/script/${scriptId}`)
+export function listExecutionsByScript(
+  scriptId: number | string,
+  params?: { keyword?: string; status?: string; pageNum?: number; pageSize?: number },
+) {
+  return request.get(`/executions/script/${scriptId}`, { params })
 }
 
 export function downloadExecutionResult(id: number, format: 'csv' | 'excel'): Promise<AxiosResponse<Blob>> {

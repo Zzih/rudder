@@ -30,7 +30,10 @@ export function createWorkspace(data: { name: string; description?: string }) {
   return request.post('/workspaces', data)
 }
 
-export function listProjects(workspaceId: number, params?: { searchVal?: string; pageNum?: number; pageSize?: number }) {
+export function listProjects(
+  workspaceId: number,
+  params?: { searchVal?: string; createdBy?: number; pageNum?: number; pageSize?: number },
+) {
   return request.get(`/workspaces/${workspaceId}/projects`, { params })
 }
 
@@ -51,8 +54,16 @@ export function deleteProject(workspaceId: number, code: number | string) {
 }
 
 // Members
-export function listMembers(workspaceId: number) {
-  return request.get(`/workspaces/${workspaceId}/members`)
+export function listMembers(
+  workspaceId: number,
+  params?: { keyword?: string; pageNum?: number; pageSize?: number },
+) {
+  return request.get(`/workspaces/${workspaceId}/members`, { params })
+}
+
+/** 候选加入成员:后端 SQL 排除已是成员的用户,可选 keyword 搜索用户名。 */
+export function listNonMembers(workspaceId: number, keyword?: string) {
+  return request.get(`/workspaces/${workspaceId}/non-members`, { params: { keyword } })
 }
 
 export function addMember(workspaceId: number, data: { userId: number; role: string }) {

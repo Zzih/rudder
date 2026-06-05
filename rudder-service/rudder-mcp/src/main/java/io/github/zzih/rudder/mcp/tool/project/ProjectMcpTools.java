@@ -39,13 +39,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectMcpTools {
 
+    private static final int MCP_LIST_HARD_CAP = 200;
+
     private final ProjectService projectService;
     private final WorkspaceGuard workspaceGuard;
 
-    @McpTool(name = "project_list", description = "List projects in the current workspace.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "project_list", description = "List projects in the current workspace. Returns up to 200.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("project.browse")
     public List<ProjectDTO> list() {
-        return projectService.listByWorkspaceId(UserContext.requireWorkspaceId());
+        return projectService.listByWorkspaceId(UserContext.requireWorkspaceId())
+                .stream().limit(MCP_LIST_HARD_CAP).toList();
     }
 
     @McpResource(uri = "rudder://project/{code}", name = "rudder-project", description = "A project in the current workspace (groups workflows under the same business unit). Use project_list to discover codes.", mimeType = "application/json")

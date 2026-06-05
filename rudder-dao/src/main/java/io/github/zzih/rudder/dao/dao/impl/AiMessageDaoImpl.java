@@ -39,8 +39,8 @@ public class AiMessageDaoImpl implements AiMessageDao {
     }
 
     @Override
-    public List<AiMessage> selectBySessionId(Long sessionId) {
-        return mapper.queryBySession(sessionId);
+    public List<AiMessage> selectSliceBySessionId(Long sessionId, Long beforeId, int limit) {
+        return mapper.querySliceBySession(sessionId, beforeId, limit);
     }
 
     @Override

@@ -30,6 +30,7 @@ import io.github.zzih.rudder.common.enums.error.SystemErrorCode;
 import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.execution.LogResponse;
 import io.github.zzih.rudder.common.execution.ResultResponse;
+import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.common.utils.net.HttpUtils;
@@ -39,7 +40,6 @@ import io.github.zzih.rudder.service.script.TaskInstanceService;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
@@ -91,9 +91,14 @@ public class ExecutionController {
     }
 
     @GetMapping("/script/{scriptCode}")
-    public Result<List<TaskInstanceResponse>> listByScript(@PathVariable Long scriptCode) {
-        return Result.ok(BeanConvertUtils.convertList(taskInstanceService.listByScriptCodeDetail(scriptCode),
-                TaskInstanceResponse.class));
+    public PageResult<TaskInstanceResponse> listByScript(@PathVariable Long scriptCode,
+                                                         @RequestParam(required = false) String keyword,
+                                                         @RequestParam(required = false) String status,
+                                                         @RequestParam(defaultValue = "1") int pageNum,
+                                                         @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(
+                taskInstanceService.pageByScriptCodeDetail(scriptCode, keyword, status, pageNum, pageSize),
+                dto -> BeanConvertUtils.convert(dto, TaskInstanceResponse.class));
     }
 
     @PostMapping("/{id}/cancel")

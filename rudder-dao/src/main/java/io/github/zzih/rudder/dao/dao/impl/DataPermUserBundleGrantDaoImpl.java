@@ -21,15 +21,20 @@ import io.github.zzih.rudder.dao.dao.DataPermUserBundleGrantDao;
 import io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant;
 import io.github.zzih.rudder.dao.entity.view.DataPermUserBundleGrantDetailView;
 import io.github.zzih.rudder.dao.mapper.DataPermUserBundleGrantMapper;
+import io.github.zzih.rudder.dao.projection.InactiveGrantRef;
 import io.github.zzih.rudder.dao.projection.UserBundleGrantSummaryRow;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Repository;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import lombok.RequiredArgsConstructor;
 
@@ -69,8 +74,13 @@ public class DataPermUserBundleGrantDaoImpl implements DataPermUserBundleGrantDa
     }
 
     @Override
-    public List<DataPermUserBundleGrantDetailView> selectInactiveByUser(Long userId, LocalDateTime now) {
-        return mapper.queryInactiveByUser(userId, now);
+    public IPage<InactiveGrantRef> selectInactiveRefsPage(Long userId, LocalDateTime now, int pageNum, int pageSize) {
+        return mapper.queryInactiveRefsPage(new Page<>(pageNum, pageSize), userId, now);
+    }
+
+    @Override
+    public List<DataPermUserBundleGrantDetailView> selectByIds(Collection<Long> ids) {
+        return ids == null || ids.isEmpty() ? List.of() : mapper.queryByIds(ids);
     }
 
     @Override

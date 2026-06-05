@@ -27,13 +27,26 @@
         where workspace_id = #{workspaceId}
     </select>
 
-    <select id="queryPageByWorkspaceId" resultType="io.github.zzih.rudder.dao.entity.Project">
-        select <include refid="baseSql"/>
-        from t_r_project
-        where workspace_id = #{workspaceId}
+    <resultMap id="ProjectDetailMap" type="io.github.zzih.rudder.dao.entity.view.ProjectDetailView"
+               autoMapping="true">
+        <result column="created_by_username" property="createdByUsername"/>
+    </resultMap>
+
+    <select id="queryPageByWorkspaceId" resultMap="ProjectDetailMap">
+        select p.id, p.code, p.workspace_id, p.name, p.description, p.params,
+               p.created_by, p.created_at, p.updated_by, p.updated_at,
+               u.username as created_by_username
+        from t_r_project p
+        left join t_r_user u on u.id = p.created_by
+        where p.workspace_id = #{workspaceId}
         <if test="searchVal != null and searchVal != ''">
-            and name like concat('%', #{searchVal}, '%')
+            and (p.name like concat('%', #{searchVal}, '%')
+                or p.description like concat('%', #{searchVal}, '%'))
         </if>
+        <if test="createdBy != null">
+            and p.created_by = #{createdBy}
+        </if>
+        order by p.created_at desc
     </select>
 
     <select id="countByWorkspaceIdAndName" resultType="long">

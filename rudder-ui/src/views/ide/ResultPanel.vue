@@ -62,19 +62,40 @@
     <div v-show="currentTab === 'history'" class="result-panel__content history-panel">
       <!-- Left: history list -->
       <div class="history-list">
-        <div
-          v-for="item in historyList" :key="item.id"
-          class="history-item" :class="{ active: historySelected?.id === item.id }"
-          @click="selectHistoryItem(item)"
-        >
-          <div class="history-item__head">
-            <el-tag :type="item.status === 'SUCCESS' ? 'success' : item.status === 'FAILED' ? 'danger' : 'warning'" size="small">{{ item.status }}</el-tag>
-            <span class="history-item__time">{{ item.createdAt ? new Date(item.createdAt).toLocaleString() : '' }}</span>
-          </div>
-          <code class="history-item__sql">{{ item.content?.substring(0, 60) || '-' }}</code>
-          <span v-if="item.duration" class="history-item__dur">{{ (item.duration / 1000).toFixed(1) }}s</span>
+        <div class="history-list__filters">
+          <el-input
+            v-model="historyKeyword" :placeholder="t('ide.historySearchPlaceholder')"
+            size="small" clearable @input="onHistoryFilterChange"
+          />
+          <el-select
+            v-model="historyStatus" :placeholder="t('ide.historyAllStatus')"
+            size="small" clearable @change="onHistoryFilterChange"
+          >
+            <el-option v-for="s in HISTORY_STATUSES" :key="s" :label="s" :value="s" />
+          </el-select>
         </div>
-        <div v-if="!historyList.length" class="result-panel__empty">{{ t('ide.noHistory') }}</div>
+        <div class="history-list__items">
+          <div
+            v-for="item in historyList" :key="item.id"
+            class="history-item" :class="{ active: historySelected?.id === item.id }"
+            @click="selectHistoryItem(item)"
+          >
+            <div class="history-item__head">
+              <el-tag :type="item.status === 'SUCCESS' ? 'success' : item.status === 'FAILED' ? 'danger' : 'warning'" size="small">{{ item.status }}</el-tag>
+              <span class="history-item__time">{{ item.createdAt ? new Date(item.createdAt).toLocaleString() : '' }}</span>
+            </div>
+            <code class="history-item__sql">{{ item.content?.substring(0, 60) || '-' }}</code>
+            <span v-if="item.duration" class="history-item__dur">{{ (item.duration / 1000).toFixed(1) }}s</span>
+          </div>
+          <div v-if="!historyList.length" class="result-panel__empty">{{ t('ide.noHistory') }}</div>
+        </div>
+        <el-pagination
+          v-if="historyListTotal > historyListPageSize"
+          class="history-list__pager"
+          small layout="prev, pager, next" :pager-count="5"
+          :total="historyListTotal" :page-size="historyListPageSize" :current-page="historyListPage"
+          @current-change="onHistoryPageChange"
+        />
       </div>
       <!-- Right: selected item detail -->
       <div class="history-detail">
@@ -219,6 +240,7 @@ import { getRuntimeTypes, type RuntimeTypeDef } from '@/api/config'
 import SqlDiffViewer from '@/components/SqlDiffViewer.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { extractEditorContent, extractDiffContent, extractContentField } from '@/utils/scriptContent'
+import { debounce as debounced } from '@/utils/debounce'
 import { useTaskTypesStore } from '@/stores/taskTypes'
 import { useAiChatStore } from '@/stores/aiChat'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -408,13 +430,32 @@ async function restoreOrFollow(executionId: number) {
 }
 
 // === History ===
+const HISTORY_STATUSES = ['PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED', 'SKIPPED']
 const historyList = ref<any[]>([])
+const historyKeyword = ref('')
+const historyStatus = ref('')
+const historyListPage = ref(1)
+const historyListPageSize = ref(20)
+const historyListTotal = ref(0)
 
 function refreshHistoryIfOpen() {
   if (currentTab.value === 'history') {
     historySelected.value = null
+    historyListPage.value = 1
     loadHistory()
   }
+}
+
+const onHistoryFilterChange = debounced(() => {
+  historyListPage.value = 1
+  historySelected.value = null
+  loadHistory()
+})
+
+function onHistoryPageChange(page: number) {
+  historyListPage.value = page
+  historySelected.value = null
+  loadHistory()
 }
 
 async function loadHistory() {
@@ -422,13 +463,19 @@ async function loadHistory() {
   const scriptCode = activeTab?.scriptCode
   if (!scriptCode) return
   try {
-    const { data } = await listExecutionsByScript(scriptCode)
-    historyList.value = data ?? []
+    const res: any = await listExecutionsByScript(scriptCode, {
+      keyword: historyKeyword.value || undefined,
+      status: historyStatus.value || undefined,
+      pageNum: historyListPage.value,
+      pageSize: historyListPageSize.value,
+    })
+    historyList.value = res.data ?? []
+    historyListTotal.value = res.total ?? 0
     // Auto-select the latest history item
     if (historyList.value.length && !historySelected.value) {
       selectHistoryItem(historyList.value[0])
     }
-  } catch { historyList.value = [] }
+  } catch { historyList.value = []; historyListTotal.value = 0 }
 }
 
 // History detail (independent from current execution)
@@ -754,8 +801,19 @@ async function handleDiffVersion(version: any) {
 .history-panel { display: flex; height: 100%; }
 
 .history-list {
-  width: 280px; flex-shrink: 0; overflow-y: auto;
+  width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid #{$ide-border}; background: #{$ide-panel-bg};
+}
+.history-list__filters {
+  display: flex; gap: 6px; padding: 6px 8px; flex-shrink: 0;
+  border-bottom: 1px solid #{$ide-border};
+  .el-input { flex: 1; }
+  .el-select { width: 110px; flex-shrink: 0; }
+}
+.history-list__items { flex: 1; overflow-y: auto; min-height: 0; }
+.history-list__pager {
+  flex-shrink: 0; justify-content: center; padding: 4px 0;
+  border-top: 1px solid #{$ide-border};
 }
 .history-item {
   padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #{$ide-hover-bg};

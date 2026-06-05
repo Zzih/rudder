@@ -20,6 +20,7 @@ package io.github.zzih.rudder.file.oss;
 import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.file.api.FileStorageUtils;
 import io.github.zzih.rudder.file.api.StorageEntity;
+import io.github.zzih.rudder.file.api.StoragePage;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -157,41 +158,36 @@ public class OssFileStorage implements FileStorage {
     }
 
     @Override
-    public List<StorageEntity> listEntities(String path) {
+    public StoragePage listEntities(String path, String cursor, int limit) {
         try {
             String dirKey = ensureTrailingSlash(toKey(path != null ? path : ""));
+            ListObjectsV2Request req = new ListObjectsV2Request(bucket);
+            req.setPrefix(dirKey);
+            req.setDelimiter("/");
+            req.setMaxKeys(limit);
+            if (cursor != null && !cursor.isEmpty()) {
+                req.setContinuationToken(cursor);
+            }
+            ListObjectsV2Result listing = ossClient.listObjectsV2(req);
+
+            String parentPath = toRelativePath(dirKey);
+            if (parentPath.isEmpty()) {
+                parentPath = "/";
+            }
+
             List<StorageEntity> result = new ArrayList<>();
-            String token = null;
-            do {
-                ListObjectsV2Request req = new ListObjectsV2Request(bucket);
-                req.setPrefix(dirKey);
-                req.setDelimiter("/");
-                req.setMaxKeys(1000);
-                if (token != null) {
-                    req.setContinuationToken(token);
+            for (String cp : listing.getCommonPrefixes()) {
+                result.add(buildDirEntity(toRelativePath(cp), parentPath));
+            }
+            for (OSSObjectSummary summary : listing.getObjectSummaries()) {
+                if (!summary.getKey().equals(dirKey)) {
+                    result.add(buildFileEntity(summary));
                 }
-                ListObjectsV2Result listing = ossClient.listObjectsV2(req);
-
-                String parentPath = toRelativePath(dirKey);
-                if (parentPath.isEmpty()) {
-                    parentPath = "/";
-                }
-
-                for (String cp : listing.getCommonPrefixes()) {
-                    String relPath = toRelativePath(cp);
-                    result.add(buildDirEntity(relPath, parentPath));
-                }
-                for (OSSObjectSummary summary : listing.getObjectSummaries()) {
-                    if (!summary.getKey().equals(dirKey)) {
-                        result.add(buildFileEntity(summary));
-                    }
-                }
-                token = listing.isTruncated() ? listing.getNextContinuationToken() : null;
-            } while (token != null);
-            return result;
+            }
+            return StoragePage.of(result, listing.isTruncated() ? listing.getNextContinuationToken() : null);
         } catch (OSSException | ClientException e) {
             log.warn("Failed to list entities under: {}", path, e);
-            return List.of();
+            return StoragePage.empty();
         }
     }
 

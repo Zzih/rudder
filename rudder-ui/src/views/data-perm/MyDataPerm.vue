@@ -61,20 +61,30 @@ const historyExpanded = ref(false)
 const historyLoaded = ref(false)
 const historyLoading = ref(false)
 const historyGrants = ref<UserGrantView[]>([])
+const historyPage = ref(1)
+const historyPageSize = ref(10)
+const historyTotal = ref(0)
+
+async function loadHistoryPage(page: number) {
+  historyLoading.value = true
+  try {
+    const res = (await listMyGrantsHistory(page, historyPageSize.value)) as any
+    historyGrants.value = (res?.data as UserGrantView[]) ?? []
+    historyTotal.value = res?.total ?? 0
+    historyPage.value = page
+    historyLoaded.value = true
+  } catch {
+    historyGrants.value = []
+    historyTotal.value = 0
+  } finally {
+    historyLoading.value = false
+  }
+}
 
 async function toggleHistory() {
   historyExpanded.value = !historyExpanded.value
   if (historyExpanded.value && !historyLoaded.value) {
-    historyLoading.value = true
-    try {
-      const res = (await listMyGrantsHistory()) as any
-      historyGrants.value = (res?.data as UserGrantView[]) ?? []
-      historyLoaded.value = true
-    } catch {
-      historyGrants.value = []
-    } finally {
-      historyLoading.value = false
-    }
+    await loadHistoryPage(1)
   }
 }
 
@@ -179,7 +189,7 @@ onMounted(loadSummary)
       <button class="history-toggle" type="button" @click="toggleHistory">
         <el-icon class="history-toggle__icon"><Histogram /></el-icon>
         <span class="history-toggle__label">{{ t('dataPerm.historySection') }}</span>
-        <span v-if="historyLoaded" class="history-toggle__count">{{ historyGrants.length }}</span>
+        <span v-if="historyLoaded" class="history-toggle__count">{{ historyTotal }}</span>
         <span class="history-toggle__chevron" :class="{ 'is-open': historyExpanded }">⌄</span>
       </button>
 
@@ -222,6 +232,9 @@ onMounted(loadSummary)
             </div>
           </article>
         </div>
+        <el-pagination v-if="historyTotal > historyPageSize" small layout="prev, pager, next"
+                       :total="historyTotal" :page-size="historyPageSize" :current-page="historyPage"
+                       class="history-pagination" @current-change="loadHistoryPage" />
       </div>
     </section>
   </div>
@@ -417,4 +430,5 @@ onMounted(loadSummary)
 }
 
 .history-body { margin-top: var(--r-space-3); }
+.history-pagination { justify-content: center; margin-top: var(--r-space-3); }
 </style>

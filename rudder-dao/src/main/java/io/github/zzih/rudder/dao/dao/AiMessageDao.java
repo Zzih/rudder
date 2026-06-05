@@ -25,7 +25,8 @@ public interface AiMessageDao {
 
     AiMessage selectById(Long id);
 
-    List<AiMessage> selectBySessionId(Long sessionId);
+    /** 反向滚动游标:早于 beforeId(为空则末尾)的最近 limit 条,按 id 倒序返回。 */
+    List<AiMessage> selectSliceBySessionId(Long sessionId, Long beforeId, int limit);
 
     /** 取最近 N 条消息,用于 turn 历史注入,避免长会话全表扫。 */
     List<AiMessage> selectRecentBySessionId(Long sessionId, int limit);

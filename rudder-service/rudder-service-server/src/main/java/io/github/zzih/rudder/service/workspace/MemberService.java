@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -99,6 +101,12 @@ public class MemberService {
 
     public List<MemberDTO> listByWorkspaceId(Long workspaceId) {
         return enrichList(BeanConvertUtils.convertList(memberDao.selectByWorkspaceId(workspaceId), MemberDTO.class));
+    }
+
+    /** 后端分页 + 用户名后端搜索;username/workspaceName 由 join 补齐,无需 enrich。 */
+    public IPage<MemberDTO> pageByWorkspaceId(Long workspaceId, String keyword, int pageNum, int pageSize) {
+        return BeanConvertUtils.convertPage(
+                memberDao.selectDetailPageByWorkspaceId(workspaceId, keyword, pageNum, pageSize), MemberDTO.class);
     }
 
     public List<MemberDTO> listByUserId(Long userId) {

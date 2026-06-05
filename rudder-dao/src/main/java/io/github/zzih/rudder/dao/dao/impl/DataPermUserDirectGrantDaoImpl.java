@@ -105,8 +105,8 @@ public class DataPermUserDirectGrantDaoImpl implements DataPermUserDirectGrantDa
     }
 
     @Override
-    public List<DataPermUserDirectGrant> selectInactiveByUser(Long userId, LocalDateTime now) {
-        return blockMapper.queryInactiveByUser(userId, now);
+    public List<DataPermUserDirectGrant> selectByIds(Collection<Long> ids) {
+        return ids == null || ids.isEmpty() ? List.of() : blockMapper.queryByIds(ids);
     }
 
     @Override

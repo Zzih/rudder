@@ -35,8 +35,7 @@ public interface DataPermUserDirectGrantMapper extends BaseMapper<DataPermUserDi
 
     List<DataPermUserDirectGrant> queryByApprovalId(@Param("approvalId") Long approvalId);
 
-    List<DataPermUserDirectGrant> queryInactiveByUser(@Param("userId") Long userId,
-                                                      @Param("now") LocalDateTime now);
+    List<DataPermUserDirectGrant> queryByIds(@Param("ids") java.util.Collection<Long> ids);
 
     int expireIfActive(@Param("id") Long id,
                        @Param("now") LocalDateTime now,

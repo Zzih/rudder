@@ -15,21 +15,19 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.dao.dao;
+package io.github.zzih.rudder.dao.projection;
 
-import io.github.zzih.rudder.dao.entity.AiEvalRun;
+import lombok.Data;
 
-import java.util.List;
+/**
+ * 历史(失效)grant 的轻量引用,用于跨 bundle / direct 两表按失效时间统一分页;
+ * 拿到一页的 (id, kind) 后再按 kind 回各自表补全明细。
+ */
+@Data
+public class InactiveGrantRef {
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
+    private Long id;
 
-public interface AiEvalRunDao {
-
-    IPage<AiEvalRun> selectPageByBatch(String batchId, int pageNum, int pageSize);
-
-    List<AiEvalRun> selectByCase(Long caseId, int limit);
-
-    IPage<AiEvalRun> selectPageByCase(Long caseId, int pageNum, int pageSize);
-
-    int insert(AiEvalRun entity);
+    /** ROLE | DIRECT。 */
+    private String kind;
 }

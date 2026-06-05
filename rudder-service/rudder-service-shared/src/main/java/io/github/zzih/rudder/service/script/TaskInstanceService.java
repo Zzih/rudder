@@ -305,8 +305,9 @@ public class TaskInstanceService {
         return instance;
     }
 
-    public List<TaskInstance> listByScriptCode(Long scriptCode) {
-        return taskInstanceDao.selectByScriptCodeOrderByCreatedAtDesc(scriptCode);
+    public IPage<TaskInstance> pageByScriptCode(Long scriptCode, String keyword, String status,
+                                                int pageNum, int pageSize) {
+        return taskInstanceDao.selectPageByScriptCode(scriptCode, keyword, status, pageNum, pageSize);
     }
 
     public List<TaskInstance> listRunning() {
@@ -390,8 +391,10 @@ public class TaskInstanceService {
         return BeanConvertUtils.convert(getById(id), TaskInstanceDTO.class);
     }
 
-    public List<TaskInstanceDTO> listByScriptCodeDetail(Long scriptCode) {
-        return BeanConvertUtils.convertList(listByScriptCode(scriptCode), TaskInstanceDTO.class);
+    public IPage<TaskInstanceDTO> pageByScriptCodeDetail(Long scriptCode, String keyword, String status,
+                                                         int pageNum, int pageSize) {
+        return BeanConvertUtils.convertPage(
+                pageByScriptCode(scriptCode, keyword, status, pageNum, pageSize), TaskInstanceDTO.class);
     }
 
     public ResultResponse getResult(Long id, int offset, int limit) {

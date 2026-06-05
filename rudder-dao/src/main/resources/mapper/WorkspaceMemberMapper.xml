@@ -6,6 +6,29 @@
         created_by, created_at, updated_by, updated_at
     </sql>
 
+    <resultMap id="MemberDetailMap" type="io.github.zzih.rudder.dao.entity.view.WorkspaceMemberDetailView"
+               autoMapping="true">
+        <result column="username" property="username"/>
+        <result column="workspace_name" property="workspaceName"/>
+    </resultMap>
+
+    <!-- 后端分页 + keyword 后端搜索(用户名);username/workspaceName 由 join 补齐,免 service 内存 enrich。 -->
+    <select id="queryDetailPageByWorkspaceId" resultMap="MemberDetailMap">
+        select m.id, m.workspace_id, m.user_id, m.role,
+               m.created_by, m.created_at, m.updated_by, m.updated_at,
+               u.username as username, w.name as workspace_name
+        from t_r_workspace_member m
+        left join t_r_user u on u.id = m.user_id
+        left join t_r_workspace w on w.id = m.workspace_id
+        <where>
+            m.workspace_id = #{workspaceId}
+            <if test="keyword != null and keyword != ''">
+                and u.username like concat('%', #{keyword}, '%')
+            </if>
+        </where>
+        order by m.created_at asc
+    </select>
+
     <select id="queryByWorkspaceIdAndUserId" resultType="io.github.zzih.rudder.dao.entity.WorkspaceMember">
         select <include refid="baseSql"/>
         from t_r_workspace_member

@@ -28,8 +28,6 @@ import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 
-import java.util.List;
-
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,8 +93,12 @@ public class AiEvalController {
     }
 
     @GetMapping("/batches/{batchId}")
-    public Result<List<AiEvalRunResponse>> getBatch(@PathVariable String batchId) {
-        return Result.ok(BeanConvertUtils.convertList(evalService.getBatchDetail(batchId), AiEvalRunResponse.class));
+    public PageResult<AiEvalRunResponse> getBatch(@PathVariable String batchId,
+                                                  @RequestParam(defaultValue = "1") int pageNum,
+                                                  @RequestParam(defaultValue = "20") int pageSize) {
+        return PageResult.of(
+                evalService.pageBatchDetail(batchId, pageNum, pageSize),
+                AiEvalRunResponse.class);
     }
 
     @GetMapping("/cases/{caseId}/runs")

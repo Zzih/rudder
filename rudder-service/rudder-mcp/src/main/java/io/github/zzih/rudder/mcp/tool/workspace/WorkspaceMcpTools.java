@@ -33,6 +33,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WorkspaceMcpTools {
 
+    private static final int MCP_LIST_HARD_CAP = 200;
+
     private final WorkspaceService workspaceService;
     private final MemberService memberService;
 
@@ -42,9 +44,10 @@ public class WorkspaceMcpTools {
         return JsonUtils.toJson(workspaceService.getById(UserContext.requireWorkspaceId()));
     }
 
-    @McpResource(uri = "rudder://workspace/members", name = "workspace-members", description = "Members of the current workspace with their role (VIEWER / DEVELOPER / WORKSPACE_OWNER).", mimeType = "application/json")
+    @McpResource(uri = "rudder://workspace/members", name = "workspace-members", description = "Members of the current workspace with their role (VIEWER / DEVELOPER / WORKSPACE_OWNER). Returns up to 200.", mimeType = "application/json")
     @McpCapability("workspace.view")
     public String listMembers() {
-        return JsonUtils.toJson(memberService.listByWorkspaceId(UserContext.requireWorkspaceId()));
+        return JsonUtils.toJson(memberService.listByWorkspaceId(UserContext.requireWorkspaceId())
+                .stream().limit(MCP_LIST_HARD_CAP).toList());
     }
 }

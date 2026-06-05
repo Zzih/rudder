@@ -45,10 +45,11 @@ public class DatasourceMcpTools {
     private final MetadataService metadataService;
     private final WorkspaceGuard workspaceGuard;
 
-    @McpTool(name = "datasource_list", description = "List datasources visible to the current workspace (credentials redacted).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "datasource_list", description = "List datasources visible to the current workspace (credentials redacted). Returns up to 200.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("datasource.view")
     public List<DatasourceDTO> list() {
-        return datasourceService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId());
+        return datasourceService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId())
+                .stream().limit(MCP_LIST_HARD_CAP).toList();
     }
 
     @McpResource(uri = "rudder://datasource/{name}", name = "rudder-datasource", description = "A datasource registered in the platform (credentials redacted). Use datasource_list to discover names.", mimeType = "application/json")

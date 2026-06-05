@@ -21,14 +21,13 @@ import io.github.zzih.rudder.ai.session.AiSessionService;
 import io.github.zzih.rudder.api.request.AiSessionCreateRequest;
 import io.github.zzih.rudder.api.request.AiSessionUpdateRequest;
 import io.github.zzih.rudder.api.response.AiMessageResponse;
+import io.github.zzih.rudder.api.response.AiMessageSliceResponse;
 import io.github.zzih.rudder.api.response.AiSessionResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
-
-import java.util.List;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -82,8 +81,13 @@ public class AiSessionController {
     }
 
     @GetMapping("/{id}/messages")
-    public Result<List<AiMessageResponse>> messages(@PathVariable Long id) {
-        return Result.ok(BeanConvertUtils.convertList(
-                aiSessionService.listMessagesDetail(id), AiMessageResponse.class));
+    public Result<AiMessageSliceResponse> messages(@PathVariable Long id,
+                                                   @RequestParam(required = false) Long beforeId,
+                                                   @RequestParam(defaultValue = "30") int size) {
+        AiSessionService.MessageSlice slice = aiSessionService.listMessagesSlice(id, beforeId, size);
+        AiMessageSliceResponse response = new AiMessageSliceResponse();
+        response.setMessages(BeanConvertUtils.convertList(slice.messages(), AiMessageResponse.class));
+        response.setHasMore(slice.hasMore());
+        return Result.ok(response);
     }
 }

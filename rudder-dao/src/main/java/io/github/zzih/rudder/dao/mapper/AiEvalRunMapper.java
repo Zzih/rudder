@@ -19,8 +19,6 @@ package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.AiEvalRun;
 
-import java.util.List;
-
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -30,7 +28,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 @Mapper
 public interface AiEvalRunMapper extends BaseMapper<AiEvalRun> {
 
-    List<AiEvalRun> selectByBatch(@Param("batchId") String batchId);
+    IPage<AiEvalRun> selectPageByBatch(IPage<AiEvalRun> page, @Param("batchId") String batchId);
 
     IPage<AiEvalRun> selectPageByCase(IPage<AiEvalRun> page, @Param("caseId") Long caseId);
 }

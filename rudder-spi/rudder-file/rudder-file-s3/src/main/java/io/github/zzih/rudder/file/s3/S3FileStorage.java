@@ -20,6 +20,7 @@ package io.github.zzih.rudder.file.s3;
 import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.file.api.FileStorageUtils;
 import io.github.zzih.rudder.file.api.StorageEntity;
+import io.github.zzih.rudder.file.api.StoragePage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -147,35 +148,30 @@ public class S3FileStorage implements FileStorage {
     }
 
     @Override
-    public List<StorageEntity> listEntities(String path) {
+    public StoragePage listEntities(String path, String cursor, int limit) {
         String keyPrefix = ensureTrailingSlash(toKey(path != null ? path : ""));
+        var reqBuilder = ListObjectsV2Request.builder()
+                .bucket(bucket).prefix(keyPrefix).delimiter("/").maxKeys(limit);
+        if (cursor != null && !cursor.isEmpty()) {
+            reqBuilder.continuationToken(cursor);
+        }
+        ListObjectsV2Response resp = s3.listObjectsV2(reqBuilder.build());
+
+        String parentPath = toRelativePath(keyPrefix);
+        if (parentPath.isEmpty()) {
+            parentPath = "/";
+        }
+
         List<StorageEntity> result = new ArrayList<>();
-        String token = null;
-        do {
-            var reqBuilder = ListObjectsV2Request.builder()
-                    .bucket(bucket).prefix(keyPrefix).delimiter("/");
-            if (token != null) {
-                reqBuilder.continuationToken(token);
+        for (CommonPrefix cp : resp.commonPrefixes()) {
+            result.add(buildDirEntity(toRelativePath(cp.prefix()), parentPath));
+        }
+        for (S3Object obj : resp.contents()) {
+            if (!obj.key().equals(keyPrefix)) {
+                result.add(buildFileEntity(obj));
             }
-            ListObjectsV2Response resp = s3.listObjectsV2(reqBuilder.build());
-
-            String parentPath = toRelativePath(keyPrefix);
-            if (parentPath.isEmpty()) {
-                parentPath = "/";
-            }
-
-            for (CommonPrefix cp : resp.commonPrefixes()) {
-                String relPath = toRelativePath(cp.prefix());
-                result.add(buildDirEntity(relPath, parentPath));
-            }
-            for (S3Object obj : resp.contents()) {
-                if (!obj.key().equals(keyPrefix)) {
-                    result.add(buildFileEntity(obj));
-                }
-            }
-            token = resp.nextContinuationToken();
-        } while (token != null);
-        return result;
+        }
+        return StoragePage.of(result, Boolean.TRUE.equals(resp.isTruncated()) ? resp.nextContinuationToken() : null);
     }
 
     @Override

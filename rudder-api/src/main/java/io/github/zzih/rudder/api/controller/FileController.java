@@ -21,6 +21,7 @@ import io.github.zzih.rudder.api.request.FileContentUpdateRequest;
 import io.github.zzih.rudder.api.request.FileCreateRequest;
 import io.github.zzih.rudder.api.request.FileMkdirRequest;
 import io.github.zzih.rudder.api.request.FileRenameRequest;
+import io.github.zzih.rudder.api.response.FileListResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireDeveloper;
 import io.github.zzih.rudder.api.security.annotation.RequireViewer;
 import io.github.zzih.rudder.common.audit.AuditAction;
@@ -29,11 +30,10 @@ import io.github.zzih.rudder.common.audit.AuditModule;
 import io.github.zzih.rudder.common.audit.AuditResourceType;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.net.HttpUtils;
-import io.github.zzih.rudder.file.api.StorageEntity;
+import io.github.zzih.rudder.file.api.StoragePage;
 import io.github.zzih.rudder.service.file.FileService;
 
 import java.io.InputStream;
-import java.util.List;
 import java.util.Set;
 
 import org.springframework.core.io.InputStreamResource;
@@ -96,8 +96,14 @@ public class FileController {
     // --- 列表查询 ---
 
     @GetMapping
-    public Result<List<StorageEntity>> list(@RequestParam(required = false, defaultValue = "") String path) {
-        return Result.ok(fileService.listEntities(path));
+    public Result<FileListResponse> list(@RequestParam(required = false, defaultValue = "") String path,
+                                         @RequestParam(required = false) String cursor,
+                                         @RequestParam(defaultValue = "100") int limit) {
+        StoragePage page = fileService.listEntities(path, cursor, limit);
+        FileListResponse response = new FileListResponse();
+        response.setEntities(page.entities());
+        response.setNextCursor(page.nextCursor());
+        return Result.ok(response);
     }
 
     // --- 目录 ---

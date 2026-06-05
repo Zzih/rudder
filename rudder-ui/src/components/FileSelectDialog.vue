@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { listFiles, type StorageEntity } from '@/api/file'
+import { ref, computed, watch } from 'vue'
+import { listFiles, sortStorageEntities, type StorageEntity, type FileListResult } from '@/api/file'
 import { ElMessage } from 'element-plus'
 import { Folder, Document, ArrowLeft } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
@@ -19,9 +19,21 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const currentDir = ref('')
 const files = ref<StorageEntity[]>([])
+const nextCursor = ref<string | null>(null)
+const hasMore = computed(() => nextCursor.value != null)
+const FILE_PAGE_SIZE = 100
 const selectedFile = ref('')
+
+function applyFilter(items: StorageEntity[]): StorageEntity[] {
+  const sorted = sortStorageEntities(items)
+  if (props.extensions?.length) {
+    return sorted.filter((f) => f.directory || props.extensions!.some((ext) => f.fileName.endsWith(ext)))
+  }
+  return sorted
+}
 
 const breadcrumbs = ref<{ name: string; path: string }[]>([])
 
@@ -43,23 +55,31 @@ async function navigateTo(path: string) {
   selectedFile.value = ''
   updateBreadcrumbs(path)
   try {
-    const res = await listFiles(path)
-    let items = res.data || []
-    items.sort((a, b) => {
-      if (a.directory !== b.directory) return a.directory ? -1 : 1
-      return a.fileName.localeCompare(b.fileName)
-    })
-    if (props.extensions?.length) {
-      items = items.filter(
-        (f) => f.directory || props.extensions!.some((ext) => f.fileName.endsWith(ext)),
-      )
-    }
-    files.value = items
+    const res = await listFiles(path, undefined, FILE_PAGE_SIZE)
+    const data = (res as unknown as { data: FileListResult }).data
+    files.value = applyFilter(data?.entities ?? [])
+    nextCursor.value = data?.nextCursor ?? null
   } catch {
     ElMessage.error(t('fileDialog.loadFailed'))
     files.value = []
+    nextCursor.value = null
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore() {
+  if (!nextCursor.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const res = await listFiles(currentDir.value, nextCursor.value, FILE_PAGE_SIZE)
+    const data = (res as unknown as { data: FileListResult }).data
+    files.value = applyFilter([...files.value, ...(data?.entities ?? [])])
+    nextCursor.value = data?.nextCursor ?? null
+  } catch {
+    ElMessage.error(t('fileDialog.loadFailed'))
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -166,8 +186,11 @@ function formatSize(size: number): string {
           item.directory ? '' : formatSize(item.size)
         }}</span>
       </div>
-      <div v-if="!loading && files.length === 0" class="fsd-empty">
+      <div v-if="!loading && files.length === 0 && !hasMore" class="fsd-empty">
         {{ t('fileDialog.empty') }}
+      </div>
+      <div v-if="hasMore" class="fsd-load-more">
+        <el-button text size="small" :loading="loadingMore" @click="loadMore">{{ t('file.loadMore') }}</el-button>
       </div>
     </div>
 
