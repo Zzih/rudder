@@ -21,6 +21,7 @@ import io.github.zzih.rudder.approval.api.model.ApprovalAction;
 import io.github.zzih.rudder.approval.api.model.ApprovalCallback;
 import io.github.zzih.rudder.approval.api.model.ApprovalRequest;
 import io.github.zzih.rudder.approval.api.model.StageDecision;
+import io.github.zzih.rudder.approval.api.plugin.ApprovalPluginManager;
 import io.github.zzih.rudder.common.context.UserContext;
 import io.github.zzih.rudder.common.enums.approval.ApprovalStatus;
 import io.github.zzih.rudder.common.enums.approval.DecisionRule;
@@ -133,6 +134,8 @@ public class ApprovalService {
         if (!approvalConfigService.enabled()) {
             record.setStatus(ApprovalStatus.APPROVED);
             record.setResolvedAt(LocalDateTime.now());
+            // channel NOT NULL:审批关闭时记为 LOCAL fallback 渠道(自动通过,无外部路由)。
+            record.setChannel(ApprovalPluginManager.FALLBACK_PROVIDER);
             approvalRecordDao.insert(record);
             log.info("Approval auto-approved (approval disabled): id={}, resourceType={}, resourceCode={}",
                     record.getId(), resourceType, resourceCode);
