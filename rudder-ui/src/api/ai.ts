@@ -201,8 +201,13 @@ export function deleteSession(id: number) {
   return request.delete(`/ai/sessions/${id}`)
 }
 
-export function getSessionMessages(sessionId: number) {
-  return request.get<AiMessageVO[]>(`/ai/sessions/${sessionId}/messages`)
+export interface AiMessageSliceVO {
+  messages: AiMessageVO[]
+  hasMore: boolean
+}
+
+export function getSessionMessages(sessionId: number, params?: { beforeId?: number; size?: number }) {
+  return request.get<AiMessageSliceVO>(`/ai/sessions/${sessionId}/messages`, { params })
 }
 
 // ==================== Skill / MCP (admin + list) ====================
@@ -510,7 +515,8 @@ export const adminEvals = {
   deleteCase: (id: number) => request.delete(`/ai/eval/cases/${id}`),
   runBatch: (category?: string) =>
     request.post<EvalBatchResultVO>('/ai/eval/batches', null, { params: { category } }),
-  getBatch: (batchId: string) => request.get<AiEvalRunVO[]>(`/ai/eval/batches/${batchId}`),
+  getBatch: (batchId: string, pageNum: number = 1, pageSize: number = 20) =>
+    request.get<PageResult<AiEvalRunVO>>(`/ai/eval/batches/${batchId}`, { params: { pageNum, pageSize } }),
   caseHistory: (caseId: number, pageNum: number = 1, pageSize: number = 20) =>
     request.get<PageResult<AiEvalRunVO>>(`/ai/eval/cases/${caseId}/runs`, { params: { pageNum, pageSize } }),
 }

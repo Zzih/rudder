@@ -10,10 +10,16 @@
         created_by, created_at, updated_by, updated_at
     </sql>
 
-    <select id="queryByScriptCode" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
+    <select id="queryPageByScriptCode" resultType="io.github.zzih.rudder.dao.entity.TaskInstance">
         select <include refid="baseSql"/>
         from t_r_task_instance
         where script_code = #{scriptCode}
+        <if test="status != null and status != ''">
+            and status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            and content like concat('%', #{keyword}, '%')
+        </if>
         order by created_at desc
     </select>
 

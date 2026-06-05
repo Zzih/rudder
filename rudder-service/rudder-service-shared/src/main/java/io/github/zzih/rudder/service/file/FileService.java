@@ -22,6 +22,7 @@ import io.github.zzih.rudder.common.exception.BizException;
 import io.github.zzih.rudder.common.exception.NotFoundException;
 import io.github.zzih.rudder.file.api.FileStorage;
 import io.github.zzih.rudder.file.api.StorageEntity;
+import io.github.zzih.rudder.file.api.StoragePage;
 import io.github.zzih.rudder.service.config.FileConfigService;
 
 import java.io.InputStream;
@@ -121,8 +122,13 @@ public class FileService {
 
     // --- 列表查询 ---
 
-    public List<StorageEntity> listEntities(String path) {
-        return storage().listEntities(normalizeRelativePath(path, true));
+    private static final int MAX_LIST_LIMIT = 1000;
+
+    public StoragePage listEntities(String path, String cursor, int limit) {
+        // 夹取到 [1, 1000]:limit<=0 会让 local/hdfs 返回空页却仍给出 nextCursor(游标不前进 → 前端 load-more 死循环),
+        // 且 OSS/S3 的 maxKeys 不接受非正值。
+        int safeLimit = Math.min(Math.max(limit, 1), MAX_LIST_LIMIT);
+        return storage().listEntities(normalizeRelativePath(path, true), cursor, safeLimit);
     }
 
     // --- 目录 ---

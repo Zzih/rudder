@@ -1,11 +1,16 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="io.github.zzih.rudder.dao.mapper.AiMessageMapper">
 
-    <select id="queryBySession" resultType="io.github.zzih.rudder.dao.entity.AiMessage">
+    <!-- 反向无限滚动游标:取早于 beforeId 的最近 limit 条(beforeId 为空则取整段末尾),按 id 倒序返回,由调用方反转为正序。 -->
+    <select id="querySliceBySession" resultType="io.github.zzih.rudder.dao.entity.AiMessage">
         select *
         from t_r_ai_message
         where session_id = #{sessionId}
-        order by created_at asc, id asc
+        <if test="beforeId != null">
+            and id &lt; #{beforeId}
+        </if>
+        order by id desc
+        limit #{limit}
     </select>
 
     <select id="queryRecentBySession" resultType="io.github.zzih.rudder.dao.entity.AiMessage">

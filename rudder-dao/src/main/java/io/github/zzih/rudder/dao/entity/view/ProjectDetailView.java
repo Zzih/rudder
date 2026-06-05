@@ -15,21 +15,16 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.dao.dao;
+package io.github.zzih.rudder.dao.entity.view;
 
-import io.github.zzih.rudder.dao.entity.AiEvalRun;
+import io.github.zzih.rudder.dao.entity.Project;
 
-import java.util.List;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class ProjectDetailView extends Project {
 
-public interface AiEvalRunDao {
-
-    IPage<AiEvalRun> selectPageByBatch(String batchId, int pageNum, int pageSize);
-
-    List<AiEvalRun> selectByCase(Long caseId, int limit);
-
-    IPage<AiEvalRun> selectPageByCase(Long caseId, int pageNum, int pageSize);
-
-    int insert(AiEvalRun entity);
+    private String createdByUsername;
 }

@@ -19,9 +19,11 @@ package io.github.zzih.rudder.dao.mapper;
 
 import io.github.zzih.rudder.dao.entity.DataPermUserBundleGrant;
 import io.github.zzih.rudder.dao.entity.view.DataPermUserBundleGrantDetailView;
+import io.github.zzih.rudder.dao.projection.InactiveGrantRef;
 import io.github.zzih.rudder.dao.projection.UserBundleGrantSummaryRow;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +31,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 @Mapper
 public interface DataPermUserBundleGrantMapper extends BaseMapper<DataPermUserBundleGrant> {
@@ -45,9 +48,12 @@ public interface DataPermUserBundleGrantMapper extends BaseMapper<DataPermUserBu
     List<UserBundleGrantSummaryRow> queryActiveSummaryByUser(@Param("userId") Long userId,
                                                              @Param("asOf") LocalDateTime asOf);
 
-    /** 查 user 已失效(expiration_time <= now)的 role grants;LEFT JOIN role 出 bundleName。 */
-    List<DataPermUserBundleGrantDetailView> queryInactiveByUser(@Param("userId") Long userId,
-                                                                @Param("now") LocalDateTime now);
+    /** 跨 role / direct 两表按失效时间分页出轻量 (id, kind) 引用。 */
+    IPage<InactiveGrantRef> queryInactiveRefsPage(IPage<InactiveGrantRef> page,
+                                                  @Param("userId") Long userId,
+                                                  @Param("now") LocalDateTime now);
+
+    List<DataPermUserBundleGrantDetailView> queryByIds(@Param("ids") Collection<Long> ids);
 
     /** 批量统计:返回 [{bundleId, cnt}] 行集合,cnt=COUNT(DISTINCT user_id) 在 asOf 时活跃,DAO 转 Map<bundleId, count>。 */
     List<Map<String, Object>> queryActiveCountByBundleIds(@Param("bundleIds") List<Long> bundleIds,

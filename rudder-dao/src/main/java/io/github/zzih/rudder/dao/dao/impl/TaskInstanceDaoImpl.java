@@ -46,8 +46,9 @@ public class TaskInstanceDaoImpl implements TaskInstanceDao {
     }
 
     @Override
-    public List<TaskInstance> selectByScriptCodeOrderByCreatedAtDesc(Long scriptCode) {
-        return taskInstanceMapper.queryByScriptCode(scriptCode);
+    public IPage<TaskInstance> selectPageByScriptCode(Long scriptCode, String keyword, String status, int pageNum,
+                                                      int pageSize) {
+        return taskInstanceMapper.queryPageByScriptCode(new Page<>(pageNum, pageSize), scriptCode, keyword, status);
     }
 
     @Override

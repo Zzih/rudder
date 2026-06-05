@@ -51,6 +51,9 @@ export interface UiMessage {
 export const useAiChatStore = defineStore('aiChat', () => {
   // ==================== SESSIONS ====================
 
+  /** 反向无限滚动每页条数(首屏 + 每次上滑)。 */
+  const MESSAGE_PAGE_SIZE = 30
+
   const sessions = ref<AiSessionVO[]>([])
   const activeSessionId = ref<number | null>(null)
   const pendingMode = ref<SessionMode>('CHAT')
@@ -67,6 +70,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     sessions.value = []
     activeSessionId.value = null
     messages.value = []
+    hasMoreOlder.value = false
     streaming.value = false
     streamingSessionId.value = null
     activeStreamId.value = null
@@ -91,12 +95,36 @@ export const useAiChatStore = defineStore('aiChat', () => {
     if (activeSessionId.value === sessionId) return
     activeSessionId.value = sessionId
     messages.value = []
+    hasMoreOlder.value = false
     const session = sessions.value.find(s => s.id === sessionId)
     if (session) pendingMode.value = session.mode
     try {
-      const { data } = await getSessionMessages(sessionId)
-      messages.value = (data ?? []).map(fromApi)
+      const { data } = await getSessionMessages(sessionId, { size: MESSAGE_PAGE_SIZE })
+      messages.value = (data?.messages ?? []).map(fromApi)
+      hasMoreOlder.value = data?.hasMore ?? false
     } catch { /* ignore */ }
+  }
+
+  /** 反向滚动加载更早消息:以当前最老的 DB 消息 id 为游标向前取一页,前插。返回新增条数供视图保持滚动位置。 */
+  async function loadOlderMessages(): Promise<number> {
+    if (!activeSessionId.value || !hasMoreOlder.value || loadingOlder.value) return 0
+    const cursor = messages.value.find(m => typeof m.id === 'number')?.id
+    if (typeof cursor !== 'number') return 0
+    loadingOlder.value = true
+    try {
+      const { data } = await getSessionMessages(activeSessionId.value, {
+        beforeId: cursor,
+        size: MESSAGE_PAGE_SIZE,
+      })
+      const older = (data?.messages ?? []).map(fromApi)
+      messages.value = [...older, ...messages.value]
+      hasMoreOlder.value = data?.hasMore ?? false
+      return older.length
+    } catch {
+      return 0
+    } finally {
+      loadingOlder.value = false
+    }
   }
 
   function startNewSession() {
@@ -137,6 +165,8 @@ export const useAiChatStore = defineStore('aiChat', () => {
   // ==================== MESSAGES ====================
 
   const messages = ref<UiMessage[]>([])
+  const hasMoreOlder = ref(false)
+  const loadingOlder = ref(false)
   /**
    * 当前 turn 正在累积 text/thinking 的 assistant 行的 _tempKey。
    * 每次 tool_result 到达后会"轮换"成一个新的 placeholder,使得 tool 卡片按时序穿插在文本之间。
@@ -364,7 +394,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     sessions, activeSessionId, pendingMode, sessionsLoading, initialized,
     init, reset, loadSessions, switchSession, startNewSession, deleteSession, ensureSession, renameSession,
     // messages
-    messages, currentAssistantKey,
+    messages, currentAssistantKey, hasMoreOlder, loadingOlder, loadOlderMessages,
     // streaming
     streaming, streamingSessionId, activeStreamId, abortFetch,
     sendTurn, cancelCurrent, approveTool,

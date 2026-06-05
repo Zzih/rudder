@@ -50,4 +50,20 @@
         order by id asc
     </select>
 
+    <!-- 候选加入成员:排除已是该 workspace 成员的用户,可选 keyword 模糊匹配用户名。 -->
+    <select id="queryNonMembers" resultType="io.github.zzih.rudder.dao.entity.User">
+        select <include refid="baseSql"/>
+        from t_r_user
+        where not exists (
+            select 1 from t_r_workspace_member m
+            where m.workspace_id = #{workspaceId}
+              and m.user_id = t_r_user.id
+        )
+        <if test="keyword != null and keyword != ''">
+            and username like concat('%', #{keyword}, '%')
+        </if>
+        order by username asc
+        limit #{limit}
+    </select>
+
 </mapper>

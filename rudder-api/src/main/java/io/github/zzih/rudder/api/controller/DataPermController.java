@@ -172,11 +172,12 @@ public class DataPermController {
 
     @GetMapping("/my-grants/history")
     @RequireLoggedIn
-    public Result<List<UserGrantViewResponse>> myGrantsHistory() {
+    public PageResult<UserGrantViewResponse> myGrantsHistory(@RequestParam(defaultValue = "1") int pageNum,
+                                                             @RequestParam(defaultValue = "10") int pageSize) {
         requireEnabled();
         Long userId = UserContext.requireUserId();
-        return Result.ok(BeanConvertUtils.convertListViaJson(
-                grantService.listInactiveByUser(userId), UserGrantViewResponse.class));
+        return PageResult.of(grantService.pageInactiveByUser(userId, pageNum, pageSize),
+                dto -> BeanConvertUtils.convertViaJson(dto, UserGrantViewResponse.class));
     }
 
     // ==================== 资源包(role)管理 ====================

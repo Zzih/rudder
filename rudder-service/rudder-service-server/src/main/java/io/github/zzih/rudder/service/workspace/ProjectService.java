@@ -101,9 +101,11 @@ public class ProjectService {
         return list;
     }
 
-    public IPage<ProjectDTO> pageByWorkspaceId(Long workspaceId, String searchVal, int pageNum, int pageSize) {
+    public IPage<ProjectDTO> pageByWorkspaceId(Long workspaceId, String searchVal, Long createdBy, int pageNum,
+                                               int pageSize) {
         return BeanConvertUtils.convertPage(
-                projectDao.selectPageByWorkspaceId(workspaceId, searchVal, pageNum, pageSize), ProjectDTO.class);
+                projectDao.selectPageByWorkspaceId(workspaceId, searchVal, createdBy, pageNum, pageSize),
+                ProjectDTO.class);
     }
 
     public ProjectDTO update(Long workspaceId, Long code, ProjectDTO body) {

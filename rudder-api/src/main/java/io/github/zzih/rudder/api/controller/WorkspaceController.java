@@ -20,6 +20,7 @@ package io.github.zzih.rudder.api.controller;
 import io.github.zzih.rudder.api.request.MemberAddRequest;
 import io.github.zzih.rudder.api.request.WorkspaceCreateRequest;
 import io.github.zzih.rudder.api.response.MemberResponse;
+import io.github.zzih.rudder.api.response.UserSimpleResponse;
 import io.github.zzih.rudder.api.response.WorkspaceResponse;
 import io.github.zzih.rudder.api.security.annotation.RequireLoggedIn;
 import io.github.zzih.rudder.api.security.annotation.RequireSuperAdmin;
@@ -37,6 +38,7 @@ import io.github.zzih.rudder.common.result.PageResult;
 import io.github.zzih.rudder.common.result.Result;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.service.workspace.MemberService;
+import io.github.zzih.rudder.service.workspace.UserService;
 import io.github.zzih.rudder.service.workspace.WorkspaceService;
 import io.github.zzih.rudder.service.workspace.dto.MemberDTO;
 import io.github.zzih.rudder.service.workspace.dto.WorkspaceDTO;
@@ -63,8 +65,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WorkspaceController {
 
+    private static final int NON_MEMBER_PICKER_LIMIT = 50;
+
     private final WorkspaceService workspaceService;
     private final MemberService memberService;
+    private final UserService userService;
 
     @PostMapping
     @RequireSuperAdmin
@@ -119,8 +124,23 @@ public class WorkspaceController {
 
     @GetMapping("/{id}/members")
     @RequireWorkspaceOwner
-    public Result<List<MemberResponse>> listMembers(@PathVariable Long id) {
-        return Result.ok(BeanConvertUtils.convertList(memberService.listByWorkspaceId(id), MemberResponse.class));
+    public PageResult<MemberResponse> listMembers(@PathVariable Long id,
+                                                  @RequestParam(required = false) String keyword,
+                                                  @RequestParam(defaultValue = "1") int pageNum,
+                                                  @RequestParam(defaultValue = "20") int pageSize) {
+        pageNum = PageRequest.normalizePageNum(pageNum);
+        pageSize = PageRequest.normalizePageSize(pageSize);
+        return PageResult.of(memberService.pageByWorkspaceId(id, keyword, pageNum, pageSize),
+                dto -> BeanConvertUtils.convert(dto, MemberResponse.class));
+    }
+
+    @GetMapping("/{id}/non-members")
+    @RequireWorkspaceOwner
+    public Result<List<UserSimpleResponse>> listNonMembers(@PathVariable Long id,
+                                                           @RequestParam(required = false) String keyword) {
+        return Result.ok(userService.listNonMembersDetail(id, keyword, NON_MEMBER_PICKER_LIMIT).stream()
+                .map(u -> new UserSimpleResponse(u.getId(), u.getUsername()))
+                .toList());
     }
 
     @PostMapping("/{id}/members")

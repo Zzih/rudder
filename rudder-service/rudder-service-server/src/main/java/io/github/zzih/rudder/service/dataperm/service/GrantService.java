@@ -37,6 +37,7 @@ import io.github.zzih.rudder.dao.entity.DataPermUserEffectiveSnapshot;
 import io.github.zzih.rudder.dao.entity.view.DataPermUserBundleGrantDetailView;
 import io.github.zzih.rudder.dao.projection.EffectiveSnapshotRow;
 import io.github.zzih.rudder.dao.projection.GrantItemRow;
+import io.github.zzih.rudder.dao.projection.InactiveGrantRef;
 import io.github.zzih.rudder.dao.projection.UserBundleGrantSummaryRow;
 import io.github.zzih.rudder.service.dataperm.config.DataPermConfigService;
 import io.github.zzih.rudder.service.dataperm.dto.DataPermPermissionItemDTO;
@@ -353,42 +354,62 @@ public class GrantService {
                 .build();
     }
 
-    /** 历史(EXPIRED / REVOKED / ROLE_DELETED)grants 折叠区用。 */
-    public List<UserGrantViewDTO> listInactiveByUser(Long userId) {
+    /**
+     * 历史(EXPIRED / REVOKED / ROLE_DELETED)grants 折叠区用,跨 role / direct 两表按失效时间统一分页。
+     * 先用 UNION 取一页 (id, kind),再按 kind 回各自表补全明细并按页内顺序重排。
+     */
+    public IPage<UserGrantViewDTO> pageInactiveByUser(Long userId, int pageNum, int pageSize) {
         LocalDateTime now = LocalDateTime.now();
-        List<UserGrantViewDTO> views = new ArrayList<>();
+        IPage<InactiveGrantRef> refs = userBundleGrantDao.selectInactiveRefsPage(userId, now, pageNum, pageSize);
 
-        List<DataPermUserBundleGrantDetailView> bundleGrants = userBundleGrantDao.selectInactiveByUser(userId, now);
-        Map<LocalDateTime, List<DataPermUserEffectiveSnapshot>> snapByAsOf = new HashMap<>();
-        for (DataPermUserBundleGrantDetailView g : bundleGrants) {
-            LocalDateTime asOf = g.getExpirationTime() == null ? now : g.getExpirationTime();
-            List<DataPermUserEffectiveSnapshot> snap =
-                    snapByAsOf.computeIfAbsent(asOf, k -> userEffectiveSnapshotDao.selectAt(userId, k));
-            List<DataPermPermissionItemDTO> perms = snapshotPermsForRole(snap, g.getBundleId());
-            views.add(UserGrantViewDTO.builder()
-                    .kind(UserGrantViewDTO.Kind.ROLE)
-                    .bundleId(g.getBundleId())
-                    .bundleName(g.getBundleName() != null ? g.getBundleName()
-                            : I18n.t("msg.dataperm.roleDeleted", g.getBundleId()))
-                    .sourceApprovalId(g.getSourceApprovalId())
-                    .grantId(g.getId())
-                    .effectiveTime(g.getEffectiveTime())
-                    .expirationTime(g.getExpirationTime())
-                    .endReason(g.getEndReason())
-                    .permissions(perms)
-                    .build());
-        }
+        List<Long> roleIds = refs.getRecords().stream()
+                .filter(r -> "ROLE".equals(r.getKind())).map(InactiveGrantRef::getId).toList();
+        List<Long> directIds = refs.getRecords().stream()
+                .filter(r -> "DIRECT".equals(r.getKind())).map(InactiveGrantRef::getId).toList();
 
-        List<DataPermUserDirectGrant> inactive = directGrantDao.selectInactiveByUser(userId, now);
-        if (!inactive.isEmpty()) {
-            Map<Long, String> nameById = accessGroupService.allNames();
-            Map<Long, List<DataPermUserDirectGrantResource>> resourcesByBlock = resourcesByBlock(inactive);
-            Map<Long, String> scopeNameByCode = scopeNameByCode();
-            for (DataPermUserDirectGrant b : inactive) {
-                views.add(directGrantView(toBlockDto(b, nameById, resourcesByBlock, scopeNameByCode)));
+        Map<Long, UserGrantViewDTO> roleViews = new HashMap<>();
+        if (!roleIds.isEmpty()) {
+            Map<LocalDateTime, List<DataPermUserEffectiveSnapshot>> snapByAsOf = new HashMap<>();
+            for (DataPermUserBundleGrantDetailView g : userBundleGrantDao.selectByIds(roleIds)) {
+                LocalDateTime asOf = g.getExpirationTime() == null ? now : g.getExpirationTime();
+                List<DataPermUserEffectiveSnapshot> snap =
+                        snapByAsOf.computeIfAbsent(asOf, k -> userEffectiveSnapshotDao.selectAt(userId, k));
+                List<DataPermPermissionItemDTO> perms = snapshotPermsForRole(snap, g.getBundleId());
+                roleViews.put(g.getId(), UserGrantViewDTO.builder()
+                        .kind(UserGrantViewDTO.Kind.ROLE)
+                        .bundleId(g.getBundleId())
+                        .bundleName(g.getBundleName() != null ? g.getBundleName()
+                                : I18n.t("msg.dataperm.roleDeleted", g.getBundleId()))
+                        .sourceApprovalId(g.getSourceApprovalId())
+                        .grantId(g.getId())
+                        .effectiveTime(g.getEffectiveTime())
+                        .expirationTime(g.getExpirationTime())
+                        .endReason(g.getEndReason())
+                        .permissions(perms)
+                        .build());
             }
         }
-        return views;
+
+        Map<Long, UserGrantViewDTO> directViews = new HashMap<>();
+        if (!directIds.isEmpty()) {
+            List<DataPermUserDirectGrant> directs = directGrantDao.selectByIds(directIds);
+            Map<Long, String> nameById = accessGroupService.allNames();
+            Map<Long, List<DataPermUserDirectGrantResource>> resourcesByBlock = resourcesByBlock(directs);
+            Map<Long, String> scopeNameByCode = scopeNameByCode();
+            for (DataPermUserDirectGrant b : directs) {
+                directViews.put(b.getId(), directGrantView(toBlockDto(b, nameById, resourcesByBlock, scopeNameByCode)));
+            }
+        }
+
+        List<UserGrantViewDTO> ordered = new ArrayList<>(refs.getRecords().size());
+        for (InactiveGrantRef ref : refs.getRecords()) {
+            UserGrantViewDTO v =
+                    "ROLE".equals(ref.getKind()) ? roleViews.get(ref.getId()) : directViews.get(ref.getId());
+            if (v != null) {
+                ordered.add(v);
+            }
+        }
+        return new Page<UserGrantViewDTO>(refs.getCurrent(), refs.getSize(), refs.getTotal()).setRecords(ordered);
     }
 
     /** 撤销单条 role grant。仅 active(expiration_time IS NULL)生效,幂等。 */

@@ -23,8 +23,10 @@ import io.github.zzih.rudder.common.i18n.I18n;
 import io.github.zzih.rudder.common.utils.bean.BeanConvertUtils;
 import io.github.zzih.rudder.dao.dao.AiMessageDao;
 import io.github.zzih.rudder.dao.dao.AiSessionDao;
+import io.github.zzih.rudder.dao.entity.AiMessage;
 import io.github.zzih.rudder.dao.entity.AiSession;
 
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -76,7 +78,20 @@ public class AiSessionService {
         sessionDao.deleteById(id);
     }
 
-    public List<AiMessageDTO> listMessagesDetail(Long sessionId) {
-        return BeanConvertUtils.convertList(messageDao.selectBySessionId(sessionId), AiMessageDTO.class);
+    /**
+     * 反向无限滚动一页:返回早于 {@code beforeId} 的最近一批消息(正序),并指明更早是否还有。
+     * {@code beforeId} 为空表示首屏,取会话末尾。
+     */
+    public MessageSlice listMessagesSlice(Long sessionId, Long beforeId, int size) {
+        List<AiMessage> rows = messageDao.selectSliceBySessionId(sessionId, beforeId, size + 1);
+        boolean hasMore = rows.size() > size;
+        if (hasMore) {
+            rows = rows.subList(0, size);
+        }
+        Collections.reverse(rows);
+        return new MessageSlice(BeanConvertUtils.convertList(rows, AiMessageDTO.class), hasMore);
+    }
+
+    public record MessageSlice(List<AiMessageDTO> messages, boolean hasMore) {
     }
 }

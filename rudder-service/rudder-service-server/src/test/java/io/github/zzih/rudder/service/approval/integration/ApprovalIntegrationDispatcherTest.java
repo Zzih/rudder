@@ -54,7 +54,8 @@ class ApprovalIntegrationDispatcherTest {
     @Test
     @DisplayName("未注册 resourceType → no-op,不抛错不通知")
     void unregisteredResourceTypeNoop() {
-        var dispatcher = new ApprovalIntegrationDispatcher(List.of(), notificationService);
+        var dispatcher =
+                new ApprovalIntegrationDispatcher(List.of(), notificationService, Runnable::run, new long[]{0, 0, 0});
         dispatcher.dispatch(approvedEvent("UNKNOWN", 1L));
         verify(notificationService, never()).notify(any(NotificationMessage.class));
     }
@@ -64,7 +65,8 @@ class ApprovalIntegrationDispatcherTest {
     void firstAttemptSuccess() {
         AtomicInteger calls = new AtomicInteger();
         var integration = recordingIntegration("FOO", e -> calls.incrementAndGet());
-        var dispatcher = new ApprovalIntegrationDispatcher(List.of(integration), notificationService);
+        var dispatcher = new ApprovalIntegrationDispatcher(List.of(integration), notificationService, Runnable::run,
+                new long[]{0, 0, 0});
 
         dispatcher.dispatch(approvedEvent("FOO", 1L));
 
@@ -81,7 +83,8 @@ class ApprovalIntegrationDispatcherTest {
                 throw new RuntimeException("transient");
             }
         });
-        var dispatcher = new ApprovalIntegrationDispatcher(List.of(integration), notificationService);
+        var dispatcher = new ApprovalIntegrationDispatcher(List.of(integration), notificationService, Runnable::run,
+                new long[]{0, 0, 0});
 
         dispatcher.dispatch(approvedEvent("FOO", 1L));
 
@@ -97,7 +100,8 @@ class ApprovalIntegrationDispatcherTest {
             calls.incrementAndGet();
             throw new RuntimeException("permanent");
         });
-        var dispatcher = new ApprovalIntegrationDispatcher(List.of(integration), notificationService);
+        var dispatcher = new ApprovalIntegrationDispatcher(List.of(integration), notificationService, Runnable::run,
+                new long[]{0, 0, 0});
 
         dispatcher.dispatch(approvedEvent("FOO", 42L));
 
@@ -113,7 +117,8 @@ class ApprovalIntegrationDispatcherTest {
         List<String> barHits = new ArrayList<>();
         var foo = recordingIntegration("FOO", e -> fooHits.add("foo-" + e.resourceCode()));
         var bar = recordingIntegration("BAR", e -> barHits.add("bar-" + e.resourceCode()));
-        var dispatcher = new ApprovalIntegrationDispatcher(List.of(foo, bar), notificationService);
+        var dispatcher = new ApprovalIntegrationDispatcher(List.of(foo, bar), notificationService, Runnable::run,
+                new long[]{0, 0, 0});
 
         dispatcher.dispatch(approvedEvent("FOO", 1L));
         dispatcher.dispatch(approvedEvent("BAR", 2L));

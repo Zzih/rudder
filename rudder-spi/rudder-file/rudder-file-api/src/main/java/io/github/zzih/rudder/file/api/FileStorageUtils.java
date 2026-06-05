@@ -30,6 +30,22 @@ public final class FileStorageUtils {
     }
 
     /**
+     * 文件系统(local / HDFS)的游标分页采用 offset 编码:这类后端有惰性迭代器(DirectoryStream /
+     * listStatusIterator)但无原生 token,故 cursor 即「已消费条数」。调用方据此 skip 后取下一段。
+     * 解析失败按 0(首页)处理,避免脏 cursor 抛错。
+     */
+    public static long parseOffsetCursor(String cursor) {
+        if (cursor == null || cursor.isEmpty()) {
+            return 0;
+        }
+        try {
+            return Math.max(0, Long.parseLong(cursor));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
      * 去除首尾斜杠。用于 object storage 的 basePath 规范化。
      */
     public static String stripSlashes(String s) {

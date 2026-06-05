@@ -15,31 +15,18 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.dao.dao;
+package io.github.zzih.rudder.dao.entity.view;
 
 import io.github.zzih.rudder.dao.entity.WorkspaceMember;
-import io.github.zzih.rudder.dao.entity.view.WorkspaceMemberDetailView;
 
-import java.util.List;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class WorkspaceMemberDetailView extends WorkspaceMember {
 
-public interface WorkspaceMemberDao {
+    private String username;
 
-    WorkspaceMember selectByWorkspaceIdAndUserId(Long workspaceId, Long userId);
-
-    List<WorkspaceMember> selectByWorkspaceId(Long workspaceId);
-
-    IPage<WorkspaceMemberDetailView> selectDetailPageByWorkspaceId(Long workspaceId, String keyword, int pageNum,
-                                                                   int pageSize);
-
-    List<WorkspaceMember> selectByWorkspaceIdAndRole(Long workspaceId, String role);
-
-    List<WorkspaceMember> selectByUserId(Long userId);
-
-    int insert(WorkspaceMember member);
-
-    int updateById(WorkspaceMember member);
-
-    int deleteById(Long id);
+    private String workspaceName;
 }

@@ -18,6 +18,7 @@
 package io.github.zzih.rudder.dao.dao;
 
 import io.github.zzih.rudder.dao.entity.Project;
+import io.github.zzih.rudder.dao.entity.view.ProjectDetailView;
 
 import java.util.List;
 
@@ -33,7 +34,8 @@ public interface ProjectDao {
 
     List<Project> selectByWorkspaceId(Long workspaceId);
 
-    IPage<Project> selectPageByWorkspaceId(Long workspaceId, String searchVal, int pageNum, int pageSize);
+    IPage<ProjectDetailView> selectPageByWorkspaceId(Long workspaceId, String searchVal, Long createdBy, int pageNum,
+                                                     int pageSize);
 
     long countByWorkspaceIdAndName(Long workspaceId, String name);
 

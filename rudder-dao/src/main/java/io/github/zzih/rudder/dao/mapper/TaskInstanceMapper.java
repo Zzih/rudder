@@ -31,7 +31,10 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 @Mapper
 public interface TaskInstanceMapper extends BaseMapper<TaskInstance> {
 
-    List<TaskInstance> queryByScriptCode(@Param("scriptCode") Long scriptCode);
+    IPage<TaskInstance> queryPageByScriptCode(IPage<TaskInstance> page,
+                                              @Param("scriptCode") Long scriptCode,
+                                              @Param("keyword") String keyword,
+                                              @Param("status") String status);
 
     List<TaskInstance> queryByWorkflowInstanceId(@Param("workflowInstanceId") Long workflowInstanceId);
 

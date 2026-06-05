@@ -35,12 +35,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ScriptDirMcpTools {
 
+    private static final int MCP_LIST_HARD_CAP = 200;
+
     private final ScriptDirService scriptDirService;
 
-    @McpTool(name = "script_dir_list", description = "List all script directories in the current workspace (flat list with parent ids; reconstruct tree client-side if needed).", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
+    @McpTool(name = "script_dir_list", description = "List all script directories in the current workspace (flat list with parent ids; reconstruct tree client-side if needed). Returns up to 200.", annotations = @McpTool.McpAnnotations(readOnlyHint = true, idempotentHint = true))
     @McpCapability("script.browse")
     public List<ScriptDirDTO> list() {
-        return scriptDirService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId());
+        return scriptDirService.listByWorkspaceIdDetail(UserContext.requireWorkspaceId())
+                .stream().limit(MCP_LIST_HARD_CAP).toList();
     }
 
     @McpTool(name = "script_dir_create", description = "Create a new script directory under given parent (body.parentId null = root).")

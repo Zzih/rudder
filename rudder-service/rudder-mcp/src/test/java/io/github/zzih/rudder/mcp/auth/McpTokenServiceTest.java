@@ -146,9 +146,12 @@ class McpTokenServiceTest {
     }
 
     @Test
-    @DisplayName("createToken: SUPER_ADMIN 申请 → 全部 grant 直接 ACTIVE，不发审批")
-    void createTokenAsSuperAdminBypassesApproval() {
+    @DisplayName("createToken: SUPER_ADMIN 不豁免审批 — WRITE 域仍走 PENDING_APPROVAL + 提交审批")
+    void createTokenAsSuperAdminStillRequiresApproval() {
         stubInsertReturnsId();
+        when(approvalService.submit(any(), eq(ApprovalResourceType.MCP_TOKEN), eq(7L),
+                eq(5L), any(), anyString())).thenReturn(42L);
+
         var req = new CreateTokenCommand(
                 100L, 5L, "admin-cli", null,
                 LocalDateTime.now().plusDays(30),
@@ -163,11 +166,15 @@ class McpTokenServiceTest {
                 ArgumentCaptor.forClass(List.class);
         verify(grantDao).batchInsert(grantCaptor.capture());
         List<McpTokenScopeGrant> grants = grantCaptor.getValue();
-        assertThat(grants).hasSize(3)
-                .allMatch(g -> g.getStatus() == McpScopeGrantStatus.ACTIVE)
-                .allMatch(g -> g.getApprovalId() == null);
-
-        verify(approvalService, never()).submit(any(), anyString(), anyLong(), anyLong(), any(), anyString());
+        assertThat(grants).hasSize(3);
+        // READ 直接 ACTIVE;WRITE 不因 SUPER_ADMIN 豁免,仍 PENDING_APPROVAL,超管只是有权去处理审批。
+        assertThat(grants.stream().filter(g -> g.getStatus() == McpScopeGrantStatus.ACTIVE))
+                .hasSize(1);
+        assertThat(grants.stream().filter(g -> g.getStatus() == McpScopeGrantStatus.PENDING_APPROVAL))
+                .hasSize(2)
+                .allMatch(g -> g.getApprovalId() != null && g.getApprovalId() == 42L);
+        verify(approvalService, times(1)).submit(any(), eq(ApprovalResourceType.MCP_TOKEN),
+                eq(7L), eq(5L), any(), anyString());
     }
 
     @Test

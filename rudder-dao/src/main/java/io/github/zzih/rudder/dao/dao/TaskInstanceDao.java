@@ -30,7 +30,8 @@ public interface TaskInstanceDao {
 
     TaskInstance selectById(Long id);
 
-    List<TaskInstance> selectByScriptCodeOrderByCreatedAtDesc(Long scriptCode);
+    IPage<TaskInstance> selectPageByScriptCode(Long scriptCode, String keyword, String status, int pageNum,
+                                               int pageSize);
 
     List<TaskInstance> selectByWorkflowInstanceId(Long workflowInstanceId);
 

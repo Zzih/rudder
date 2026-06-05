@@ -79,7 +79,15 @@ public interface FileStorage extends AutoCloseable {
 
     List<String> list(String prefix);
 
-    List<StorageEntity> listEntities(String path);
+    /**
+     * 游标分页列举目录单层条目(子目录 + 文件)。
+     *
+     * @param path   目录相对路径
+     * @param cursor 上一页返回的 {@code nextCursor};{@code null} / 空表示首页
+     * @param limit  本页期望条目上限(各 provider 尽力遵守,对象存储以 maxKeys 近似)
+     * @return 本页条目 + nextCursor(null 表示末页);游标语义对调用方不透明
+     */
+    StoragePage listEntities(String path, String cursor, int limit);
 
     StorageEntity getEntity(String path);
 

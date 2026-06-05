@@ -29,7 +29,9 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 @Mapper
 public interface AiMessageMapper extends BaseMapper<AiMessage> {
 
-    List<AiMessage> queryBySession(@Param("sessionId") Long sessionId);
+    List<AiMessage> querySliceBySession(@Param("sessionId") Long sessionId,
+                                        @Param("beforeId") Long beforeId,
+                                        @Param("limit") int limit);
 
     /**
      * 取最近 N 条消息(按 id DESC 截断后再正序返回),供 turn executor 注入历史。

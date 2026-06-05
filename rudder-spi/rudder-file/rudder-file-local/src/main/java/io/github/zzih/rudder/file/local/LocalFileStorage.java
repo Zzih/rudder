@@ -18,10 +18,13 @@
 package io.github.zzih.rudder.file.local;
 
 import io.github.zzih.rudder.file.api.FileStorage;
+import io.github.zzih.rudder.file.api.FileStorageUtils;
 import io.github.zzih.rudder.file.api.StorageEntity;
+import io.github.zzih.rudder.file.api.StoragePage;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,6 +32,8 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -129,16 +134,26 @@ public class LocalFileStorage implements FileStorage {
     }
 
     @Override
-    public List<StorageEntity> listEntities(String path) {
+    public StoragePage listEntities(String path, String cursor, int limit) {
         Path dir = resolve(path != null ? path : "");
         if (!Files.isDirectory(dir)) {
-            return List.of();
+            return StoragePage.empty();
         }
-        try (Stream<Path> stream = Files.list(dir)) {
-            return stream.map(p -> buildEntity(p, baseDir)).toList();
+        long offset = FileStorageUtils.parseOffsetCursor(cursor);
+        // DirectoryStream 惰性读取,不整目录 materialize;按 offset 顺序 skip 再取一页。
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
+            Iterator<Path> it = ds.iterator();
+            for (long i = 0; i < offset && it.hasNext(); i++) {
+                it.next();
+            }
+            List<StorageEntity> result = new ArrayList<>(Math.max(limit, 0));
+            while (result.size() < limit && it.hasNext()) {
+                result.add(buildEntity(it.next(), baseDir));
+            }
+            return StoragePage.of(result, it.hasNext() ? String.valueOf(offset + limit) : null);
         } catch (IOException e) {
             log.warn("Failed to list entities under: {}", path, e);
-            return List.of();
+            return StoragePage.empty();
         }
     }
 

@@ -80,6 +80,14 @@ public class WorkflowInstanceDaoImpl implements WorkflowInstanceDao {
     }
 
     @Override
+    public IPage<WorkflowInstance> selectPageByWorkflowDefinitionCodes(List<Long> workflowDefinitionCodes,
+                                                                       String searchVal, String status,
+                                                                       int pageNum, int pageSize) {
+        return workflowInstanceMapper.queryPageByWorkflowDefinitionCodes(new Page<>(pageNum, pageSize),
+                workflowDefinitionCodes, searchVal, status);
+    }
+
+    @Override
     public List<WorkflowInstance> selectByProjectCodeOrderByCreatedAtDesc(Long projectCode) {
         return workflowInstanceMapper.queryByProjectCode(projectCode);
     }

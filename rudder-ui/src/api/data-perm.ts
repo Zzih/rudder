@@ -306,7 +306,8 @@ export interface UserGrantView {
   permissions: DataPermPermissionItem[]
 }
 
-export const listMyGrantsHistory = () => request.get('/data-perm/my-grants/history')
+export const listMyGrantsHistory = (pageNum = 1, pageSize = 10) =>
+  request.get('/data-perm/my-grants/history', { params: { pageNum, pageSize } })
 
 // ==================== 全部用户权限 (SuperAdmin) ====================
 

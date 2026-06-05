@@ -113,8 +113,9 @@ public class EvalService {
                 BeanConvertUtils.convertList(runs, AiEvalRunDTO.class));
     }
 
-    public List<AiEvalRun> getBatch(String batchId) {
-        return runDao.selectByBatch(batchId);
+    public com.baomidou.mybatisplus.core.metadata.IPage<AiEvalRun> pageBatch(String batchId, int pageNum,
+                                                                             int pageSize) {
+        return runDao.selectPageByBatch(batchId, pageNum, pageSize);
     }
 
     public List<AiEvalRun> getCaseHistory(Long caseId, int limit) {
@@ -194,8 +195,9 @@ public class EvalService {
         updateCase(id, BeanConvertUtils.convert(body, AiEvalCase.class));
     }
 
-    public List<AiEvalRunDTO> getBatchDetail(String batchId) {
-        return BeanConvertUtils.convertList(getBatch(batchId), AiEvalRunDTO.class);
+    public com.baomidou.mybatisplus.core.metadata.IPage<AiEvalRunDTO> pageBatchDetail(String batchId, int pageNum,
+                                                                                      int pageSize) {
+        return BeanConvertUtils.convertPage(pageBatch(batchId, pageNum, pageSize), AiEvalRunDTO.class);
     }
 
     public com.baomidou.mybatisplus.core.metadata.IPage<AiEvalRunDTO> pageCaseHistoryDetail(

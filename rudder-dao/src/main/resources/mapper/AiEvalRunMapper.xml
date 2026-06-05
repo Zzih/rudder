@@ -1,7 +1,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="io.github.zzih.rudder.dao.mapper.AiEvalRunMapper">
 
-    <select id="selectByBatch" resultType="io.github.zzih.rudder.dao.entity.AiEvalRun">
+    <select id="selectPageByBatch" resultType="io.github.zzih.rudder.dao.entity.AiEvalRun">
         select * from t_r_ai_eval_run where batch_id = #{batchId} order by case_id asc
     </select>
 

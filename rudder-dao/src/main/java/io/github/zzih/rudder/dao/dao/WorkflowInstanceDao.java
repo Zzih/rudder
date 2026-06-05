@@ -44,6 +44,9 @@ public interface WorkflowInstanceDao {
 
     List<WorkflowInstance> selectByWorkflowDefinitionCodesOrderByCreatedAtDesc(List<Long> workflowDefinitionCodes);
 
+    IPage<WorkflowInstance> selectPageByWorkflowDefinitionCodes(List<Long> workflowDefinitionCodes, String searchVal,
+                                                                String status, int pageNum, int pageSize);
+
     List<WorkflowInstance> selectByProjectCodeOrderByCreatedAtDesc(Long projectCode);
 
     IPage<WorkflowInstance> selectPageByProjectCode(Long projectCode, String searchVal, String status, int pageNum,

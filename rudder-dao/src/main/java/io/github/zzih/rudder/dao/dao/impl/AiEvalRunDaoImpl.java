@@ -37,8 +37,8 @@ public class AiEvalRunDaoImpl implements AiEvalRunDao {
     private final AiEvalRunMapper mapper;
 
     @Override
-    public List<AiEvalRun> selectByBatch(String batchId) {
-        return mapper.selectByBatch(batchId);
+    public IPage<AiEvalRun> selectPageByBatch(String batchId, int pageNum, int pageSize) {
+        return mapper.selectPageByBatch(new Page<>(pageNum, pageSize), batchId);
     }
 
     @Override

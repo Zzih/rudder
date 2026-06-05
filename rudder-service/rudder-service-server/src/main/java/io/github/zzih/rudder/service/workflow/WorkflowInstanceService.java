@@ -190,6 +190,19 @@ public class WorkflowInstanceService {
         return BeanConvertUtils.convertList(listByWorkspaceId(workspaceId), WorkflowInstanceDTO.class);
     }
 
+    public com.baomidou.mybatisplus.core.metadata.IPage<WorkflowInstanceDTO> pageByWorkspaceIdDTO(Long workspaceId,
+                                                                                                  String searchVal,
+                                                                                                  String status,
+                                                                                                  int pageNum,
+                                                                                                  int pageSize) {
+        List<Long> workflowIds = workflowDefinitionDao.selectIdsByWorkspaceId(workspaceId);
+        if (workflowIds.isEmpty()) {
+            return new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize);
+        }
+        return BeanConvertUtils.convertPage(workflowInstanceDao.selectPageByWorkflowDefinitionCodes(
+                workflowIds, searchVal, status, pageNum, pageSize), WorkflowInstanceDTO.class);
+    }
+
     public WorkflowInstanceDTO createInstanceDTO(Long workflowDefinitionCode, TriggerType triggerType,
                                                  List<Property> runtimeParams) {
         return BeanConvertUtils.convert(createInstance(workflowDefinitionCode, triggerType, runtimeParams),

@@ -19,11 +19,15 @@ package io.github.zzih.rudder.dao.dao.impl;
 
 import io.github.zzih.rudder.dao.dao.WorkspaceMemberDao;
 import io.github.zzih.rudder.dao.entity.WorkspaceMember;
+import io.github.zzih.rudder.dao.entity.view.WorkspaceMemberDetailView;
 import io.github.zzih.rudder.dao.mapper.WorkspaceMemberMapper;
 
 import java.util.List;
 
 import org.springframework.stereotype.Repository;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,6 +45,12 @@ public class WorkspaceMemberDaoImpl implements WorkspaceMemberDao {
     @Override
     public List<WorkspaceMember> selectByWorkspaceId(Long workspaceId) {
         return memberMapper.queryByWorkspaceId(workspaceId);
+    }
+
+    @Override
+    public IPage<WorkspaceMemberDetailView> selectDetailPageByWorkspaceId(Long workspaceId, String keyword,
+                                                                          int pageNum, int pageSize) {
+        return memberMapper.queryDetailPageByWorkspaceId(new Page<>(pageNum, pageSize), workspaceId, keyword);
     }
 
     @Override

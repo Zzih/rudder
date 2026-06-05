@@ -16,13 +16,11 @@
         where source_approval_id = #{approvalId}
     </select>
 
-    <select id="queryInactiveByUser" resultType="io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant">
+    <select id="queryByIds" resultType="io.github.zzih.rudder.dao.entity.DataPermUserDirectGrant">
         select *
         from t_r_data_perm_user_direct_grant
-        where user_id = #{userId}
-          and expiration_time is not null
-          and expiration_time &lt;= #{now}
-        order by expiration_time desc
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
 
     <update id="expireIfActive">

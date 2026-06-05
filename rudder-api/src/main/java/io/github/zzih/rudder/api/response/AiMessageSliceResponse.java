@@ -15,21 +15,15 @@
  * limitations under the License.
  */
 
-package io.github.zzih.rudder.dao.dao;
-
-import io.github.zzih.rudder.dao.entity.AiEvalRun;
+package io.github.zzih.rudder.api.response;
 
 import java.util.List;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
+import lombok.Data;
 
-public interface AiEvalRunDao {
+@Data
+public class AiMessageSliceResponse {
 
-    IPage<AiEvalRun> selectPageByBatch(String batchId, int pageNum, int pageSize);
-
-    List<AiEvalRun> selectByCase(Long caseId, int limit);
-
-    IPage<AiEvalRun> selectPageByCase(Long caseId, int pageNum, int pageSize);
-
-    int insert(AiEvalRun entity);
+    private List<AiMessageResponse> messages;
+    private boolean hasMore;
 }

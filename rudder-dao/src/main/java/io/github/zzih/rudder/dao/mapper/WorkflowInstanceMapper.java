@@ -49,6 +49,11 @@ public interface WorkflowInstanceMapper extends BaseMapper<WorkflowInstance> {
 
     List<WorkflowInstance> queryByWorkflowDefinitionCodes(@Param("workflowDefinitionCodes") List<Long> workflowDefinitionCodes);
 
+    IPage<WorkflowInstance> queryPageByWorkflowDefinitionCodes(IPage<WorkflowInstance> page,
+                                                               @Param("workflowDefinitionCodes") List<Long> workflowDefinitionCodes,
+                                                               @Param("searchVal") String searchVal,
+                                                               @Param("status") String status);
+
     List<WorkflowInstance> queryByProjectCode(@Param("projectCode") Long projectCode);
 
     IPage<WorkflowInstance> queryPageByProjectCode(IPage<WorkflowInstance> page,
