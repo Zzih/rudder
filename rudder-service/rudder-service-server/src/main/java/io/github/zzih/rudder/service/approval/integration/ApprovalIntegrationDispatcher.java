@@ -27,7 +27,6 @@ import io.github.zzih.rudder.service.notification.NotificationService;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -50,49 +49,36 @@ import lombok.extern.slf4j.Slf4j;
 public class ApprovalIntegrationDispatcher {
 
     private static final int MAX_RETRIES = 3;
-    private static final long[] DEFAULT_BACKOFF_MS = {500, 2000, 5000};
+    private static final long[] BACKOFF_MS = {500, 2000, 5000};
 
     private final Map<String, ApprovalIntegration> byType;
     private final NotificationService notificationService;
-    private final Executor executor;
-    private final long[] backoffMs;
+    private final ExecutorService executor = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "approval-integration-dispatch");
+        t.setDaemon(true);
+        return t;
+    });
 
     public ApprovalIntegrationDispatcher(List<ApprovalIntegration> integrations,
                                          NotificationService notificationService) {
-        this(integrations, notificationService, Executors.newFixedThreadPool(2, r -> {
-            Thread t = new Thread(r, "approval-integration-dispatch");
-            t.setDaemon(true);
-            return t;
-        }), DEFAULT_BACKOFF_MS);
-    }
-
-    /** executor 与 backoff 可注入:executor 允许是同线程实现(无生命周期),backoffMs 长度须 ≥ MAX_RETRIES。 */
-    ApprovalIntegrationDispatcher(List<ApprovalIntegration> integrations,
-                                  NotificationService notificationService,
-                                  Executor executor, long[] backoffMs) {
         this.byType = integrations.stream()
                 .collect(Collectors.toUnmodifiableMap(
                         ApprovalIntegration::resourceType,
                         Function.identity()));
         this.notificationService = notificationService;
-        this.executor = executor;
-        this.backoffMs = backoffMs;
         log.info("ApprovalIntegrationDispatcher registered: {}", byType.keySet());
     }
 
     @PreDestroy
     public void shutdown() {
-        if (!(executor instanceof ExecutorService es)) {
-            return;
-        }
-        es.shutdown();
+        executor.shutdown();
         try {
-            if (!es.awaitTermination(10, TimeUnit.SECONDS)) {
-                es.shutdownNow();
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
             }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            es.shutdownNow();
+            executor.shutdownNow();
         }
     }
 
@@ -146,22 +132,10 @@ public class ApprovalIntegrationDispatcher {
     }
 
     private void sleepBackoff(int attempt) {
-        if (attempt >= backoffMs.length) {
-            return;
-        }
-        long ms = backoffMs[attempt];
-        if (ms <= 0) {
-            return;
-        }
         try {
-            Thread.sleep(ms);
+            Thread.sleep(BACKOFF_MS[attempt]);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    /** 包私有,供单测断言注册情况。 */
-    Map<String, ApprovalIntegration> registered() {
-        return byType;
     }
 }
