@@ -331,7 +331,7 @@ function getLevelLoading(lv: ResourceLevelKey): boolean {
           :disabled="forcedAll(lv)"
           collapse-tags collapse-tags-tooltip
           :placeholder="t('dataPerm.apply.placeholderHint')"
-          filterable allow-create
+          filterable
           remote
           :remote-method="getRemoteMethod(lv)"
           reserve-keyword
