@@ -15,7 +15,7 @@
 │    WORKSPACE_OWNER > DEVELOPER > VIEWER                         │
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
-│ 3. 数据源授权           t_r_datasource_permission ( datasource, workspace ) │
+│ 3. 数据源授权           t_r_workspace_permission ( resource_type=DATASOURCE )│
 │    workspace 维度，详见数据源文档                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -43,18 +43,18 @@ else
 
 ## 接口级声明
 
-`@RequireRole(RoleType.X)` 注解写在 Controller 类或方法上，由 `PermissionInterceptor` 拦截。方法级 > 类级。
+角色注解写在 Controller 类或方法上，按等级递增:`@RequireLoggedIn` / `@RequireViewer` / `@RequireDeveloper` / `@RequireWorkspaceOwner` / `@RequireSuperAdmin`。它们都是 Spring Security 的 `@PreAuthorize` 元注解(如 `@RequireWorkspaceOwner` = `@PreAuthorize("hasRole('WORKSPACE_OWNER')")`)，由方法级安全 + `RoleHierarchy`(高等级覆盖低等级)强制。方法级 > 类级。
 
 ```java
 @RestController
-@RequireRole(RoleType.VIEWER)
+@RequireViewer
 public class ScriptController {
 
     @GetMapping("/{id}")
     public R<Script> get(...) { ... }   // VIEWER 即可
 
     @PostMapping
-    @RequireRole(RoleType.DEVELOPER)
+    @RequireDeveloper
     public R<Long> create(...) { ... }  // 升级为 DEVELOPER
 }
 ```
@@ -112,7 +112,7 @@ DELETE /api/workspaces/{id}/members/{uid}   移出（OWNER）
 
 ## 数据源授权
 
-数据源不归任何 workspace，统一在「平台 - 数据源」管理。授权关系存 `t_r_datasource_permission`，被授权的 workspace 内**所有成员**（不论角色）都能看到这个数据源；至于能不能在脚本 / 工作流中使用，仍要叠加 `WORKSPACE_OWNER / DEVELOPER` 的接口要求。
+数据源不归任何 workspace，统一在「平台 - 数据源」管理。授权关系存通用资源授权表 `t_r_workspace_permission`（`resource_type=DATASOURCE`），被授权的 workspace 内**所有成员**（不论角色）都能看到这个数据源；至于能不能在脚本 / 工作流中使用，仍要叠加 `WORKSPACE_OWNER / DEVELOPER` 的接口要求。
 
 ```
 SUPER_ADMIN          → 所有数据源（无授权过滤）
@@ -131,7 +131,11 @@ if (RoleType.of(userInfo.getRole()).getLevel() < RoleType.WORKSPACE_OWNER.getLev
 }
 ```
 
-审批渠道（飞书 / Slack / KissFlow）由 SPI 决定具体落地。审批通过的回调走 `t_r_approval_record`，回流给 Server。
+审批渠道（本地 / 飞书 / Kissflow）由 SPI 决定具体落地。审批通过的回调走 `t_r_approval_record`，回流给 Server。详见 [审批](approval.md)。
+
+## 数据权限
+
+上述维度约束的是「能否进入工作空间、能否调用某接口」。SQL 能访问哪些 catalog / database / table / column 由独立的**数据权限子系统**控制，在任务执行时按表级、列级 enforce，与本章的应用层角色正交。详见 [数据权限](data-permission.md)。
 
 ## API 鉴权
 
@@ -141,12 +145,11 @@ if (RoleType.of(userInfo.getRole()).getLevel() < RoleType.WORKSPACE_OWNER.getLev
 登录（用户名/密码 或 SSO）
    → AuthService.login() 校验 → 颁发 JWT
    → 客户端在 Authorization: Bearer <token> 中携带
-   → 网关侧 PermissionInterceptor:
-       1. 解析 JWT，校验签名 + 过期时间
-       2. 把 userId / username / isSuperAdmin 放到 UserContext
-       3. 取请求路径里的 workspaceId（如 /workspaces/{id}/...）
-       4. 查 t_r_workspace_member 解析当前 workspace 的 role
-       5. 与 @RequireRole 比较，通过 / 拒绝
+   → Spring Security 主链(见 security/jwt.md):
+       1. oauth2ResourceServer 校验签名 + 过期时间
+       2. JwtAuthFilter 把 userId / username / isSuperAdmin 放到 UserContext
+       3. enrichWorkspaceRole 按 X-Workspace-Id header 查 t_r_workspace_member 解析当前 workspace role
+       4. @PreAuthorize 元注解(@RequireXxx)+ RoleHierarchy 比较，通过 / 拒绝
 ```
 
 ### Token 过期
@@ -201,5 +204,7 @@ SSO 用户首次登录时默认无任何 workspace 成员关系——需 `WORKSP
 
 - [配置参考](configuration.md) — JWT / SSO / LDAP
 - [数据源](datasource.md#workspace-授权) — 数据源授权细节
+- [数据权限](data-permission.md) — 表级 / 列级数据访问控制
+- [审批](approval.md) — 发布与权限申请的审批链路
 - [MCP](mcp.md) — PAT token 与 capability 矩阵（角色 → 能力的第二维授权）
 - [security/rotation.md](security/rotation.md) — JWT 密钥轮换

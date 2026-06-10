@@ -39,7 +39,7 @@ Jwts.builder()
 }
 ```
 
-> 不放 workspace 角色 / 列表 — 因为一个用户可同时属于多个 workspace，每个 workspace 的角色独立；workspace role 由 `PermissionInterceptor` 在请求路径上识别 `workspaceId` 后**实时**查 `t_r_workspace_member`。
+> 不放 workspace 角色 / 列表 — 因为一个用户可同时属于多个 workspace，每个 workspace 的角色独立；workspace role 由 `JwtAuthFilter` 按 `X-Workspace-Id` header **实时**查 `t_r_workspace_member` 注入(见下「校验」)。
 
 ## 密钥与算法
 
@@ -58,17 +58,28 @@ rudder:
 
 ## 校验
 
-`PermissionInterceptor`（HandlerInterceptor）流程：
+校验由 Spring Security 承接,`RudderSecurityConfig` 按 `@Order` 拆成三条互斥的 `SecurityFilterChain`,按请求路径排他匹配:
+
+| Order | Chain | 路径 | 鉴权方式 |
+|:--:|:---|:---|:---|
+| 0 | `mcpFilterChain` | `/mcp/**` | `PatAuthFilter` 解析 PAT(`mcp.server.enabled=true` 时存在) |
+| 1 | `oauth2LoginFilterChain` | `/oauth2/authorization/**`、`/login/oauth2/code/**` | OIDC 登录回调(见 [sso.md](sso.md)) |
+| 2 | `mainFilterChain` | 其余全部 | `oauth2ResourceServer.jwt()` 验签 + `JwtAuthFilter` |
+
+拆链的关键约束:MCP 链**不挂** `oauth2ResourceServer`,避免把 PAT 当 JWT 解析;两个自定义 filter(`JwtAuthFilter` / `PatAuthFilter`)各自注册 `FilterRegistrationBean` 并 `setEnabled(false)`,只在所属链内通过 `addFilter` 生效,否则 Spring Boot 会把它们作为全局 servlet filter 再注册一遍,拦截到登录前置端点。
+
+`mainFilterChain` 的 `permitAll` 白名单:SPA 静态资源、登录前置端点(`/api/auth/login` 等)、外部审批回调(`/api/approvals/callback/**`,由 notifier 自校验签名)、健康检查。
+
+主链 JWT 校验流程:
 
 ```
-1. 从 Authorization header 取 "Bearer <token>"
-2. AuthService.parseToken(token)
-   └─ Jwts.parser().verifyWith(jwtKey).parseSignedClaims(...)
-3. 异常分支：
-   - ExpiredJwtException   → BizException(TOKEN_EXPIRED, 401)
-   - 其它解析失败          → AuthException("Invalid token", 401)
-4. 成功 → 把 userId / username / isSuperAdmin 塞到 UserContext（ThreadLocal）
-5. 检查 @RequireRole（详见 permissions.md）
+1. oauth2ResourceServer 从 Authorization header 取 "Bearer <token>" 并验签
+   - 过期 / 验签失败 → JsonAuthenticationEntryPoint 返 JSON 401
+2. JwtAuthFilter 把 JWT claims 灌进 UserContext(ThreadLocal)
+   └─ enrichWorkspaceRole 注入当前 workspace 角色:
+      SUPER_ADMIN 由 JWT claim 决定,跳过成员表查询;
+      普通用户按 X-Workspace-Id header 查 t_r_workspace_member 取角色
+3. 检查 @RequireRole（详见 permissions.md）
 ```
 
 ### `UserContext`

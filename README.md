@@ -339,6 +339,8 @@ rudder-<version>/
   - [任务类型](docs/task-types.md)
   - [数据源](docs/datasource.md)
   - [权限模型](docs/permissions.md)
+  - [数据权限](docs/data-permission.md)
+  - [审批](docs/approval.md)
   - [DolphinScheduler 集成](docs/dolphinscheduler.md)
   - [消息通知](docs/notification.md)
 - 进阶
@@ -403,6 +405,10 @@ rudder-<version>/
 **脱敏规则** — 平台级 PII 规则 + 策略,QueryResult / 日志全局生效
 
 ![Redaction](docs/image/RUDDER_REDACTION_MANAGER.png)
+
+**数据权限** — 表级 / 列级数据访问控制,权限包 + 申请审批,本地鉴权 / Ranger 同步双路 enforce
+
+![Data Permission](docs/image/RUDDER_DATA_PERM.png)
 
 **Runtime 配置** — LOCAL / 阿里云 / AWS 多 Runtime provider 在线配置
 

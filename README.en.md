@@ -335,6 +335,8 @@ rudder-<version>/
   - [Task types](docs/task-types.md)
   - [Datasources](docs/datasource.md)
   - [Permission model](docs/permissions.md)
+  - [Data permission](docs/data-permission.md)
+  - [Approval](docs/approval.md)
   - [DolphinScheduler integration](docs/dolphinscheduler.md)
   - [Notifications](docs/notification.md)
 - Advanced
@@ -399,6 +401,10 @@ rudder-<version>/
 **Redaction rules** — platform-level PII rules + strategies applied globally (query results / logs)
 
 ![Redaction](docs/image/RUDDER_REDACTION_MANAGER.png)
+
+**Data permission** — table / column-level access control, permission bundles + apply-and-approve, dual enforcement via local SQL authz / Ranger sync
+
+![Data Permission](docs/image/RUDDER_DATA_PERM.png)
 
 **Runtime config** — online config for LOCAL / Aliyun / AWS Runtime providers
 

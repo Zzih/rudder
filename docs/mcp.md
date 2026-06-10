@@ -18,7 +18,7 @@ Rudder 内置一个 MCP Server（基于 Spring AI MCP）。任意标准 MCP 客�
 | 概念 | 说明 |
 |:---|:---|
 | **Token (PAT)** | `rdr_pat_xxxxxx` 形式的不可恢复明文，bcrypt 落库；强绑**单个工作空间**，调用范围被锁死 |
-| **Capability** | 能力 ID（如 `metadata.browse` / `execution.run`），共 19 个，按域分组 |
+| **Capability** | 能力 ID（如 `metadata.browse` / `execution.run`），共 20 个，按域分组 |
 | **Tool** | LLM 主动调用的"操作"（共 39 个）。例：`script_create` / `execution_run_script` |
 | **Resource** | LLM 按 URI 读的"资源"（共 16 个），URI 形如 `rudder://script/{code}` |
 | **Completion** | URI 路径变量的前缀补全（共 3 个），让 LLM 不用先 list 就能猜到合法 code |
@@ -55,6 +55,7 @@ export RUDDER_MCP_ENABLED=false
 
 2. **勾选能力**
    - **只读能力**：默认全勾，提交即生效
+   - **默认预勾的写操作**：`execution.run` + `execution.cancel`（运行 / 取消任务是 token 最常见用途，预勾减少漏配）
    - **写操作能力**（仅 DEVELOPER+ 可见）：勾选后会触发审批；所有 WRITE 合并成一份单
    - SUPER_ADMIN 勾 WRITE 直接生效，无审批
 
@@ -385,6 +386,10 @@ rudder:
 ```
 
 超限返回 HTTP 429 + JSON `{ "code": 429, "message": "MCP token rate limit exceeded (120 req/min)" }`，并写审计 `status=DENIED, code=RATE_LIMITED`。
+
+### 列表结果硬上限
+
+list 类 tool（`*_list` 等）单次最多向 LLM 返回 **200 条**（硬编码上限），防止大结果集灌爆 context 窗口。这与 API 端点自身的分页相互独立——API 可返回更多,MCP tool 侧再截断。需要完整数据应改用带分页参数的查询或缩小过滤条件。
 
 ## Streamable HTTP transport
 

@@ -6,7 +6,7 @@
 
 ```
 t_r_datasource              全局数据源池（不属于任何 workspace）
-t_r_datasource_permission   workspace 级授权（多对多）
+t_r_workspace_permission    workspace 级资源授权（resource_type=DATASOURCE，多对多）
 ```
 
 `t_r_datasource` 字段：
@@ -25,23 +25,45 @@ t_r_datasource_permission   workspace 级授权（多对多）
 
 ## 支持的引擎
 
-由 `DatasourceType` 枚举定义：
+数据源采用 SPI 体系(参考 DolphinScheduler 的 `DataSourceClientProvider` 模式),每个引擎一个 plugin 模块:
+
+```
+rudder-spi/rudder-datasource/
+  rudder-datasource-api          DatasourceTypeProvider 契约 + Registry + 抽象基类
+  rudder-datasource-{engine}     具体实现(mysql / postgres / hive / spark / trino
+                                 / clickhouse / doris / starrocks / flink,共 9 个)
+```
+
+`DatasourceTypeProviderRegistry` 在类首次加载时通过 `ServiceLoader` 一次性发现所有 `@AutoService` 自注册的 provider,无需 Spring 容器介入;同 type 重复注册直接抛错暴露装配冲突。`DatasourceTypeProvider` 多态承接方言差异:JDBC URL 拼装、driver class、连接校验、流式 fetch、预览 SQL、catalog 维度等。
+
+引擎与 driver 由 `DatasourceType` 枚举定义,URL 模板**仅含骨架**:
 
 | Type | JDBC Driver | URL 模板 | 三层 catalog |
 |:---|:---|:---|:---:|
 | `HIVE` | `org.apache.hive.jdbc.HiveDriver` | `jdbc:hive2://{host}:{port}/{db}` | |
-| `STARROCKS` | `com.mysql.cj.jdbc.Driver` | `jdbc:mysql://...?useUnicode=true&...&useInformationSchema=false` | ✓ |
-| `MYSQL` | `com.mysql.cj.jdbc.Driver` | `jdbc:mysql://...?useUnicode=true&useInformationSchema=true` | |
-| `DORIS` | `com.mysql.cj.jdbc.Driver` | `jdbc:mysql://...?useSSL=false&allowPublicKeyRetrieval=true` | |
+| `STARROCKS` | `com.starrocks.cj.jdbc.Driver` | `jdbc:starrocks://{host}:{port}/{db}` | ✓ |
+| `MYSQL` | `com.mysql.cj.jdbc.Driver` | `jdbc:mysql://{host}:{port}/{db}` | |
+| `DORIS` | `com.mysql.cj.jdbc.Driver` | `jdbc:mysql://{host}:{port}/{db}` | |
 | `POSTGRES` | `org.postgresql.Driver` | `jdbc:postgresql://{host}:{port}/{db}` | |
 | `CLICKHOUSE` | `com.clickhouse.jdbc.ClickHouseDriver` | `jdbc:clickhouse://{host}:{port}/{db}` | |
 | `TRINO` | `io.trino.jdbc.TrinoDriver` | `jdbc:trino://{host}:{port}/{catalog}` | ✓ |
 | `SPARK` | `org.apache.hive.jdbc.HiveDriver` | `jdbc:hive2://{host}:{port}/{db}` | |
 | `FLINK` | `org.apache.flink.table.jdbc.FlinkDriver` | `jdbc:flink://{host}:{port}/{db}` | |
 
-`DatasourceType.buildJdbcUrl(host, port, database)` 自动渲染模板，并在 `database` 为空时把尾部的 `/` 去掉避免 `jdbc:mysql://host:9030/?params` 这种残留。
+`hasCatalog=true`(STARROCKS / TRINO)暴露 catalog 维度,元数据浏览呈现 `catalog → database → table` 三层;其它引擎呈现 `database → table` 两层。
 
-`hasCatalog=true`（STARROCKS / TRINO）暴露 catalog 维度，元数据浏览呈现 `catalog → database → table` 三层；其它引擎呈现 `database → table` 两层。
+### 连接参数：所配即所见
+
+URL 模板不内置任何工程默认参数(如 `useSSL` / `useInformationSchema`),所有连接参数由用户在数据源 `params` 中配置,经 **Properties 单一路径**装配,不再拼进 URL query string:
+
+```
+Datasource.params (JSON)  ──►  强类型 Properties record  ──►  DataSourceInfo.toConnectionProperties()  ──►  JDBC driver
+                               (如 MysqlConnectionProperties)
+```
+
+这样用户看到的连接参数与实际生效的完全一致,且避免某些 driver(如 Trino)禁止 URL 与 Properties 同名参数双写的问题。每个引擎对应一个强类型 record 描述其可配参数;Kerberos 类系统级配置(Hive 的 `keytabPath` / `krb5ConfPath`)通过 `nonUrlFields()` 标记,走 UGI 而不进连接串。
+
+打开连接时直接用 `DatasourceType` 声明的 driver class 实例化,而非交给 `DriverManager` 轮询——避免多个注册 driver 抢握手时,真实错误被不相关 driver(如 Flink)的异常顶替。
 
 ## 凭证加密
 
@@ -51,8 +73,8 @@ t_r_datasource_permission   workspace 级授权（多对多）
                   RUDDER_ENCRYPT_KEY (≥ 32 字节)
 ```
 
-- 写入：`DatasourceService.save()` 在落库前加密
-- 读取：`DatasourceService.loadDecrypted()` 解密为 in-memory pojo
+- 写入：`DatasourceService.create()` / `update()` 落库前经 `CredentialService.encrypt()` 加密
+- 读取：构建 `DataSourceInfo` 时经 `CredentialService.decrypt()` 解密为 in-memory pojo
 - 输出：响应 DTO 永远脱敏（密码字段隐藏 / 替换为 `***`）
 - 密钥变更：见 [security/rotation.md](security/rotation.md)
 
@@ -62,10 +84,10 @@ t_r_datasource_permission   workspace 级授权（多对多）
 
 数据源连接由 `rudder-datasource` 模块统一管理：
 
-- 每个 datasource 一个 HikariCP pool（lazy 初始化，首次使用时建池）
+- 每个 datasource 一个 HikariCP pool（`ConnectionPoolManager` 按需 lazy 建池）
 - 任务执行 / 元数据浏览 / SQL IDE 共用连接池
-- 池大小、超时由内部默认值控制（暂无 UI 暴露）
-- 数据源更新（host / 端口 / 凭证 / 参数变更）会触发 pool refresh
+- 默认池参数面向元数据查询(并发不高):`maxSize=5`、`minIdle=1`、`connectionTimeout=10s`、`idleTimeout=5min`、`maxLifetime=30min`;validationQuery 由各 provider 提供（暂无 UI 暴露）
+- 数据源变更(host / 端口 / 凭证 / 参数)发布 `DatasourceChangedEvent`，`ConnectionPoolManager` 监听后 evict 对应池，下次取连接时重建
 
 ## 生命周期
 
@@ -81,12 +103,12 @@ t_r_datasource_permission   workspace 级授权（多对多）
 
 `POST /api/datasources/{id}/test`（或新建时使用临时入参测试）：
 
-1. 使用入参构造 JDBC URL
+1. 使用入参构造 JDBC URL 与连接 Properties
 2. 解密 credential
-3. 取 / 还连接（`Connection.isValid(timeout)`）
+3. 调 `provider.validateConnection()` 实连探活
 4. 返回 OK / 错误信息
 
-测试失败也允许保存（适用于未上线的环境），运行任务时仍会再次校验。
+连接失败不吞异常:日志打印完整异常链,并把根因 `cause` 透传给上层,失败消息保留 driver 原始信息(便于区分网络不通、鉴权失败、driver 缺失等)。测试失败也允许保存（适用于未上线的环境），运行任务时仍会再次校验。
 
 ### 删除
 
@@ -94,8 +116,11 @@ t_r_datasource_permission   workspace 级授权（多对多）
 
 ## Workspace 授权
 
+数据源授权走通用资源授权表 `t_r_workspace_permission`（同表也承载数据权限包对工作空间的可见性，按 `resource_type` 区分）：
+
 ```
-t_r_datasource_permission ( id, datasource_id, workspace_id )
+t_r_workspace_permission ( id, workspace_id, resource_type, resource_id )
+  -- 数据源授权：resource_type = 'DATASOURCE'，resource_id = t_r_datasource.id
 ```
 
 - 一个数据源可授权给多个 workspace；同一 workspace 看不到没授权的数据源
@@ -107,8 +132,9 @@ t_r_datasource_permission ( id, datasource_id, workspace_id )
 ```
 SQL 一览：
   SELECT d.* FROM t_r_datasource d
-  JOIN t_r_datasource_permission dp ON dp.datasource_id = d.id
-  WHERE dp.workspace_id = ? AND dp.deleted_at IS NULL AND d.deleted_at IS NULL
+  JOIN t_r_workspace_permission p
+    ON p.resource_type = 'DATASOURCE' AND p.resource_id = d.id
+  WHERE p.workspace_id = ? AND d.deleted_at IS NULL
 ```
 
 ## 跨工作空间共享
@@ -133,6 +159,19 @@ SQL 一览：
 
 详见 AI 模块的 [元数据 provider](ai/providers.md) 与 [知识库](ai/knowledge-base.md)。
 
+### 分页搜索端点
+
+非分页 list 端点(`/{id}/meta/catalogs` 等)供 IDE 树形浏览使用。面向 catalog / table 量级大(10K+)的下拉远程搜索,另有分页 search 端点,参数为 `keyword` + `offset` + `limit`,返回 `PageResult`:
+
+| 端点 | 说明 |
+|:---|:---|
+| `GET /api/datasources/{id}/meta/catalogs/search` | catalog 搜索 |
+| `GET /api/datasources/{id}/meta/databases/search` | database 搜索(可带 `catalog`) |
+| `GET /api/datasources/{id}/meta/databases/{db}/tables/search` | table 搜索 |
+| `GET /api/datasources/{id}/meta/databases/{db}/tables/{table}/columns/search` | column 搜索 |
+
+search 复用 list 的全量缓存命中,在内存做大小写不敏感包含过滤后按 offset / limit 切片,不额外回源。
+
 ## 在任务中使用
 
 任务节点引用数据源的 ID，而不是名字：
@@ -155,7 +194,7 @@ Server 在派发到 Execution 时把 `dataSourceId` 解析为 `DataSourceInfo`�
 - 数据源密码不要复用其它系统密码
 - 生产数据源使用最小权限账号（仅 SELECT / INSERT，不给 DDL）
 - 限制网络层访问（数据源 host 只对 Execution 网段开放）
-- 定期审计 `t_r_datasource_permission`，回收不再需要的授权
+- 定期审计 `t_r_workspace_permission`（`resource_type=DATASOURCE`），回收不再需要的授权
 - `t_r_audit_log` 中会记录所有数据源 CRUD / 授权 / 测试连接操作
 
 ## 排障
