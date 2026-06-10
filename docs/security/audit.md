@@ -176,7 +176,7 @@ resourceCode = ""                     // 不记，非资源级动作（如 LOGIN
 
 ## 查询
 
-`/api/admin/audit-logs`，需要 `@RequireRole(SUPER_ADMIN)`：
+`/api/admin/audit-logs`，需要 `@RequireSuperAdmin`：
 
 ```
 GET /api/admin/audit-logs?

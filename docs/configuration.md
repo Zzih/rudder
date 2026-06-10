@@ -97,9 +97,12 @@ classpath:sql/data.sql         最小种子（admin 用户 + SPI 默认）
 spring.task.execution.pool.core-size       RUDDER_ASYNC_CORE_SIZE     (4)
 spring.task.execution.pool.max-size        RUDDER_ASYNC_MAX_SIZE      (16)
 spring.task.execution.pool.queue-capacity  RUDDER_ASYNC_QUEUE_CAPACITY (1000)
+spring.task.scheduling.pool.size           RUDDER_SCHEDULING_POOL_SIZE (5)
 ```
 
 > 审计日志走 `@Async`，`queue-capacity` 不设上限会让 DB 抖动时积压到 OOM。高流量调大 `MAX_SIZE` 与 `QUEUE_CAPACITY`，低规格保持小。
+>
+> `scheduling.pool.size` 是 `@Scheduled` 任务线程池容量,默认 5,避免单线程下多个周期任务互相饿死。集群单 leader 调度(`ClusterScheduler`)的周期与锁 TTL 在代码内声明,不经环境变量,详见 [架构总览](architecture.md#clusterscheduler-集群单-leader-调度);数据权限 Reconciler 周期可在平台配置页热更新,见 [数据权限](data-permission.md)。
 
 ## 七、工作流执行器
 

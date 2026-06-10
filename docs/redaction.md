@@ -155,7 +155,7 @@ public interface RedactionService {
 - **预览**：输入 `code + sample` 看 `previewStrategy` 输出，验证策略效果
 - 启用 / 停用立即生效（缓存 invalidate）
 
-API 路由由 `RedactionController` + `RedactionAdminService` 提供，全部 `@RequireRole(RoleType.SUPER_ADMIN)`。
+API 路由由 `RedactionController` + `RedactionAdminService` 提供，全部 `@RequireSuperAdmin`。
 
 ## 配置示例
 

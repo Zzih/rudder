@@ -57,19 +57,34 @@ class TaskParam {
 | `sql` | String | 必填，可含 `${var}` / `$[time]` |
 | `sqlType` | `SqlType` | `QUERY` / `NON_QUERY`，未填时 `detectSqlType()` 按首关键字判定 |
 | `executionMode` | String | `BATCH`（默认）；`FLINK_SQL` 可填 `STREAMING` |
-| `queryLimit` | int | 查询返回行数上限，默认 `1000` |
+| `queryLimit` | int | 查询返回行数上限。**运行时由平台「结果格式」配置的 `defaultQueryRows`（默认 `1000`）覆盖,script JSON 里填的值不生效**（见下） |
 | `preStatements` | List&lt;String&gt; | 主 SQL 前依次执行（如 `SET ...`） |
 | `postStatements` | List&lt;String&gt; | 主 SQL 后依次执行（如清理） |
 | `engineParams` | Map&lt;String,String&gt; | 引擎特定参数（透传到 JDBC URL 或 SET 语句） |
 
 `SqlType` 自动检测规则：以 `SELECT / SHOW / DESCRIBE / DESC / EXPLAIN / WITH` 开头视为 `QUERY`，其余 `NON_QUERY`。
 
+#### 查询行数限制
+
+QUERY 类 SQL 的返回行数由平台「结果格式」(RESULT SPI)的 `defaultQueryRows` 统一控制(默认 1000,范围 1–10_000_000),配置走通用 SPI provider schema。生效链路:
+
+```
+RESULT 配置 defaultQueryRows
+  └─ Worker 执行前覆盖 SqlTaskParams.queryLimit,并回写 paramsJson 供 channel.createTask 读取
+       └─ SqlLimitInjector 把 LIMIT n 下推进 SQL 文本(仅期望结果集的语句,保留注释/引号/大小写;
+          已有 LIMIT 或解析失败则跳过)
+            └─ JDBC setMaxRows 作客户端兜底
+```
+
+因此 script JSON 里写的 `queryLimit` 不生效——行数上限是平台级配置,而非每个脚本各自决定。
+
 ### 引擎差异
 
 | 引擎 | 三层 / 两层 | 备注 |
 |:---|:---|:---|
 | HIVE | `database.table` | Hive2 JDBC，需 Kerberos 时通过 `params` 注入 |
-| STARROCKS / DORIS / MYSQL | `database.table` | 走 MySQL JDBC driver |
+| STARROCKS | `catalog.database.table` | StarRocks 原生 JDBC driver |
+| DORIS / MYSQL | `database.table` | 走 MySQL JDBC driver |
 | POSTGRES | `schema.table` | |
 | CLICKHOUSE | `database.table` | 用 ClickHouse 官方 JDBC |
 | TRINO | `catalog.schema.table` | 唯一三层 |

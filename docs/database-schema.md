@@ -42,7 +42,7 @@
 | 表 | 关键字段 | 备注 |
 |:---|:---|:---|
 | `t_r_datasource` | `name`（unique，**不可变**）/ `datasource_type` / `host` / `port` / `database_name` / `params`（JSON）/ `credential`（密文 JSON） | 全局资源池，凭证 AES-CBC 加密，密钥来自 `RUDDER_ENCRYPT_KEY` |
-| `t_r_datasource_permission` | `datasource_id` / `workspace_id` | 多对多授权关系 |
+| `t_r_workspace_permission` | `workspace_id` / `resource_type`（DATASOURCE / DATA_PERM_BUNDLE）/ `resource_id` | 通用资源 → 工作空间可见性授权;UNIQUE `(resource_type, resource_id, workspace_id)` |
 
 详见 [数据源](datasource.md)。
 
@@ -68,12 +68,13 @@
 
 详见 [工作流](workflow.md)。
 
-### 版本与审批（3）
+### 版本与审批（4）
 
 | 表 | 关键字段 | 备注 |
 |:---|:---|:---|
 | `t_r_version_record` | `entity_type`（WORKFLOW/SCRIPT）/ `entity_code` / `version_no` / `snapshot_json` / `comment` | 通用版本快照 |
-| `t_r_approval_record` | `target_type` / `target_id` / `approver_id` / `status` / `comment` | 审批记录（飞书 / Slack / KissFlow 回调） |
+| `t_r_approval_record` | `channel`（LOCAL/LARK/KISSFLOW）/ `external_approval_id` / `resource_type`（PROJECT_PUBLISH/WORKFLOW_PUBLISH/MCP_TOKEN/DATA_PERM_APPLY）/ `resource_code` / `workspace_id` / `project_code` / `title` / `status` / `stage_chain`（JSON）/ `current_stage` / `decision_rule` / `required_count` / `ext_data`（JSON,业务侧重建数据）/ `resolved_at` / `expires_at` / `withdrawn_at` / `withdrawn_reason` | 审批单,见 [审批](approval.md) |
+| `t_r_approval_decision` | `approval_id` / `stage` / `decider_user_id` / `decision`（APPROVE/REJECT）/ `decided_at` / `remark`；UNIQUE `(approval_id, stage, decider_user_id)` | 逐级决议 |
 | `t_r_audit_log` | `user_id` / `username` / `module` / `action` / `target` / `ip` / `user_agent` / `payload` | 全操作审计；只追加，不删除 |
 
 ### 平台 SPI 配置（9）
@@ -106,7 +107,7 @@
 | 方言覆盖 | `t_r_ai_dialect` | `engine_type` / `prompt_slot` |
 | 工具配置 | `t_r_ai_tool_config` | `tool_name` / `tool_kind`（BUILTIN/MCP/SKILL）/ `workspace_ids`（JSON）/ `permission_rule` |
 | MCP server | `t_r_ai_mcp_server` | `name` / `transport`（STDIO/HTTP_SSE）/ `command` / `args` / `env` / `headers` / `enabled` |
-| 元数据同步配置 | `t_r_ai_metadata_sync_config` | `data_source_id` / `cron` / `last_run_at` / `enabled` |
+| 元数据同步配置 | `t_r_ai_metadata_sync_config` | `datasource_id` / `enabled` / `schedule_cron`（空=仅手动）/ `include_catalogs` / `include_databases` / `include_tables` / `exclude_tables` / `max_columns_per_table` / `last_sync_at` / `last_sync_status` |
 | 文档原文 | `t_r_ai_document` | `workspace_ids`（JSON）/ `doc_type`（WIKI/SCRIPT/SCHEMA/METRIC_DEF/RUNBOOK）/ `engine_type` / `source_ref` / `title` / `content` / `content_hash` / `indexed_at` / `deleted_at`；带 `FULLTEXT (title, content) WITH PARSER ngram` |
 | 向量索引 | `t_r_ai_document_embedding` | `document_id` / `chunk_idx` / `qdrant_point_id` / `dim`；向量本身存在 Vector Store |
 | 评测用例 | `t_r_ai_eval_case` | `mode`（CHAT/AGENT）/ `data_source_id` / `prompt` / `expected_json` / `context_json` |
@@ -122,6 +123,23 @@
 | `t_r_redaction_rule` | `name` / `type`（TAG/COLUMN/TEXT）/ `pattern` / `strategy_code` / `priority` / `enabled` | 「匹配什么」 |
 
 详见 [数据脱敏](redaction.md)。
+
+### 数据权限（10）
+
+表级 / 列级数据访问控制,详见 [数据权限](data-permission.md)。
+
+| 表 | 关键字段 | 备注 |
+|:---|:---|:---|
+| `t_r_data_perm_config` | `enabled` / `local_mode_enabled` / `ranger_mode_enabled` / `ranger_admin_url` / `reconcile_interval_seconds` 等 | 平台配置,单行 |
+| `t_r_data_perm_scope` | `code` / `name` / `plugin_type`（HADOOP_SQL/STARROCKS/TRINO/...）/ `metadata_datasource_id` / `managed_task_types`（JSON）/ `ranger_service_name` / `enabled` | 权限域 |
+| `t_r_data_perm_scope_access_group` | `scope_code` / `name` / `accesses`（JSON） | 操作分组 |
+| `t_r_data_perm_bundle` | `name`（unique） / `description` | 权限包(RBAC 角色) |
+| `t_r_data_perm_bundle_statement` | `bundle_id` / `scope_code` / `group_ids`（JSON） | 权限包作用域块 |
+| `t_r_data_perm_bundle_statement_resource` | `statement_id` / `catalog_names` / `database_names` / `table_names` / `column_names`（均 JSON） | 权限包资源路径行 |
+| `t_r_data_perm_user_bundle_grant` | `user_id` / `bundle_id` / `source_approval_id` / `effective_time` / `expiration_time` / `end_reason`（EXPIRED/REVOKED/ROLE_DELETED）/ `end_by` / `end_note` | 用户权限包授权 |
+| `t_r_data_perm_user_direct_grant` | `user_id` / `scope_code` / `group_ids`（JSON）/ `source_approval_id` / `effective_time` / `expiration_time` / `end_reason` / `end_by` / `end_note` | 用户直接授权块 |
+| `t_r_data_perm_user_direct_grant_resource` | `statement_id` / `catalog_names` / `database_names` / `table_names` / `column_names`（均 JSON） | 直接授权资源路径行 |
+| `t_r_data_perm_user_effective_snapshot` | `user_id` / `version` / `snapshot_time` / `scope_code` / `catalog_name` / `database_name` / `table_name` / `column_name` / `accesses`（JSON）/ `source_kinds`（JSON） | 权限事实快照,Reconciler 每轮差量写新 version |
 
 ## 表关系（核心）
 
@@ -200,15 +218,16 @@ t_r_service_registry / t_r_audit_log / t_r_publish_record / t_r_version_record  
 | 工作流不调度 | `t_r_workflow_schedule.status` / `start_time` / `end_time` |
 | 节点没派发 | `t_r_service_registry.status` 是否有 ONLINE Execution |
 | 任务执行失败 | `t_r_task_instance.log_path` / `error_message` |
-| 数据源无法连接 | `t_r_datasource_permission`（workspace 是否授权）+ `t_r_datasource.credential`（密钥是否变更） |
+| 数据源无法连接 | `t_r_workspace_permission`（`resource_type=DATASOURCE`，workspace 是否授权）+ `t_r_datasource.credential`（密钥是否变更） |
 | AI 无法对话 | `t_r_ai_config` type=LLM 是否有 enabled 行 |
 | RAG 召回为空 | `t_r_ai_document.indexed_at` 是否为 null（未向量化） |
 | 用户登录失败 | `t_r_user`（SSO 走 `sso_provider + sso_id`） |
 | 用户没权限 | `t_r_workspace_member.role` |
+| SQL 被本地数据权限拒 | `t_r_data_perm_user_effective_snapshot`（用户在该 Scope 下是否有对应资源 + access） |
 
 ## 相关文档
 
 - [架构总览](architecture.md) — 整体模块依赖
-- [工作流](workflow.md) / [任务类型](task-types.md) / [数据源](datasource.md) / [权限模型](permissions.md) / [AI 模块](ai/README.md) — 各域专题
+- [工作流](workflow.md) / [任务类型](task-types.md) / [数据源](datasource.md) / [权限模型](permissions.md) / [数据权限](data-permission.md) / [审批](approval.md) / [AI 模块](ai/README.md) — 各域专题
 - [`schema.sql`](../rudder-dao/src/main/resources/sql/schema.sql) — 表结构定义
 - [`data.sql`](../rudder-dao/src/main/resources/sql/data.sql) — 种子数据

@@ -22,12 +22,13 @@
 │  OIDC（OAuth2 授权码）├─→ AuthService ─→ JWT  │
 │  LDAP / AD            ┘                         │
 └────────────────────────────────────────────────┘
-                  ↓ JWT bearer
-┌── 拦截层 ─────────────────────────────────────┐
-│  PermissionInterceptor                          │
-│   ├─ verifyWith(jwtKey)  + 过期判定             │
-│   ├─ 解析 UserContext (userId / isSuperAdmin)   │
-│   └─ 配合 @RequireRole 校验 RBAC 等级           │
+                  ↓ JWT bearer / PAT
+┌── 鉴权链(Spring Security 三链) ───────────────┐
+│  mcpFilterChain    /mcp/**  → PatAuthFilter     │
+│  oauth2Login       OIDC 回调                    │
+│  mainFilterChain   其余 → oauth2ResourceServer  │
+│                          .jwt() + JwtAuthFilter │
+│   └─ 灌 UserContext + @RequireRole 校验 RBAC    │
 └────────────────────────────────────────────────┘
                   ↓
 ┌── 业务层 ─────────────────────────────────────┐

@@ -262,5 +262,6 @@ Rudder 一个飞书审批模板可被多种资源类型共用：
 
 ## 相关文档
 
+- [审批](approval.md) — 审批子系统整体架构、阶段模型与生命周期
 - [MCP](mcp.md) — `MCP_TOKEN` 资源类型的写权限审批走这条同一通道（每个 capability 独立审批单）
 - [permissions.md](permissions.md) — 角色与候选审批人解析规则

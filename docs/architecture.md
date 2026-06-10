@@ -131,6 +131,7 @@ io.github.zzih.rudder.service/
 │   ├── NodeIdProvider                     节点身份（node-id 标签 + 默认 hostname-pid）
 │   ├── cache/  GlobalCacheService         项目唯一全局缓存入口
 │   ├── signal/ PubSubSignalRegistry       通用 pub/sub 信号（StreamRegistry / ToolApprovalRegistry 复用）
+│   ├── scheduling/ ClusterScheduler       集群单 leader 周期调度（RedisClusterScheduler）
 │   └── token/                             分布式 token / 限流 / 预算扣减
 ├── config/                   AbstractConfigService + 各 SPI 的 ConfigService
 ├── redaction/                LocalRedactionService + RedactionRuleCache + 日志桥接
@@ -166,6 +167,24 @@ io.github.zzih.rudder.service/
 - `HealthStatus health()` `instance.healthCheck()`
 
 热切换：UI 改配置 → service `save` → `cache.invalidate(GlobalCacheKey.X)` → 全节点 invalidateAll → `removalListener` close 旧实例 → 下次 `active()` 时 loader 拿新实例。下一个调用方立即看到新 client，不重启进程。
+
+### ClusterScheduler 集群单 leader 调度
+
+`ClusterScheduler` 保证一个周期任务在多副本部署下任意时刻最多一个节点执行,替代裸 `@Scheduled`(后者每个副本都会触发)。实现 `RedisClusterScheduler` 经 Redis 锁 `SETNX EX` 抢 leader + 心跳续约,释放用 Lua CAS 防 TTL 过期误删;内部 30s tick 派发,worker 线程池执行任务体。
+
+任务由 `ClusterScheduledTask`(record)声明:`key`(全集群唯一)、`interval`(上轮结束到下轮开始)、`lockTtl`(须 > interval 才能跨周期续约)、`runnable`(须幂等)。`triggerNow(key, reason)` 支持跨周期立即补一次(数据权限审批通过 / 撤销即用此即时触发 Reconciler)。
+
+Redis 命名空间(`RedisNaming`):锁 `rudder:scheduler:lock:*`、上次结束时间 `rudder:scheduler:last-end:*`、即时触发标记 `rudder:scheduler:trigger:*`,state key 带 30 天 TTL 防孤儿。
+
+已迁移到该框架的周期任务:
+
+| 任务 | key | interval |
+|:---|:---|:---|
+| 元数据同步 | `rudder:ai:metadata-sync` | 60s |
+| MCP token 过期扫描 | `rudder:mcp:token-expiry` | 30min |
+| 工作流孤儿回收 | `rudder:workflow:orphan-reap` | 30s |
+
+数据权限 Reconciler 也注册在此框架,其 interval 由配置 `reconcileIntervalSeconds` 提供并支持运行时热更新。
 
 ## 7. service-server 与 ai 业务
 
@@ -292,7 +311,7 @@ t_r_service_registry (
 
 1. **包命名**：每个模块顶级包 `io.github.zzih.rudder.{module}.*`；`rudder-service-*` 与 `rudder-ai` 都在 `service.*` 下，靠子包区分（`service.workflow / service.ai / ...`）
 2. **配置缓存**：所有跨节点配置一致性走 `GlobalCacheService`，禁止业务侧自建 Redis JSON 或 volatile 字段
-3. **后端优先**：查询 / 搜索 / 过滤 / 聚合一律走后端接口；前端不自己拉全量过滤、不自己分页
+3. **后端优先 + 后端分页**：查询 / 搜索 / 过滤 / 聚合一律走后端接口；前端不自己拉全量过滤、不自己分页。列表端点按场景选分页风格——`pageNum`(1 起) + `pageSize` 返 `PageResult`(常规列表)、`offset` + `limit`(流式数据如执行历史)、`cursor` + `limit`(无限滚动 / 文件存储)。文件存储分页返 `StoragePage(entities, nextCursor)`:对象存储用原生 continuationToken,本地 / HDFS 用已消费条数 offset,`nextCursor=null` 表末页。MCP list tool 在分页之上再叠 200 条硬上限,防灌爆 LLM context
 4. **DTO 边界归属**：API request/response → `rudder-api`；DAO entity → `rudder-dao`；RPC 契约 DTO → `rudder-common.execution`；跨模块共享纯 POJO → `rudder-common.model`
 5. **类型 enum**：状态 / 类型字段走 enum（`RuntimeType` / `TaskType` / `RoleType` / `RedactionExecutorType` 等），禁止裸字符串
 6. **MyBatis-Plus**：基础 CRUD 用 `BaseMapper` + 注解；复杂查询走 XML
@@ -304,6 +323,7 @@ t_r_service_registry (
 
 - `ConfigErrorCode`（6001-6010）SPI 配置未就绪 / 失效
 - `LlmErrorCode` / `WorkflowErrorCode` / `WorkspaceErrorCode` / `DatasourceErrorCode` / `ScriptErrorCode` 各域内
+- `DataPermErrorCode`（9300-9399）数据权限:权限包 / 申请 / 操作分组 / Ranger / 本地鉴权
 - 控制器返回 `Result.fail(ErrorCode)`，全局异常处理器统一序列化
 
 ## 13. 部署流程
